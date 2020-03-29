@@ -27,7 +27,7 @@ function install_dependencies () {
     fi
 
     echo "installing python packages ... "
-    sudo pip install -r requirements.txt
+    sudo pip3 install -r requirements.txt
 }
 
 install_dependencies
