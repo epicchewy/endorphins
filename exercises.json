@@ -1,0 +1,159 @@
+{
+    "core": [
+        {
+            "difficulty": "easy", 
+            "name": "Situps", 
+            "reps": 15
+        }, 
+        {
+            "description": "", 
+            "difficulty": "easy", 
+            "name": "Russian Twists", 
+            "reps": 20
+        }, 
+        {
+            "description": "", 
+            "difficulty": "medium", 
+            "name": "V-ups", 
+            "reps": 15
+        }, 
+        {
+            "description": "", 
+            "difficulty": "easy", 
+            "name": "Flutter kicks", 
+            "reps": 100
+        }, 
+        {
+            "description": "", 
+            "difficulty": "easy", 
+            "name": "Scissor kicks", 
+            "reps": 100
+        }, 
+        {
+            "description": "Half reps on each side", 
+            "difficulty": "easy", 
+            "name": "Bicycles", 
+            "reps": 50
+        }, 
+        {
+            "difficulty": "easy", 
+            "name": "Plank walks", 
+            "reps": 10
+        }, 
+        {
+            "description": "Half reps on each leg", 
+            "difficulty": "easy", 
+            "name": "Mountain climbers fast", 
+            "reps": 30
+        }, 
+        {
+            "description": "Short hold against chest and both elbows. Half reps on each leg", 
+            "difficulty": "hard", 
+            "name": "Mountain climbers slow", 
+            "reps": 8
+        }, 
+        {
+            "difficulty": "easy", 
+            "name": "Leg lifts", 
+            "reps": 20
+        }, 
+        {
+            "difficulty": "easy", 
+            "duration": 75, 
+            "name": "Plank", 
+            "rest": 15, 
+            "rounds": 4
+        }, 
+        {
+            "description": "Half rounds on each side", 
+            "difficulty": "easy", 
+            "duration": 45, 
+            "name": "Side plank", 
+            "rest": 15, 
+            "rounds": 4
+        },  
+        {
+            "difficulty": "hard", 
+            "duration": 20, 
+            "name": "Hollow hold", 
+            "rest": 40, 
+            "rounds": 3
+        }
+    ], 
+    "legs": [
+        {
+            "difficulty": "easy", 
+            "name": "Squats", 
+            "reps": 10
+        }, 
+        {
+            "description": "Half reps on each side", 
+            "difficulty": "hard", 
+            "name": "One legged squats", 
+            "reps": 10
+        }, 
+        {
+            "difficulty": "easy", 
+            "name": "Jumping squats", 
+            "reps": 15
+        }, 
+        {
+            "description": "Half reps on each side", 
+            "difficulty": "medium", 
+            "name": "Lunges", 
+            "reps": 20
+        }, 
+        {
+            "description": "Half reps on each leg", 
+            "difficulty": "medium", 
+            "name": "Side lunges", 
+            "reps": 20
+        }, 
+        {
+            "difficulty": "medium", 
+            "duration": 45, 
+            "name": "Wall sits", 
+            "rest": 15, 
+            "rounds": 5
+        }
+    ], 
+    "upper body": [
+        {
+            "difficulty": "medium", 
+            "name": "Push ups", 
+            "reps": 10
+        }, 
+        {
+            "difficulty": "hard", 
+            "name": "Wide push ups", 
+            "reps": 10
+        }, 
+        {
+            "description": "Half reps on each side", 
+            "difficulty": "hard", 
+            "name": "Offset push ups", 
+            "reps": 10
+        }, 
+        {
+            "difficulty": "hard", 
+            "name": "Diamond push ups", 
+            "reps": 8
+        }, 
+        {
+            "difficulty": "medium", 
+            "name": "Burpees", 
+            "reps": 10
+        }, 
+        {
+            "difficulty": "medium", 
+            "name": "Tricep dips", 
+            "reps": 10
+        }, 
+        {
+            "description": "Raise knee to elbow at the bottom of the push up. Half reps on each side", 
+            "difficulty": "hard", 
+            "name": "Spider man push ups", 
+            "reps": 10
+        }
+    ]
+}
