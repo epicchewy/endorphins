@@ -10,7 +10,7 @@ $ make install
 
 ## Usage
 
-You can change the duration and intensity of the workouts. The default duration is 60 minutes with a supported range of 30 to 120 minutes and the default intensity is 3 with a supported range of 1 to 5. All workouts will be available under the ./workouts folder.
+You can change the duration and intensity of the workouts. The default duration is 60 minutes with a supported range of 30 to 120 minutes and the default intensity is 3 with a supported range of 1 to 5. All workouts will be available under the `./workouts` folder.
 
 ### Generate with defaults
 ```
