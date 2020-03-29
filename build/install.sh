@@ -33,3 +33,4 @@ install_dependencies
 
 echo "creating workout output directory"
 mkdir -p workouts
+chmod 777 workouts # hack
