@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import datetime
 import json
 import logging
@@ -178,7 +176,7 @@ def write_pdf(id, blocks, estimated_duration, focus):
 def main():
     duration, level, id = int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3])+1
 
-    logger.info('Creating workout ${}'.format(id))
+    logger.info('Creating workout #{}'.format(id))
 
     validate_input(duration, level)
     blocks, estimated_duration, focus = generate_workout(duration, level)
