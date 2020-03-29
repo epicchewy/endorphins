@@ -4,6 +4,7 @@ Endorphins is a tool that randomly generates body-weight workouts based on a set
 
 ## Installation
 
+Warning: Installation might take a while if you dont already have `brew` installed on your machine.
 ```
 $ make install
 ```
