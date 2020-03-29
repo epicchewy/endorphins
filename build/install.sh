@@ -11,12 +11,12 @@ function command_exists() {
 function install_dependencies () {
     if ! command_exists brew; then
         echo "lets install brew"
-        curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh
+        echo | bash <(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)
     else
         echo "very nice you have brew"
     fi
 
-    if ! command_exists python; then
+    if [! command_exists python] || [! command_exists pip ]; then
         echo "lets install python"
         brew update && brew install python
         echo "alias python=/usr/local/bin/python3" >> $HOME/.bash_profile
