@@ -19,9 +19,6 @@ function install_dependencies () {
     if ! command_exists python || ! command_exists pip3; then
         echo "lets install python"
         brew update && brew install python
-        echo "alias python=/usr/local/bin/python3" >> $HOME/.bash_profile
-        echo "alias pip=pip3" >> $HOME/.bash_profile
-        source $HOME/.bash_profile
     else
         echo "very nice. you have python"
     fi
