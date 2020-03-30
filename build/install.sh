@@ -16,7 +16,7 @@ function install_dependencies () {
         echo "very nice you have brew"
     fi
 
-    if ! command_exists python3 || ! command_exists pip3; then
+    if ! command_exists python || ! command_exists pip3; then
         echo "lets install python"
         brew update && brew install python
     else
