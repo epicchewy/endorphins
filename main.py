@@ -75,7 +75,11 @@ def generate_workout(duration, level):
         minutes = 0
 
         for b in blocks:
-            minutes += (b['sets'] * compute_exercise_minutes(b['exercises']))
+            block_time = compute_exercise_minutes(b['exercises'])
+            total_time = b['sets'] * block_time
+            b['block_time'] = total_time
+            b['set_difficulty'] = get_block_difficulty(b['exercises'])
+            minutes += total_time
 
         if minutes > duration:
             break
@@ -87,7 +91,7 @@ def compute_exercise_minutes(exercises):
     for e in exercises:
         if 'duration' in e.keys():
             seconds = e['rounds'] * (e['duration'] + e['rest'])
-            minutes = seconds / 60
+            minutes = int(seconds / 60)
             total_minutes += minutes + 1 # account for rest after each set
         else:
             difficulty = e['difficulty']
@@ -99,6 +103,9 @@ def compute_exercise_minutes(exercises):
                 total_minutes += 5
     return total_minutes
 
+def get_block_difficulty(exercises):
+    return max(list(map(lambda x : x['difficulty'], exercises)), key=exercises.count).capitalize()
+
 # returns total minutes of inital set of exercises, exercises [{}...], and index of focus area
 def get_initial_exercises(exercises):
     blocks = []
@@ -107,13 +114,15 @@ def get_initial_exercises(exercises):
     upper_body_samples = random.sample(exercises['upper body'], UPPER_BODY_SAMPLES)
     core_samples = random.sample(exercises['core'], CORE_SAMPLES)
 
-    blocks.append({'title': 'Legs', 'sets': 1, 'exercises': leg_samples})
-    blocks.append({'title': 'Upper Body', 'sets': 1, 'exercises': upper_body_samples})
-    blocks.append({'title': 'Core', 'sets': 1, 'exercises': core_samples})
-
     minutes_tuple = (compute_exercise_minutes(leg_samples), compute_exercise_minutes(upper_body_samples), compute_exercise_minutes(core_samples))
     total_minutes = sum(minutes_tuple)
     focus_idx = minutes_tuple.index(max(minutes_tuple)) # return key to use in generate_workout()
+
+    leg_difficulty, upper_body_difficulty, core_difficulty = get_block_difficulty(leg_samples), get_block_difficulty(upper_body_samples), get_block_difficulty(core_samples)
+
+    blocks.append({'title': 'Legs', 'sets': 1, 'set_time': minutes_tuple[0], 'set_difficulty': leg_difficulty, 'exercises': leg_samples})
+    blocks.append({'title': 'Upper Body', 'sets': 1, 'set_time': minutes_tuple[1], 'set_difficulty': upper_body_difficulty, 'exercises': upper_body_samples})
+    blocks.append({'title': 'Core', 'sets': 1, 'set_time': minutes_tuple[2], 'set_difficulty': core_difficulty, 'exercises': core_samples})
 
     return total_minutes, blocks, focus_idx
 
@@ -144,7 +153,7 @@ def write_pdf(id, blocks, estimated_duration, focus):
 
     for b in blocks:
         pdf.set_font('Arial', 'B', 15)
-        pdf.cell(40, 8, b['title'])
+        pdf.cell(40, 8, '({}) {} - {} minutes'.format(b['set_difficulty'], b['title'], b['block_time']))
         pdf.ln()
         pdf.set_font('Arial', 'B', 12)
         if b['sets'] == 1:
