@@ -120,9 +120,9 @@ def get_initial_exercises(exercises):
 
     leg_difficulty, upper_body_difficulty, core_difficulty = get_block_difficulty(leg_samples), get_block_difficulty(upper_body_samples), get_block_difficulty(core_samples)
 
-    blocks.append({'title': 'Legs', 'sets': 1, 'set_time': minutes_tuple[0], 'set_difficulty': leg_difficulty, 'exercises': leg_samples})
-    blocks.append({'title': 'Upper Body', 'sets': 1, 'set_time': minutes_tuple[1], 'set_difficulty': upper_body_difficulty, 'exercises': upper_body_samples})
-    blocks.append({'title': 'Core', 'sets': 1, 'set_time': minutes_tuple[2], 'set_difficulty': core_difficulty, 'exercises': core_samples})
+    blocks.append({'title': 'Legs', 'sets': 1, 'block_time': minutes_tuple[0], 'set_difficulty': leg_difficulty, 'exercises': leg_samples})
+    blocks.append({'title': 'Upper Body', 'sets': 1, 'block_time': minutes_tuple[1], 'set_difficulty': upper_body_difficulty, 'exercises': upper_body_samples})
+    blocks.append({'title': 'Core', 'sets': 1, 'block_time': minutes_tuple[2], 'set_difficulty': core_difficulty, 'exercises': core_samples})
 
     return total_minutes, blocks, focus_idx
 
