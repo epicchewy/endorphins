@@ -1,0 +1,209 @@
+{
+    "core": [
+        {
+            "description": "Try to move feet as little as possible", 
+            "difficulty": "medium", 
+            "name": "Situps", 
+            "reps": 25
+        }, 
+        {
+            "description": "Twist at top of rep. Switch sides every 5 reps", 
+            "difficulty": "medium", 
+            "name": "Situps with twist", 
+            "reps": 20
+        },
+        {
+            "difficulty": "easy", 
+            "name": "Russian Twists", 
+            "reps": 40
+        }, 
+        {
+            "description": "", 
+            "difficulty": "medium", 
+            "name": "V-ups", 
+            "reps": 15
+        }, 
+        {
+            "description": "Keep arms outstretched. Only lower back should be touching the ground", 
+            "difficulty": "medium", 
+            "name": "Flutter kicks", 
+            "reps": 100
+        }, 
+        {
+            "description": "", 
+            "difficulty": "medium", 
+            "name": "Scissor kicks", 
+            "reps": 80
+        }, 
+        {
+            "description": "Do these as fast and as high as you can", 
+            "difficulty": "easy", 
+            "name": "Supermans", 
+            "reps": 20
+        }, 
+        {
+            "description": "Half reps on each side", 
+            "difficulty": "easy", 
+            "name": "Bicycles", 
+            "reps": 50
+        }, 
+        {
+            "description": "Half reps on each leg", 
+            "difficulty": "easy", 
+            "name": "Mountain climbers fast", 
+            "reps": 50
+        }, 
+        {
+            "description": "Short hold against chest and both elbows. Half reps on each leg", 
+            "difficulty": "hard", 
+            "name": "Mountain climbers slow", 
+            "reps": 8
+        }, 
+        {
+            "difficulty": "easy", 
+            "name": "Leg lifts", 
+            "reps": 20
+        },  
+        {
+            "description": "Keep both hands flat against the ground", 
+            "difficulty": "easy", 
+            "duration": 45, 
+            "name": "Plank", 
+            "rest": 15, 
+            "rounds": 4
+        }, 
+        {
+            "description": "Half rounds on each side", 
+            "difficulty": "medium", 
+            "duration": 40, 
+            "name": "Side plank on arm with raised leg",  
+            "rest": 20, 
+            "rounds": 4
+        },  
+        {
+            "description": "Hold arms in a T or out in front", 
+            "difficulty": "hard", 
+            "duration": 15, 
+            "name": "Hollow hold", 
+            "rest": 15, 
+            "rounds": 6
+        }
+    ], 
+    "legs": [
+        {
+            "difficulty": "easy", 
+            "name": "Squats", 
+            "reps": 15
+        }, 
+        {
+            "description": "Half reps on each side", 
+            "difficulty": "hard", 
+            "name": "One legged squats", 
+            "reps": 8
+        }, 
+        {
+            "difficulty": "easy", 
+            "name": "Jumping squats", 
+            "reps": 15
+        }, 
+        {
+            "description": "Jump from one lunge into the next lunge. Do these FAST", 
+            "difficulty": "easy", 
+            "name": "Lunge jumps", 
+            "reps": 10
+        }, 
+        {
+            "description": "Half reps on each side", 
+            "difficulty": "medium", 
+            "name": "Lunges", 
+            "reps": 20
+        }, 
+        {
+            "description": "Reverse lunge into knee drive to chest. Half reps on each side", 
+            "difficulty": "easy", 
+            "name": "Lunge to knee drive", 
+            "reps": 10
+        },
+        {
+            "description": "Half reps on each leg", 
+            "difficulty": "medium", 
+            "name": "Side lunge into jump", 
+            "reps": 16
+        },
+        {
+            "description": "Hop side to side ~5 ft. Backflag hard and land on one leg.", 
+            "difficulty": "medium", 
+            "name": "Skater Hops", 
+            "reps": 12
+        }, 
+        {
+            "difficulty": "medium", 
+            "duration": 45, 
+            "name": "Wall sits", 
+            "rest": 15, 
+            "rounds": 4
+        },
+        {
+            "difficulty": "easy", 
+            "name": "Hindu Squats", 
+            "reps": 15
+        }
+    ], 
+    "upper body": [
+        {
+            "difficulty": "easy", 
+            "name": "Push ups", 
+            "reps": 15
+        }, 
+        {
+            "difficulty": "medium", 
+            "name": "Wide push ups", 
+            "reps": 15
+        }, 
+        {
+            "description": "One hand above head other hand at hip. Half reps on each side", 
+            "difficulty": "hard", 
+            "name": "Offset push ups", 
+            "reps": 16
+        }, 
+        {
+            "difficulty": "medium", 
+            "name": "Diamond push ups", 
+            "reps": 8
+        }, 
+        {
+            "difficulty": "medium", 
+            "name": "Burpees with pushups", 
+            "reps": 15
+        }, 
+        {
+            "description": "Find a chair or slightly elevated surface for these.",
+            "difficulty": "easy", 
+            "name": "Tricep dips", 
+            "reps": 15
+        }, 
+        {
+            "difficulty": "medium", 
+            "name": "Hand stand pushups", 
+            "reps": 10
+        }, 
+        {
+            "description": "Back against wall, hands raised. Pull elbows past 90. Squeeze back HARD.",
+            "difficulty": "medium", 
+            "name": "Scapular Squeezes", 
+            "reps": 10
+        }, 
+        {
+            "description": "Downward dog to upward dog and back to downward dog is one rep",
+            "difficulty": "hard", 
+            "name": "Hindu push ups", 
+            "reps": 8
+        },
+        {
+            "description": "Raise knee to elbow at the bottom of the push up. Half reps on each side", 
+            "difficulty": "medium", 
+            "name": "Spider man push ups", 
+            "reps": 10
+        }
+    ]
+}

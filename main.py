@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import datetime
 import json
 import logging
@@ -23,7 +25,7 @@ focus_area_mapping = {
 # temp constants
 CORE_SAMPLES = 4
 LEG_SAMPLES = 3
-UPPER_BODY_SAMPLES = 2
+UPPER_BODY_SAMPLES = 3
 
 # exercise difficulty enums
 EASY = 'easy'
@@ -46,31 +48,31 @@ def validate_input(duration, level):
 def generate_workout(duration, level):
     logger.info('Choosing exercises ...')
     curr_dir = os.path.dirname(__file__)
-    rel_path = 'exercises.json'
+    rel_path = 'exercises/level-{}.json'.format(level)
     abs_file_path = os.path.join(curr_dir, rel_path)
 
     with open(abs_file_path) as ef:
        exercises = json.load(ef)
 
     # no need to warm up for workouts <= 45 min
-    im, ib, fi = get_initial_exercises(exercises)
+    im, ib = get_initial_exercises(exercises)
 
     blocks = ib
     minutes = im
-    focus = focus_area_mapping[fi]
 
     # account for warmup time
     if duration >= 45:
         minutes += 5
 
-    while minutes < duration - 2:
+    while minutes < duration - 5:
         # flip a coin between adding sets or adding exercises
-        if random.random() < .5:
-            rand_idx = random.randint(0, 2)
+        rand_idx = random.randint(0, 2)
+
+        if random.random() < .6:
             blocks[rand_idx]['sets'] += 1
         else:
-            focus_exercises = exercises[focus]
-            blocks[fi]['exercises'] += random.sample(focus_exercises, 1)
+            new_exercises = exercises[focus_area_mapping[rand_idx]]
+            blocks[rand_idx]['exercises'] += random.sample(new_exercises, 1)
 
         minutes = 0
 
@@ -84,7 +86,14 @@ def generate_workout(duration, level):
         if minutes > duration:
             break
 
-    return blocks, minutes, focus
+    total_leg_time = compute_exercise_minutes(blocks[0]['exercises']) * blocks[0]['sets']
+    total_upperbody_time = compute_exercise_minutes(blocks[1]['exercises']) * blocks[1]['sets']
+    total_core_time = compute_exercise_minutes(blocks[2]['exercises']) * blocks[2]['sets']
+
+    minutes_tuple = (total_leg_time, total_upperbody_time, total_core_time)
+    focus_idx = minutes_tuple.index(max(minutes_tuple))
+
+    return blocks, minutes, focus_area_mapping[focus_idx]
 
 def compute_exercise_minutes(exercises):
     total_minutes = 0
@@ -116,7 +125,6 @@ def get_initial_exercises(exercises):
 
     minutes_tuple = (compute_exercise_minutes(leg_samples), compute_exercise_minutes(upper_body_samples), compute_exercise_minutes(core_samples))
     total_minutes = sum(minutes_tuple)
-    focus_idx = minutes_tuple.index(max(minutes_tuple)) # return key to use in generate_workout()
 
     leg_difficulty, upper_body_difficulty, core_difficulty = get_block_difficulty(leg_samples), get_block_difficulty(upper_body_samples), get_block_difficulty(core_samples)
 
@@ -124,12 +132,12 @@ def get_initial_exercises(exercises):
     blocks.append({'title': 'Upper Body', 'sets': 1, 'block_time': minutes_tuple[1], 'set_difficulty': upper_body_difficulty, 'exercises': upper_body_samples})
     blocks.append({'title': 'Core', 'sets': 1, 'block_time': minutes_tuple[2], 'set_difficulty': core_difficulty, 'exercises': core_samples})
 
-    return total_minutes, blocks, focus_idx
+    return total_minutes, blocks
 
-def write_pdf(id, blocks, estimated_duration, focus):
+def write_pdf(id, blocks, estimated_duration, focus, level):
     today = datetime.date.today()
     file_name = './workouts/{}.pdf'.format(today.strftime('workout-{}-%m-%d-%Y'.format(id)))
-    title = today.strftime('Workout #{}, Date: %m-%d-%Y'.format(id))
+    title = today.strftime('Workout #{}, Date: %m-%d-%Y, Level {}'.format(id, level))
 
     pdf = FPDF()
     pdf.add_page()
@@ -153,7 +161,7 @@ def write_pdf(id, blocks, estimated_duration, focus):
 
     for b in blocks:
         pdf.set_font('Arial', 'B', 15)
-        pdf.cell(40, 8, '({}) {} - {} minutes'.format(b['set_difficulty'], b['title'], b['block_time']))
+        pdf.cell(40, 8, '{} - {} minutes'.format(b['title'], b['block_time']))
         pdf.ln()
         pdf.set_font('Arial', 'B', 12)
         if b['sets'] == 1:
@@ -189,7 +197,7 @@ def main():
 
     validate_input(duration, level)
     blocks, estimated_duration, focus = generate_workout(duration, level)
-    write_pdf(id, blocks, estimated_duration, focus)
+    write_pdf(id, blocks, estimated_duration, focus, level)
 
 if __name__ == '__main__':
     main()

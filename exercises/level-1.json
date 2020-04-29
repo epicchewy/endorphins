@@ -1,0 +1,196 @@
+{
+    "core": [
+        {
+            "difficulty": "easy", 
+            "name": "Situps", 
+            "reps": 15
+        }, 
+        {
+            "description": "Both legs up, twisting to both sides is 1 rep.", 
+            "difficulty": "easy", 
+            "name": "Russian Twists", 
+            "reps": 20
+        }, 
+        {
+            "description": "Hands under butt. Only lower back should be touching the ground", 
+            "difficulty": "medium", 
+            "name": "Flutter kicks", 
+            "reps": 50
+        }, 
+        {
+            "description": "Hands under butt. Only lower back should be touching the ground", 
+            "difficulty": "medium", 
+            "name": "Scissor kicks", 
+            "reps": 25
+        }, 
+        {
+            "description": "Half reps on each side", 
+            "difficulty": "medium", 
+            "name": "Bicycles", 
+            "reps": 30
+        }, 
+        {
+            "description": "Lower back on ground, shoulders off ground, slowly open opposite arm and leg", 
+            "difficulty": "medium", 
+            "name": "Dead bug", 
+            "reps": 10
+        }, 
+        {
+            "difficulty": "easy", 
+            "name": "Plank walks", 
+            "reps": 10
+        }, 
+        {
+            "description": "Half reps to each leg", 
+            "difficulty": "easy", 
+            "name": "Mountain climbers fast", 
+            "reps": 30
+        },  
+        {
+            "description": "Hands under butt. Don't let your feet touch the ground between reps.", 
+            "difficulty": "medium", 
+            "name": "Leg lifts", 
+            "reps": 15
+        }, 
+        {
+            "difficulty": "easy", 
+            "name": "Supermans", 
+            "reps": 15
+        }, 
+        {
+            "difficulty": "hard", 
+            "duration": 40, 
+            "name": "Plank", 
+            "rest": 20, 
+            "rounds": 3
+        }, 
+        {
+            "description": "Switch sides every round.", 
+            "difficulty": "hard", 
+            "duration": 30, 
+            "name": "Side plank on elbow", 
+            "rest": 30, 
+            "rounds": 4
+        }
+    ], 
+    "legs": [
+        {
+            "difficulty": "easy", 
+            "name": "Jumping Jacks", 
+            "reps": 25
+        }, 
+        {
+            "difficulty": "easy", 
+            "name": "Squats", 
+            "reps": 10
+        }, 
+        {
+            "difficulty": "medium", 
+            "name": "Jumping squats", 
+            "reps": 10
+        }, 
+        {
+            "description": "Jump between a normal and wide squat. In and out is 1 rep", 
+            "difficulty": "easy", 
+            "name": "In and out squat jump", 
+            "reps": 10
+        }, 
+        {
+            "description": "Half reps with each leg forward. 5 pulses is 1 rep", 
+            "difficulty": "easy", 
+            "name": "Lunge Pulses", 
+            "reps": 6
+        }, 
+        {
+            "description": "Half reps on each leg", 
+            "difficulty": "medium", 
+            "name": "Lunges", 
+            "reps": 12
+        }, 
+        {
+            "description": "Half reps on each leg", 
+            "difficulty": "medium", 
+            "name": "Side lunges", 
+            "reps": 12
+        }, 
+        {
+            "difficulty": "easy", 
+            "name": "Calf raises", 
+            "reps": 10
+        }, 
+        {
+            "description": "In squat, rock from your heels to your toes", 
+            "difficulty": "easy", 
+            "name": "Squat Rocks", 
+            "reps": 10
+        }, 
+        {
+            "difficulty": "hard", 
+            "duration": 40, 
+            "name": "Wall sits", 
+            "rest": 20, 
+            "rounds": 3
+        }
+    ], 
+    "upper body": [
+        {
+            "difficulty": "easy", 
+            "name": "Push ups on knees", 
+            "reps": 10
+        }, 
+        {
+            "difficulty": "medium", 
+            "name": "Wide push ups on knees", 
+            "reps": 8
+        }, 
+        {
+            "difficulty": "easy", 
+            "name": "Burpees no push up", 
+            "reps": 10
+        },
+        {
+            "description": "From push-up position, use one hand to tap the opposite shoudler",
+            "difficulty": "easy", 
+            "name": "Shoulder Taps", 
+            "reps": 20
+        },
+        {
+            "description": "Arms outstretched, small weight in each hand, make slow, small circles.",
+            "difficulty": "medium", 
+            "name": "Slow arm circles", 
+            "reps": 10
+        },
+        {
+            "description": "Arms outstretched in a T. Small weights in each hand",
+            "difficulty": "hard", 
+            "duration": 20, 
+            "name": "Elevated arm holds", 
+            "rest": 40, 
+            "rounds": 3
+        },
+        {
+            "difficulty": "easy", 
+            "description": "With small weights, bend over slightly and extend arms back until straight",
+            "name": "Tricep extensions", 
+            "reps": 15
+        }, 
+        {
+            "description": "In push-up position, cross left over right then cross back to push-up.",
+            "difficulty": "medium", 
+            "name": "Side-Walking Plank", 
+            "reps": 10
+        },
+        {
+            "description": "Half reps on each side.",
+            "difficulty": "medium", 
+            "name": "Handstand shoulder taps", 
+            "reps": 10
+        },
+        {
+            "description": "In push-up position, bring elbow straight up to side. Half reps on each arm", 
+            "difficulty": "medium", 
+            "name": "Plank rows", 
+            "reps": 16
+        }
+    ]
+}

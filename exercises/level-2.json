@@ -1,0 +1,175 @@
+{
+    "core": [
+        {
+            "difficulty": "easy", 
+            "name": "Situps", 
+            "reps": 20
+        }, 
+        {
+            "description": "", 
+            "difficulty": "easy", 
+            "name": "Russian Twists", 
+            "reps": 20
+        }, 
+        {
+            "description": "", 
+            "difficulty": "easy", 
+            "name": "V-ups", 
+            "reps": 10
+        }, 
+        {
+            "description": "Keep arms outstretched. Only lower back should be touching the ground", 
+            "difficulty": "medium", 
+            "name": "Flutter kicks", 
+            "reps": 50
+        }, 
+        {
+            "description": "Hands under butt. Only lower back should be touching the ground", 
+            "difficulty": "medium", 
+            "name": "Scissor kicks", 
+            "reps": 30
+        }, 
+        {
+            "description": "Half reps on each side", 
+            "difficulty": "medium", 
+            "name": "Bicycles", 
+            "reps": 40
+        }, 
+        {
+            "difficulty": "easy", 
+            "name": "Plank walks", 
+            "reps": 20
+        }, 
+        {
+            "description": "Half reps on each leg", 
+            "difficulty": "easy", 
+            "name": "Mountain climbers fast", 
+            "reps": 50
+        }, 
+        {
+            "description": "Hands under butt. Don't let your feet touch the ground between reps.", 
+            "difficulty": "medium", 
+            "name": "Leg lifts", 
+            "reps": 15
+        },
+        {
+            "difficulty": "easy", 
+            "name": "Supermans", 
+            "reps": 15
+        },  
+        {
+            "difficulty": "hard", 
+            "duration": 45, 
+            "name": "Plank", 
+            "rest": 15, 
+            "rounds": 4
+        }, 
+        {
+            "description": "Half rounds on each side", 
+            "difficulty": "easy", 
+            "duration": 40, 
+            "name": "Side plank", 
+            "rest": 20, 
+            "rounds": 4
+        }
+    ], 
+    "legs": [
+        {
+            "difficulty": "easy", 
+            "name": "Jumping Jacks", 
+            "reps": 30
+        }, 
+        {
+            "difficulty": "easy", 
+            "name": "Squats", 
+            "reps": 15
+        }, 
+        {
+            "difficulty": "medium", 
+            "name": "Jumping squats", 
+            "reps": 10
+        }, 
+        {
+            "description": "Jump between a normal and wide squat. In and out is 1 rep", 
+            "difficulty": "easy", 
+            "name": "In and out squat jump", 
+            "reps": 10
+        }, 
+        {
+            "description": "Half reps on each side", 
+            "difficulty": "medium", 
+            "name": "Lunges", 
+            "reps": 20
+        }, 
+        {
+            "description": "Half reps on each leg", 
+            "difficulty": "medium", 
+            "name": "Side lunges", 
+            "reps": 20
+        }, 
+        {
+            "difficulty": "easy", 
+            "name": "Calf raises", 
+            "reps": 15
+        }, 
+        {
+            "difficulty": "easy", 
+            "name": "Skater Hops", 
+            "reps": 10
+        }, 
+        {
+            "difficulty": "medium", 
+            "duration": 40, 
+            "name": "Wall sits", 
+            "rest": 20, 
+            "rounds": 4
+        }
+    ], 
+    "upper body": [
+        {
+            "difficulty": "easy", 
+            "name": "Push ups on knees", 
+            "reps": 15
+        }, 
+        {
+            "difficulty": "medium", 
+            "name": "Wide push ups on knees", 
+            "reps": 10
+        }, 
+        {
+            "difficulty": "hard", 
+            "name": "Diamond push ups on knees", 
+            "reps": 8
+        }, 
+        {
+            "difficulty": "easy", 
+            "name": "Burpees without pushups", 
+            "reps": 15
+        }, 
+        {
+            "description": "Arms outstretched, small weight in each hand, make slow, small circles.",
+            "difficulty": "medium", 
+            "name": "Slow arm circles", 
+            "reps": 15
+        },
+        {
+            "difficulty": "easy", 
+            "description": "With small weights, bend over slightly and extend arms back until straight",
+            "name": "Tricep extensions", 
+            "reps": 20
+        },
+        {
+            "difficulty": "hard", 
+            "duration": 20, 
+            "name": "Hand stand holds", 
+            "rest": 40, 
+            "rounds": 3
+        },
+        {
+            "description": "In push-up position, bring elbow straight up to side. Half reps on each arm", 
+            "difficulty": "easy", 
+            "name": "Plank rows", 
+            "reps": 20
+        }
+    ]
+}

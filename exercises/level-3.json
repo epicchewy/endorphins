@@ -3,32 +3,38 @@
         {
             "difficulty": "easy", 
             "name": "Situps", 
-            "reps": 15
+            "reps": 25
         }, 
         {
             "description": "", 
             "difficulty": "easy", 
             "name": "Russian Twists", 
-            "reps": 20
+            "reps": 30
         }, 
         {
             "description": "", 
             "difficulty": "medium", 
             "name": "V-ups", 
-            "reps": 15
+            "reps": 12
         }, 
         {
             "description": "", 
             "difficulty": "easy", 
             "name": "Flutter kicks", 
-            "reps": 100
+            "reps": 80
         }, 
         {
             "description": "", 
             "difficulty": "easy", 
             "name": "Scissor kicks", 
-            "reps": 100
+            "reps": 50
         }, 
+        {
+            "description": "Try to get as high as you can", 
+            "difficulty": "easy", 
+            "name": "Supermans", 
+            "reps": 15
+        },  
         {
             "description": "Half reps on each side", 
             "difficulty": "easy", 
@@ -36,30 +42,27 @@
             "reps": 50
         }, 
         {
-            "difficulty": "easy", 
-            "name": "Plank walks", 
-            "reps": 10
-        }, 
-        {
             "description": "Half reps on each leg", 
             "difficulty": "easy", 
             "name": "Mountain climbers fast", 
-            "reps": 30
+            "reps": 50
         }, 
         {
             "description": "Short hold against chest and both elbows. Half reps on each leg", 
             "difficulty": "hard", 
             "name": "Mountain climbers slow", 
-            "reps": 8
+            "reps": 6
         }, 
         {
+            "description": "Arms outstretched. Don't let your feet touch the ground between reps.", 
             "difficulty": "easy", 
             "name": "Leg lifts", 
-            "reps": 20
+            "reps": 15
         }, 
         {
-            "difficulty": "easy", 
-            "duration": 75, 
+            "description": "Keep both hands flat against the ground", 
+            "difficulty": "medium", 
+            "duration": 45, 
             "name": "Plank", 
             "rest": 15, 
             "rounds": 4
@@ -73,24 +76,30 @@
             "rounds": 4
         },  
         {
+            "description": "Only lower back should touch ground. Hold arms in front", 
             "difficulty": "hard", 
-            "duration": 20, 
+            "duration": 10, 
             "name": "Hollow hold", 
-            "rest": 40, 
-            "rounds": 3
+            "rest": 20, 
+            "rounds": 6
         }
     ], 
     "legs": [
         {
             "difficulty": "easy", 
-            "name": "Squats", 
-            "reps": 10
+            "name": "Jumping Jacks", 
+            "reps": 50
         }, 
         {
-            "description": "Half reps on each side", 
+            "difficulty": "easy", 
+            "name": "Squats", 
+            "reps": 15
+        }, 
+        {
+            "description": "Get as low as you can. Half reps on each side", 
             "difficulty": "hard", 
             "name": "One legged squats", 
-            "reps": 10
+            "reps": 4
         }, 
         {
             "difficulty": "easy", 
@@ -104,56 +113,70 @@
             "reps": 20
         }, 
         {
+            "description": "On one leg, half squat and touch ground then drive knee to chest", 
+            "difficulty": "easy", 
+            "name": "One legged knee drive", 
+            "reps": 10
+        },
+        {
             "description": "Half reps on each leg", 
             "difficulty": "medium", 
             "name": "Side lunges", 
             "reps": 20
         }, 
         {
+            "description": "Hop side to side ~5 ft. Backflag as far as you can w/o losing balance", 
+            "difficulty": "medium", 
+            "name": "Skater Hops", 
+            "reps": 12
+        }, 
+        {
             "difficulty": "medium", 
             "duration": 45, 
             "name": "Wall sits", 
             "rest": 15, 
-            "rounds": 5
+            "rounds": 4
         }
     ], 
     "upper body": [
         {
-            "difficulty": "medium", 
+            "difficulty": "easy", 
             "name": "Push ups", 
             "reps": 10
         }, 
         {
-            "difficulty": "hard", 
+            "difficulty": "medium", 
             "name": "Wide push ups", 
             "reps": 10
         }, 
         {
-            "description": "Half reps on each side", 
-            "difficulty": "hard", 
-            "name": "Offset push ups", 
-            "reps": 10
-        }, 
-        {
-            "difficulty": "hard", 
-            "name": "Diamond push ups", 
-            "reps": 8
-        }, 
+            "difficulty": "medium", 
+            "name": "Diamond push ups on knees", 
+            "reps": 15
+        },  
         {
             "difficulty": "medium", 
-            "name": "Burpees", 
-            "reps": 10
-        }, 
+            "name": "Burpees with pushups", 
+            "reps": 20
+        },
         {
-            "difficulty": "medium", 
+            "description": "Find a chair or slightly elevated surface for these.",
+            "difficulty": "easy", 
             "name": "Tricep dips", 
-            "reps": 10
+            "reps": 15
         }, 
         {
-            "description": "Raise knee to elbow at the bottom of the push up. Half reps on each side", 
+            "description": "Small weight in each hand. Slowly draw medium circles",
+            "difficulty": "medium", 
+            "name": "Reverse arm circles", 
+            "reps": 20
+        },  
+        {
             "difficulty": "hard", 
-            "name": "Spider man push ups", 
-            "reps": 10
+            "duration": 30, 
+            "name": "Hand stand holds", 
+            "rest": 30, 
+            "rounds": 4
         }
     ]
 }
