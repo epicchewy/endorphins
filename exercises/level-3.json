@@ -86,7 +86,7 @@
     ], 
     "legs": [
         {
-            "difficulty": "easy", 
+            "difficulty": "medium", 
             "name": "Jumping Jacks", 
             "reps": 50
         }, 
@@ -166,7 +166,7 @@
             "reps": 15
         }, 
         {
-            "description": "Small weight in each hand. Slowly draw medium circles",
+            "description": "Small weight in each hand. Slowly draw medium sized circles",
             "difficulty": "medium", 
             "name": "Reverse arm circles", 
             "reps": 20

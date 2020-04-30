@@ -64,11 +64,11 @@ def generate_workout(duration, level):
     if duration >= 45:
         minutes += 5
 
-    while minutes < duration - 5:
+    while minutes < duration - 2:
         # flip a coin between adding sets or adding exercises
         rand_idx = random.randint(0, 2)
 
-        if random.random() < .6:
+        if random.random() < .7 and minutes < duration - 5:
             blocks[rand_idx]['sets'] += 1
         else:
             new_exercises = exercises[focus_area_mapping[rand_idx]]

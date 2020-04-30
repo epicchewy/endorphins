@@ -18,7 +18,7 @@
             "reps": 10
         }, 
         {
-            "description": "Keep arms outstretched. Only lower back should be touching the ground", 
+            "description": "Hands under butt. Only lower back should be touching the ground", 
             "difficulty": "medium", 
             "name": "Flutter kicks", 
             "reps": 50
@@ -59,9 +59,9 @@
         },  
         {
             "difficulty": "hard", 
-            "duration": 45, 
+            "duration": 40, 
             "name": "Plank", 
-            "rest": 15, 
+            "rest": 20, 
             "rounds": 4
         }, 
         {
@@ -99,13 +99,13 @@
             "description": "Half reps on each side", 
             "difficulty": "medium", 
             "name": "Lunges", 
-            "reps": 20
+            "reps": 16
         }, 
         {
             "description": "Half reps on each leg", 
             "difficulty": "medium", 
             "name": "Side lunges", 
-            "reps": 20
+            "reps": 16
         }, 
         {
             "difficulty": "easy", 
