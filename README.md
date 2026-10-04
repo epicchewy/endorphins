@@ -1,60 +1,94 @@
-# Endorphins: A bootleg workout generator
+# Endorphins
 
-Endorphins is a tool that randomly generates body-weight workouts based on a set list of exercises. Users can customize the duration and intensity of the workouts, and all workouts aim to be within +/- five minutes of the provided duration.
+A full-body workout generator built with TanStack Start, React, and Go/Echo. Choose 30–120 minutes and one of five levels to create a workout from the original exercise catalogue.
 
-## Installation
+The app includes Clerk sign-in/sign-up, a responsive workout studio, saved-plan analytics and filters, an exercise-by-exercise guide, shuffle, exercise notes, and printable workout sheets. Light, dark, and system appearances share an athletic visual system. Every generated plan belongs to an account and persists in Postgres. Billing and cloud media storage remain outside this pass.
 
-In Terminal, run the following commands:
-```
-$ git clone https://github.com/epicchewy/endorphins.git
-$ make install
-```
+## Run locally
 
-**Warning**: Installation will take a while if you dont already have `brew` installed on your machine.
+Prerequisites: Docker (running), Node.js 26.10.0 (`nvm use`), Bun 1.4.2, Python 3 for repository checks, and Go with automatic toolchain downloads enabled. The backend and Go linter use Go **1.27.1**; the project does not replace your global Go installation.
 
-You may need to run `pip install fpdf` if the output says that the package is unavailable.
-
-## Usage
-
-You can change the duration and intensity of the workouts. The default duration is 45 minutes with a supported range of 30 to 120 minutes and the default intensity is 2 with a supported range of 1 to 5. All workouts will be available under the `./workouts` folder, and lists of exercises can be viewed in the `./exercises` folder.
-
-### Generate with defaults
-```
-$ make workout
+```sh
+make setup
+npm install -g clerk
+clerk auth login
+cd frontend
+clerk init --app app_3K5z4w8PFdIMSXl1sR7bXIDV6EV
+clerk doctor
+cd ..
+make dev
 ```
 
-Sample, 45 min, workout plans of each level are available under `./samples`.
+Open [Endorphins](http://127.0.0.1:3100). The Go API listens on `127.0.0.1:8088`. The frontend proxies `/api` to Go, keeping browser requests on the same origin. The exercise files are loaded and validated when Go starts.
 
-### Generate with overrides
+The Clerk setup only needs to be done once per checkout. It writes ignored development keys to `frontend/.env.local`. `make dev` starts Postgres on loopback port 5548, applies migrations, and starts both servers. The Make targets use Bun’s CLI to load `.env.example` defaults and `frontend/.env.local`, then run Go directly. Exported variables take precedence.
+
+For separate terminals, run `make db-up`, `make migrate`, then `make api` and `make web`. Export `DATABASE_URL` to use a different database. Set `APP_ORIGINS` to comma-separated frontend origins when changing the frontend address; if changing `API_ADDRESS`, update `API_ORIGIN` too. `make db-stop` preserves your local database volume.
+
+Open **Get started** to create your first app account. Signing in to the Clerk CLI only authenticates the CLI; it does not sign you into Endorphins. Your account menu provides profile and sign-out controls, and **My workouts** reopens saved plans.
+
+### Codex local environment
+
+The checked-in [Codex environment](.codex/environments/environment.toml) installs Go/Bun dependencies and Playwright Chromium when Codex sets up a new worktree. Its toolbar actions call the root Make targets: **Run app**, **API**, **Frontend**, **Start Postgres**, **Migrate**, **Stop Postgres**, **Check**, and **E2E**.
+
+Actions that need Node use `npx` to select the version in `.nvmrc`. This caches the project version without changing your global Node default. npm/npx, Bun, Go, Python 3, and Docker must already be installed; Docker must run for the app and database tests.
+
+Complete the Clerk CLI setup above in each new checkout before starting the app. Keys stay in ignored `frontend/.env.local`; setup does not copy credentials or start services. **Run app** uses ports 3100, 8088, and 5548, so run one local development stack at a time. **E2E** uses disposable services on random ports and needs no Clerk credentials.
+
+## Verify and build
+
+```sh
+make check       # formatting, layer boundaries, lint, race tests, frontend tests,
+                 # API types, TypeScript, and both production builds
+make browsers    # install pinned Chromium once
+make e2e         # hermetic desktop/mobile browser tests on dynamic ports
+make format      # apply Go and frontend formatting
 ```
-$ make workout DURATION=45 LEVEL=5
+
+`make test` includes real Postgres Testcontainers tests; Docker must be running. `make e2e` builds and starts Postgres, the actual Go API, and the production Bun server in Testcontainers. Playwright runs on the host, as in Temper. The stack uses a private network, random ports, fresh data and ephemeral signing keys; a build-time adapter replaces the external Clerk UI. It verifies generation, saved history, full-library search, retries, session isolation, data export, mobile/keyboard interactions, PDF output, API contracts, signed deletion webhooks, and proxy failure. It needs no real Clerk credentials. Real Clerk sign-up and production webhook delivery remain separate integration checks.
+
+For a production-mode local preview, run these in separate terminals after `make check`:
+
+```sh
+make api
+cd frontend && bun run start
 ```
 
-## How To Workout
+The second command also serves on port 3100. Run `make db-up` and `make migrate` first. Run the API from `backend/`, or set `EXERCISE_DIR` to the catalogue’s absolute path. Deployment must include the `exercises/` directory beside the backend; it is not embedded in the binary.
 
-The workout is broken down into three sections -- legs, upper body, and core. Try to complete each section within the alloted time and the entire workout within the estimated time. To fully maximize on the workout and improve the fastest, I recommend exercising with the following tips in mind.
+The Bun server compresses built JavaScript and CSS once at startup and serves cached gzip variants to clients that accept them. Responses include `Vary: Accept-Encoding`; clients can still request uncompressed assets. Restart the production server after rebuilding assets.
 
-1. Try your best to do **3/4 workouts** a week. Consistency is key.
-2. Aim to do each rep with **perfect technique**. Fewer, higher quality reps do you body more good than more, sloppy reps. If you don't recognize an exercise, feel free to look up proper form before proceeding.
-3. **Don't be afraid of failing**. Some workouts can look daunting or be too hard, and tackling them head on is the only way to get stronger.
-4. Workout with your friends! Cranking out reps with some buddies and hype music can do wonders.
+## Design and architecture
 
-## Choosing the right level
+- [Paper design system and desktop/mobile studies](https://app.paper.design/file/01M3TVV9XXTXF2N7ZD43K3WH3V)
+- [Design decisions and Mobbin references](docs/design-system.md)
+- [Accounts, sessions, and workout data model](docs/accounts-and-workouts.md)
+- [Architecture](docs/architecture.md)
+- [Engineering practices](docs/engineering-practices.md)
+- [Implementation status](docs/implementation-plan.md)
+- [Jukebox reference notes](docs/jukebox-backend-notes.md)
+- [OpenAPI contract](api/openapi.json)
 
-Endorphins supports five difficulty levels that attempt to challenge people of all athletic backgrounds. If you have no idea which level to start at, follow the guide below:
+Go uses explicit constructor injection and layers for domains, services, repositories, handlers, and server setup. `services/workout` owns generation, `services/library` owns saved workouts, and `services/account` maps Clerk identities to internal users. Concrete stores live under `repositories/catalogue` and `repositories/postgres`. Frontend routes compose pages and components independently of the backend packages.
 
-* **Level 1:** Great for beginners. This level is perfect for people who want to start building their cardiovascular base and foundational upper body strength.
-* **Level 2:** The Default level. Workouts at this level should be challenging for the average person with average physical capabilities.
-* **Level 3:** A slightly more intense version of level 2 that introduces different mobility and anaerobic exercises.
-* **Level 4:** A good starting point for people with sports/crossfit backgrounds. This level builds off of the previous one with harder, dynamic exercises.
-* **Level 5:** This level can get really hard, really fast. Lots of reps across a wide spread of muscle groups.
+The generator retains the script’s difficulty-based time estimates, three body-area blocks, and repetition/interval prescriptions. It fixes the accepted level range, duration overshoot, duplicated exercise selection, and lost warm-up accounting. Times remain estimates. The existing exercise catalogue has been preserved; this pass does not reclassify its movements or provide demonstrations.
 
-### Updating the project
+## Original Python script
 
-This project will update every time a new workout is generated!
+`main.py`, the JSON exercise files, sample PDFs, and the original Make targets remain available. The Python path is separate from the web app:
 
-### Future Improvements
+```sh
+python3 -m pip install -r requirements.txt
+mkdir -p workouts
+python3 main.py 45 2 0
+```
 
-* Different styles of workouts
-* Ability to better tailor workouts
-* Ability to override current set of exercises
+This creates a workout PDF using the original algorithm. The existing `make workout` target also runs the original repository update script before generation.
+
+The [design system](docs/design-system.md) documents the current typography, tokens, and shared controls.
+
+### Architecture and verification
+
+The UI primitive gallery is available at `/design-system` in development. Shared native controls, feedback, tokens and motion are documented in [the design system](docs/design-system.md). Library filters persist in the URL and search the full saved history. `/account` provides an authenticated JSON data export.
+
+Run `make browsers` once, then `make e2e` with Docker running. The hermetic browser suite runs Postgres, the real Go API and the production frontend/proxy in containers on dynamic ports; it requires no Clerk credentials. Release builds use the actual Clerk SDK and reject fixture code. `make smoke` remains an alias for `make e2e`. See [the test harness](e2e/README.md), [the before/after report](docs/temper-improvements.md) and [deployment runbook](docs/deployment.md).

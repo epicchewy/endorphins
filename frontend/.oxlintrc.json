@@ -1,0 +1,1 @@
+{"plugins":["react","typescript","jsx-a11y"],"categories":{"correctness":"error"},"ignorePatterns":["app/routeTree.gen.ts","app/types/api.gen.ts"]}

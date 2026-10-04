@@ -1,0 +1,175 @@
+@import 'tailwindcss';
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-focus: var(--focus);
+  --color-error: var(--error);
+  --color-error-bg: var(--error-bg);
+  --color-inverse: var(--inverse);
+  --color-inverse-ink: var(--inverse-ink);
+  --color-inverse-muted: var(--inverse-muted);
+  --color-chart-upper: #e5b490;
+  --color-chart-core: #f2f3f3;
+  --font-body: var(--body);
+  --font-display: var(--display);
+  --radius-control: 8px;
+  --radius-panel: 12px;
+  --ease-standard: var(--motion-ease);
+  --animate-arrive: arrive var(--motion-arrive) var(--motion-ease) both;
+}
+
+/* Preview outlines recovered from the supplied specimen; see docs/design-system.md. */
+@font-face {
+  font-family: 'Sharp Serif Text PDF Preview';
+  src: url('./assets/fonts/sharp-serif-text-pdf-preview-regular.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+/* Resolve light-dark() at every explicit theme scope. The production CSS compiler
+   lowers it to custom properties, whose resolved values otherwise inherit from root. */
+:root,
+[data-theme] {
+  --background: light-dark(#f2f3f3, #151819);
+  --surface: light-dark(#fafafa, #1d2123);
+  --surface-raised: light-dark(#fff, #252b2e);
+  --ink: light-dark(#181a1b, #f2f3f3);
+  --muted: light-dark(#5b6265, #adb5b9);
+  --line: light-dark(#d5d9da, #3b4448);
+  --line-strong: light-dark(#7e898f, #6e7b81);
+  --accent: #ec5633;
+  --accent-hover: #f36a49;
+  --accent-ink: #181a1b;
+  --accent-soft: light-dark(#fbe5df, #3a2723);
+  --focus: light-dark(#a93116, #ff8b6d);
+  --error: light-dark(#a72b24, #ffb4a8);
+  --error-bg: light-dark(#fceae7, #3c2423);
+  --inverse: #181a1b;
+  --inverse-ink: #fafafa;
+  --inverse-muted: #b5bdc0;
+}
+
+:root {
+  --body: 'Inter Variable', sans-serif;
+  --display: 'Sharp Serif Text PDF Preview', Georgia, serif;
+  --page-width: 1320px;
+  --page-gutter: clamp(20px, 4.1667vw, 80px);
+  --motion-standard: 180ms;
+  --motion-arrive: 650ms;
+  --motion-ease: cubic-bezier(0.2, 0.65, 0.3, 1);
+  color-scheme: light dark;
+  font-family: var(--body);
+  color: var(--ink);
+  background: var(--background);
+  font-synthesis: none;
+  font-optical-sizing: auto;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+}
+[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+@media (max-width: 600px) {
+  :root {
+    --page-gutter: 20px;
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 32px;
+  }
+  body {
+    margin: 0;
+    min-width: 320px;
+  }
+  button,
+  a,
+  input,
+  select,
+  summary {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+  svg {
+    flex-shrink: 0;
+  }
+  ::selection {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+  :focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 4px;
+  }
+  [id] {
+    scroll-margin-top: 32px;
+  }
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 600px) {
+  html {
+    scroll-padding-top: 20px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media print {
+  :root,
+  :root[data-theme] {
+    --background: white;
+    --surface: white;
+    --ink: #181a1b;
+    --muted: #454b4e;
+    --line: #b5bdc0;
+    --line-strong: #7e898f;
+    --accent-soft: #f3f3f3;
+    color-scheme: light;
+  }
+  body {
+    background: white;
+    font-size: 11px;
+  }
+  @page {
+    margin: 16mm;
+  }
+}

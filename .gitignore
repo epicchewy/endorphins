@@ -30,3 +30,18 @@ workouts
 
 .vscode/
 .DS_Store
+
+# Full-stack application
+node_modules/
+frontend/build/
+backend/bin/
+.env
+.env.*
+!.env.example
+.test-output/
+
+# Hermetic browser builds and generated review artifacts
+frontend/build-e2e/
+e2e/playwright-report/
+output/playwright/
+.playwright-mcp/

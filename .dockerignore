@@ -1,0 +1,21 @@
+# Only application sources enter the image build context.
+**
+!backend/
+!backend/go.mod
+!backend/go.sum
+!backend/Dockerfile
+!backend/cmd/**
+!backend/internal/**
+!exercises/**
+!frontend/
+!frontend/package.json
+!frontend/bun.lock
+!frontend/tsconfig.json
+!frontend/vite.config.ts
+!frontend/tsr.config.json
+!frontend/server.ts
+!frontend/Dockerfile
+!frontend/scripts/check-release.ts
+!frontend/app/**
+!frontend/public/**
+!frontend/test/identity/**
