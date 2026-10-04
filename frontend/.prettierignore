@@ -1,0 +1,5 @@
+node_modules
+build
+app/routeTree.gen.ts
+app/types/api.gen.ts
+bun.lock

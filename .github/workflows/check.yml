@@ -1,0 +1,35 @@
+name: Check
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26.10.0'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - run: make setup
+      - run: make check
+      - run: git diff --exit-code -- frontend/app/routeTree.gen.ts frontend/app/types/api.gen.ts
+      - run: cd e2e && bunx playwright install --with-deps chromium
+      - run: make e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-evidence
+          path: |
+            e2e/playwright-report
+            output/playwright
+          retention-days: 7

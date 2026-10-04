@@ -1,0 +1,675 @@
+--- a/backend/cmd/api/main.go
++++ b/backend/cmd/api/main.go
+@@ -2,6 +2,8 @@
+ 
+ import (
+ 	"context"
++	"fmt"
++	"io"
+ 	"log/slog"
+ 	"os"
+ 	"os/signal"
+@@ -9,19 +11,30 @@
+ 
+ 	"github.com/epicchewy/endorphins/backend/internal/app"
+ 	"github.com/epicchewy/endorphins/backend/internal/config"
++	"github.com/jessevdk/go-flags"
+ )
+ 
+ func main() {
+-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+-	cfg, err := config.Load()
++	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
++	exitCode := run(ctx, os.Args[1:], os.Stdout, os.Stderr)
++	stop()
++	os.Exit(exitCode)
++}
++
++func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
++	cfg, err := config.Load(args)
++	if flags.WroteHelp(err) {
++		_, _ = fmt.Fprintln(stdout, err)
++		return 0
++	}
+ 	if err != nil {
+-		logger.Error("configuration failed", "error", err)
+-		os.Exit(1)
++		_, _ = fmt.Fprintln(stderr, "configuration failed:", err)
++		return 2
+ 	}
+-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+-	defer stop()
++	logger := slog.New(slog.NewJSONHandler(stderr, nil))
+ 	if err := app.Run(ctx, cfg, logger); err != nil {
+ 		logger.Error("api stopped", "error", err)
+-		os.Exit(1)
++		return 1
+ 	}
++	return 0
+ }
+--- a/backend/cmd/api/main_test.go
++++ b/backend/cmd/api/main_test.go
+@@ -0,0 +1,28 @@
++package main
++
++import (
++	"bytes"
++	"strings"
++	"testing"
++)
++
++func TestCommandHelpNeedsNoCredentialsOrDatabase(t *testing.T) {
++	for _, name := range []string{"DATABASE_URL", "CLERK_SECRET_KEY", "VITE_CLERK_PUBLISHABLE_KEY", "GO_FLAGS_COMPLETION"} {
++		t.Setenv(name, "")
++	}
++	t.Setenv("API_ADDRESS", "invalid")
++	var stdout, stderr bytes.Buffer
++	code := run(t.Context(), []string{"--help"}, &stdout, &stderr)
++	if code != 0 || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Usage:") || !strings.Contains(stdout.String(), "Clerk:") {
++		t.Fatalf("help exit=%d stdout=%s stderr=%s", code, &stdout, &stderr)
++	}
++}
++
++func TestCommandRejectsArgumentsWithoutExposingSecrets(t *testing.T) {
++	t.Setenv("GO_FLAGS_COMPLETION", "")
++	var stdout, stderr bytes.Buffer
++	code := run(t.Context(), []string{"--unknown=secret-value"}, &stdout, &stderr)
++	if code != 2 || stdout.Len() != 0 || strings.Contains(stderr.String(), "secret-value") || !strings.Contains(stderr.String(), "configuration failed") {
++		t.Fatalf("unsafe usage exit/output: %d", code)
++	}
++}
+--- a/backend/cmd/migrate/main.go
++++ b/backend/cmd/migrate/main.go
+@@ -2,16 +2,33 @@
+ package main
+ 
+ import (
++	"fmt"
++	"io"
+ 	"log/slog"
+ 	"os"
+ 
++	"github.com/epicchewy/endorphins/backend/internal/config"
+ 	"github.com/epicchewy/endorphins/backend/internal/repositories/postgres"
++	"github.com/jessevdk/go-flags"
+ )
+ 
+-func main() {
+-	if err := postgres.Migrate(os.Getenv("DATABASE_URL")); err != nil {
+-		slog.Error("migration failed", "error", err)
+-		os.Exit(1)
++func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
++
++func run(args []string, stdout, stderr io.Writer) int {
++	cfg, err := config.LoadMigration(args)
++	if flags.WroteHelp(err) {
++		_, _ = fmt.Fprintln(stdout, err)
++		return 0
+ 	}
+-	slog.Info("database migrations are current")
++	if err != nil {
++		_, _ = fmt.Fprintln(stderr, "configuration failed:", err)
++		return 2
++	}
++	logger := slog.New(slog.NewJSONHandler(stderr, nil))
++	if err := postgres.Migrate(cfg.Postgres.URL); err != nil {
++		logger.Error("migration failed", "error", err)
++		return 1
++	}
++	logger.Info("database migrations are current")
++	return 0
+ }
+--- a/backend/cmd/migrate/main_test.go
++++ b/backend/cmd/migrate/main_test.go
+@@ -0,0 +1,26 @@
++package main
++
++import (
++	"bytes"
++	"strings"
++	"testing"
++)
++
++func TestCommandHelpDoesNotOpenDatabase(t *testing.T) {
++	t.Setenv("DATABASE_URL", "invalid-private-connection-string")
++	t.Setenv("GO_FLAGS_COMPLETION", "")
++	var stdout, stderr bytes.Buffer
++	code := run([]string{"--help"}, &stdout, &stderr)
++	if code != 0 || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Postgres:") || strings.Contains(stdout.String(), "Clerk") || strings.Contains(stdout.String(), "invalid-private") {
++		t.Fatalf("help exit=%d stdout=%s stderr=%s", code, &stdout, &stderr)
++	}
++}
++
++func TestCommandValidatesBeforeMigration(t *testing.T) {
++	t.Setenv("GO_FLAGS_COMPLETION", "")
++	var stdout, stderr bytes.Buffer
++	code := run([]string{"--database-url=private-connection-string"}, &stdout, &stderr)
++	if code != 2 || stdout.Len() != 0 || strings.Contains(stderr.String(), "private-connection-string") || !strings.Contains(stderr.String(), "configuration failed") {
++		t.Fatalf("unsafe validation exit/output: %d", code)
++	}
++}
+--- a/backend/go.mod
++++ b/backend/go.mod
+@@ -7,6 +7,7 @@
+ 	github.com/go-jose/go-jose/v3 v3.0.4
+ 	github.com/golang-migrate/migrate/v4 v4.20.1
+ 	github.com/jackc/pgx/v5 v5.11.0
++	github.com/jessevdk/go-flags v1.6.1
+ 	github.com/labstack/echo/v5 v5.4.0
+ 	github.com/svix/svix-webhooks v1.99.1
+ 	github.com/testcontainers/testcontainers-go v0.44.0
+@@ -38,7 +39,6 @@
+ 	github.com/jackc/pgpassfile v1.0.0 // indirect
+ 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+ 	github.com/jackc/puddle/v2 v2.2.2 // indirect
+-	github.com/jessevdk/go-flags v1.6.1 // indirect
+ 	github.com/klauspost/compress v1.18.6 // indirect
+ 	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
+ 	github.com/magiconair/properties v1.8.10 // indirect
+--- a/backend/internal/app/app.go
++++ b/backend/internal/app/app.go
+@@ -28,11 +28,11 @@
+ var Revision = "unknown"
+ 
+ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
+-	catalogue, err := catalogue.New(os.DirFS(cfg.ExerciseDir))
++	catalogue, err := catalogue.New(os.DirFS(cfg.Catalogue.Directory))
+ 	if err != nil {
+ 		return fmt.Errorf("initialize catalogue: %w", err)
+ 	}
+-	pool, err := postgres.Open(ctx, cfg.DatabaseURL)
++	pool, err := postgres.Open(ctx, cfg.Postgres.URL)
+ 	if err != nil {
+ 		return err
+ 	}
+@@ -43,12 +43,12 @@
+ 	libraryService := library.New(workout.New(catalogue), postgres.NewWorkouts(pool))
+ 	accountService := account.New(postgres.NewUsers(pool))
+ 	clerkClient := jwks.NewClient(&clerk.ClientConfig{BackendConfig: clerk.BackendConfig{
+-		Key: clerk.String(cfg.ClerkSecretKey), HTTPClient: &http.Client{Timeout: 5 * time.Second},
++		Key: clerk.String(cfg.Clerk.SecretKey), HTTPClient: &http.Client{Timeout: 5 * time.Second},
+ 	}})
+-	authenticate := clerkAuth.New(clerkClient, cfg.ClerkIssuer, cfg.AllowedOrigins)
++	authenticate := clerkAuth.New(clerkClient, cfg.Clerk.Issuer, cfg.Clerk.AllowedOrigins)
+ 	var webhook http.Handler
+-	if cfg.ClerkWebhookSigningSecret != "" {
+-		webhook, err = clerkAuth.NewWebhook(cfg.ClerkWebhookSigningSecret, accountService, logger)
++	if cfg.Clerk.WebhookSigningSecret != "" {
++		webhook, err = clerkAuth.NewWebhook(cfg.Clerk.WebhookSigningSecret, accountService, logger)
+ 		if err != nil {
+ 			return err
+ 		}
+@@ -59,7 +59,7 @@
+ 		Ready: func(ctx context.Context) error { return postgres.CheckReady(ctx, pool) }, ClerkWebhook: webhook,
+ 	})
+ 	srv := &http.Server{
+-		Addr:              cfg.Address,
++		Addr:              cfg.HTTP.Address,
+ 		Handler:           router,
+ 		ReadHeaderTimeout: 5 * time.Second,
+ 		ReadTimeout:       10 * time.Second,
+@@ -69,7 +69,7 @@
+ 	}
+ 	stopped := make(chan error, 1)
+ 	go func() { stopped <- srv.ListenAndServe() }()
+-	logger.Info("api started", "address", cfg.Address, "version", Version, "revision", Revision)
++	logger.Info("api started", "address", cfg.HTTP.Address, "version", Version, "revision", Revision)
+ 	select {
+ 	case err := <-stopped:
+ 		if errors.Is(err, http.ErrServerClosed) {
+--- a/backend/internal/config/config.go
++++ b/backend/internal/config/config.go
+@@ -1,77 +1,91 @@
++// Package config composes owner-defined option groups for each command.
+ package config
+ 
+ import (
+-	"encoding/base64"
++	"errors"
+ 	"fmt"
+ 	"net"
+-	"net/url"
+-	"os"
+-	"strings"
++	"strconv"
++
++	"github.com/epicchewy/endorphins/backend/internal/integrations/clerk"
++	"github.com/epicchewy/endorphins/backend/internal/repositories/catalogue"
++	"github.com/epicchewy/endorphins/backend/internal/repositories/postgres"
++	"github.com/jessevdk/go-flags"
+ )
+ 
+-type Config struct {
+-	Address, ExerciseDir, DatabaseURL, ClerkSecretKey, ClerkIssuer, ClerkWebhookSigningSecret string
+-	AllowedOrigins                                                                            []string
++type HTTPOptions struct {
++	Address string `long:"api-address" env:"API_ADDRESS" default:"127.0.0.1:8088" description:"HTTP listener address (host:port)"`
+ }
+ 
+-func Load() (Config, error) {
+-	cfg := Config{Address: os.Getenv("API_ADDRESS"), ExerciseDir: os.Getenv("EXERCISE_DIR"), DatabaseURL: os.Getenv("DATABASE_URL"), ClerkSecretKey: os.Getenv("CLERK_SECRET_KEY")}
+-	if cfg.Address == "" {
+-		cfg.Address = "127.0.0.1:8088"
+-	}
+-	if cfg.ExerciseDir == "" {
+-		cfg.ExerciseDir = "../exercises"
+-	}
+-	if _, _, err := net.SplitHostPort(cfg.Address); err != nil {
+-		return Config{}, fmt.Errorf("invalid API_ADDRESS: %w", err)
+-	}
+-	if cfg.DatabaseURL == "" {
+-		return Config{}, fmt.Errorf("DATABASE_URL is required")
+-	}
+-	if cfg.ClerkSecretKey == "" {
+-		return Config{}, fmt.Errorf("CLERK_SECRET_KEY is required; run clerk init in frontend")
+-	}
+-	issuer, err := Issuer(os.Getenv("VITE_CLERK_PUBLISHABLE_KEY"))
+-	if err != nil {
++type Config struct {
++	HTTP      HTTPOptions       `group:"HTTP"`
++	Catalogue catalogue.Options `group:"Catalogue"`
++	Postgres  postgres.Options  `group:"Postgres"`
++	Clerk     clerk.Options     `group:"Clerk"`
++}
++
++// MigrationConfig deliberately omits identity and HTTP options: migrating a
++// database does not require a Clerk instance or application listener.
++type MigrationConfig struct {
++	Postgres postgres.Options `group:"Postgres"`
++}
++
++func Load(args []string) (Config, error) {
++	var cfg Config
++	if err := parse(&cfg, "endorphins-api", args); err != nil {
+ 		return Config{}, err
+ 	}
+-	cfg.ClerkIssuer = issuer
+-	cfg.ClerkWebhookSigningSecret = os.Getenv("CLERK_WEBHOOK_SIGNING_SECRET")
+-	if strings.HasPrefix(os.Getenv("VITE_CLERK_PUBLISHABLE_KEY"), "pk_live_") && cfg.ClerkWebhookSigningSecret == "" {
+-		return Config{}, fmt.Errorf("CLERK_WEBHOOK_SIGNING_SECRET is required for live Clerk accounts")
++	if cfg.HTTP.Address == "" {
++		cfg.HTTP.Address = "127.0.0.1:8088"
+ 	}
+-	origins := os.Getenv("APP_ORIGINS")
+-	if origins == "" {
+-		origins = "http://127.0.0.1:3100,http://localhost:3100"
++	_, port, err := net.SplitHostPort(cfg.HTTP.Address)
++	if err != nil {
++		return Config{}, fmt.Errorf("API_ADDRESS or --api-address must use host:port")
+ 	}
+-	for _, origin := range strings.Split(origins, ",") {
+-		origin = strings.TrimSpace(origin)
+-		parsed, err := url.Parse(origin)
+-		if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.User != nil {
+-			return Config{}, fmt.Errorf("APP_ORIGINS must contain comma-separated origins without paths")
+-		}
+-		cfg.AllowedOrigins = append(cfg.AllowedOrigins, origin)
++	number, err := strconv.Atoi(port)
++	if err != nil || number < 0 || number > 65535 {
++		return Config{}, fmt.Errorf("API_ADDRESS or --api-address must use a port from 0 to 65535")
++	}
++	cfg.Catalogue.Resolve()
++	if err := cfg.Postgres.Validate(); err != nil {
++		return Config{}, err
++	}
++	if err := cfg.Clerk.Validate(); err != nil {
++		return Config{}, err
+ 	}
+ 	return cfg, nil
+ }
+ 
+-// Issuer derives the exact Clerk instance URL from its public publishable key.
+-func Issuer(key string) (string, error) {
+-	encoded, found := strings.CutPrefix(key, "pk_test_")
+-	if !found {
+-		encoded, found = strings.CutPrefix(key, "pk_live_")
++func LoadMigration(args []string) (MigrationConfig, error) {
++	var cfg MigrationConfig
++	if err := parse(&cfg, "endorphins-migrate", args); err != nil {
++		return MigrationConfig{}, err
+ 	}
+-	if !found {
+-		return "", fmt.Errorf("VITE_CLERK_PUBLISHABLE_KEY is required and must be a Clerk publishable key")
++	if err := cfg.Postgres.Validate(); err != nil {
++		return MigrationConfig{}, err
+ 	}
+-	decoded, err := base64.RawStdEncoding.DecodeString(strings.TrimRight(encoded, "="))
+-	if err != nil || !strings.HasSuffix(string(decoded), "$") {
+-		return "", fmt.Errorf("invalid Clerk publishable key")
++	return cfg, nil
++}
++
++func parse(options any, name string, args []string) error {
++	// Disable PrintErrors: the command owns output and untrusted argument values
++	// must never be printed by the parser. Secret option defaults are also masked.
++	parser := flags.NewParser(options, flags.HelpFlag|flags.PassDoubleDash)
++	parser.Name = name
++	rest, err := parser.ParseArgs(args)
++	if err != nil {
++		var flagErr *flags.Error
++		if errors.As(err, &flagErr) && flagErr.Type == flags.ErrHelp {
++			return err
++		}
++		if errors.As(err, &flagErr) && flagErr.Type == flags.ErrRequired {
++			// ErrRequired lists option names, never their supplied values.
++			return fmt.Errorf("missing required options: %s", flagErr.Message)
++		}
++		return fmt.Errorf("invalid command-line options; run --help for usage")
+ 	}
+-	host := strings.TrimSuffix(string(decoded), "$")
+-	parsed, err := url.Parse("https://" + host)
+-	if err != nil || parsed.Host != host || parsed.Hostname() == "" || parsed.Path != "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+-		return "", fmt.Errorf("invalid Clerk instance host")
++	if len(rest) > 0 {
++		return fmt.Errorf("positional arguments are not supported; run --help for usage")
+ 	}
+-	return parsed.String(), nil
++	return nil
+ }
+--- a/backend/internal/config/config_test.go
++++ b/backend/internal/config/config_test.go
+@@ -2,20 +2,169 @@
+ 
+ import (
+ 	"encoding/base64"
++	"reflect"
++	"strings"
+ 	"testing"
++
++	"github.com/jessevdk/go-flags"
+ )
+ 
+-func TestIssuer(t *testing.T) {
+-	for _, prefix := range []string{"pk_test_", "pk_live_"} {
+-		key := prefix + base64.StdEncoding.EncodeToString([]byte("test.clerk.accounts.dev$"))
+-		issuer, err := Issuer(key)
+-		if err != nil || issuer != "https://test.clerk.accounts.dev" {
+-			t.Fatalf("issuer %q: %v", issuer, err)
++var configEnvironment = []string{
++	"API_ADDRESS", "EXERCISE_DIR", "DATABASE_URL", "CLERK_SECRET_KEY",
++	"VITE_CLERK_PUBLISHABLE_KEY", "CLERK_WEBHOOK_SIGNING_SECRET", "APP_ORIGINS", "GO_FLAGS_COMPLETION",
++}
++
++func clearEnvironment(t *testing.T) {
++	t.Helper()
++	for _, name := range configEnvironment {
++		t.Setenv(name, "")
++	}
++}
++func validEnvironment(t *testing.T) {
++	t.Helper()
++	clearEnvironment(t)
++	t.Setenv("DATABASE_URL", "postgres://fixture:private-password@localhost:5432/test?sslmode=disable")
++	t.Setenv("CLERK_SECRET_KEY", "sk_test_private-value")
++	t.Setenv("VITE_CLERK_PUBLISHABLE_KEY", publishable("pk_test_", "fixture.clerk.accounts.dev$"))
++}
++func publishable(prefix, host string) string {
++	return prefix + base64.StdEncoding.EncodeToString([]byte(host))
++}
++
++func TestGroupedOptionsDefaults(t *testing.T) {
++	validEnvironment(t)
++	cfg, err := Load(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if cfg.HTTP.Address != "127.0.0.1:8088" || cfg.Catalogue.Directory != "../exercises" {
++		t.Fatal("existing HTTP/catalogue defaults changed")
++	}
++	if !reflect.DeepEqual(cfg.Clerk.AllowedOrigins, []string{"http://127.0.0.1:3100", "http://localhost:3100"}) {
++		t.Fatalf("wrong default origins: %v", cfg.Clerk.AllowedOrigins)
++	}
++	if cfg.Clerk.Issuer != "https://fixture.clerk.accounts.dev" || cfg.Postgres.URL == "" || cfg.Clerk.SecretKey == "" {
++		t.Fatal("owner options were not loaded or resolved")
++	}
++}
++
++func TestFlagsOverrideEnvironmentAndReplaceOriginList(t *testing.T) {
++	validEnvironment(t)
++	t.Setenv("API_ADDRESS", "127.0.0.1:9000")
++	t.Setenv("EXERCISE_DIR", "/environment/catalogue")
++	t.Setenv("APP_ORIGINS", "https://environment.example,https://other.example")
++	t.Setenv("CLERK_WEBHOOK_SIGNING_SECRET", "whsec_environment")
++	cfg, err := Load([]string{
++		"--api-address=[::1]:8089", "--exercise-dir=/flags/catalogue",
++		"--database-url=postgresql://flag-user:flag-password@localhost/flag-db",
++		"--clerk-secret-key=sk_test_flag-value",
++		"--clerk-publishable-key=" + publishable("pk_live_", "live.clerk.accounts.dev$"),
++		"--clerk-webhook-signing-secret=whsec_flag-value",
++		"--app-origin=https://flags.example", "--app-origin=https://second.example",
++	})
++	if err != nil {
++		t.Fatal(err)
++	}
++	if cfg.HTTP.Address != "[::1]:8089" || cfg.Catalogue.Directory != "/flags/catalogue" || cfg.Postgres.URL != "postgresql://flag-user:flag-password@localhost/flag-db" {
++		t.Fatal("CLI did not override environment")
++	}
++	if cfg.Clerk.SecretKey != "sk_test_flag-value" || cfg.Clerk.WebhookSigningSecret != "whsec_flag-value" || cfg.Clerk.Issuer != "https://live.clerk.accounts.dev" {
++		t.Fatal("Clerk CLI options did not override environment")
++	}
++	if !reflect.DeepEqual(cfg.Clerk.AllowedOrigins, []string{"https://flags.example", "https://second.example"}) {
++		t.Fatalf("origin flags must replace environment list: %v", cfg.Clerk.AllowedOrigins)
++	}
++}
++
++func TestOriginsNormalizeExistingCSVEnvironment(t *testing.T) {
++	validEnvironment(t)
++	t.Setenv("APP_ORIGINS", " https://one.example ,http://localhost:3100 ")
++	cfg, err := Load(nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if !reflect.DeepEqual(cfg.Clerk.AllowedOrigins, []string{"https://one.example", "http://localhost:3100"}) {
++		t.Fatalf("origins were not normalized: %v", cfg.Clerk.AllowedOrigins)
++	}
++}
++
++func TestValidationDoesNotEchoValues(t *testing.T) {
++	for _, tt := range []struct{ name, env, value, want string }{
++		{name: "missing database", env: "DATABASE_URL", want: "DATABASE_URL"},
++		{name: "bad database", env: "DATABASE_URL", value: "https://private-password@host/db", want: "DATABASE_URL"},
++		{name: "invalid connection options", env: "DATABASE_URL", value: "postgres://user:private-password@localhost/test?sslmode=private-password", want: "Postgres connection options"},
++		{name: "missing backend key", env: "CLERK_SECRET_KEY", want: "CLERK_SECRET_KEY"},
++		{name: "invalid address", env: "API_ADDRESS", value: "private-password", want: "API_ADDRESS"},
++		{name: "invalid port", env: "API_ADDRESS", value: "127.0.0.1:99999", want: "API_ADDRESS"},
++		{name: "invalid public key", env: "VITE_CLERK_PUBLISHABLE_KEY", value: "private-password", want: "publishable key"},
++		{name: "invalid issuer", env: "VITE_CLERK_PUBLISHABLE_KEY", value: publishable("pk_test_", "private-password@example.com/path$"), want: "instance host"},
++		{name: "live webhook required", env: "VITE_CLERK_PUBLISHABLE_KEY", value: publishable("pk_live_", "live.clerk.accounts.dev$"), want: "CLERK_WEBHOOK_SIGNING_SECRET"},
++		{name: "origin credentials", env: "APP_ORIGINS", value: "https://user:private-password@example.com", want: "APP_ORIGINS"},
++		{name: "origin path", env: "APP_ORIGINS", value: "https://example.com/private-password", want: "APP_ORIGINS"},
++		{name: "empty list member", env: "APP_ORIGINS", value: "https://example.com,", want: "APP_ORIGINS"},
++	} {
++		t.Run(tt.name, func(t *testing.T) {
++			validEnvironment(t)
++			t.Setenv(tt.env, tt.value)
++			_, err := Load(nil)
++			if err == nil || !strings.Contains(err.Error(), tt.want) {
++				t.Fatalf("wanted safe %s validation failure", tt.want)
++			}
++			if strings.Contains(err.Error(), "private-password") {
++				t.Fatal("configuration error exposed a value")
++			}
++		})
++	}
++}
++
++func TestHelpPrecedesValidationAndMasksSecrets(t *testing.T) {
++	validEnvironment(t)
++	t.Setenv("API_ADDRESS", "invalid")
++	for _, args := range [][]string{{"--help"}, {"--clerk-secret-key=argument-secret", "--database-url=postgres://user:argument-password@localhost/test", "--help"}} {
++		_, err := Load(args)
++		if !flags.WroteHelp(err) {
++			t.Fatalf("help should bypass validation: %v", err)
++		}
++		for _, group := range []string{"HTTP:", "Catalogue:", "Postgres:", "Clerk:", "--api-address", "--app-origin"} {
++			if !strings.Contains(err.Error(), group) {
++				t.Fatalf("missing help group or option %q", group)
++			}
++		}
++		for _, secret := range []string{"private-password", "sk_test_private-value", "argument-secret", "argument-password"} {
++			if strings.Contains(err.Error(), secret) {
++				t.Fatal("help exposed a credential")
++			}
+ 		}
+ 	}
+-	for _, host := range []string{"", "evil.example/path$", "evil.example?query$", "a@evil.example$", "no-terminator"} {
+-		if _, err := Issuer("pk_test_" + base64.StdEncoding.EncodeToString([]byte(host))); err == nil {
+-			t.Errorf("accepted invalid host %q", host)
++	clearEnvironment(t)
++	if _, err := Load([]string{"--help"}); !flags.WroteHelp(err) {
++		t.Fatal("help required credentials")
++	}
++}
++
++func TestParsingRejectsUnknownFlagsAndPositionalsSafely(t *testing.T) {
++	validEnvironment(t)
++	for _, args := range [][]string{{"--private-password=secret"}, {"private-password"}, {"--api-address"}, {"--", "private-password"}} {
++		if _, err := Load(args); err == nil || strings.Contains(err.Error(), "private-password") {
++			t.Fatal("bad CLI arguments accepted or echoed")
+ 		}
+ 	}
+ }
++
++func TestMigrationOnlyRequiresPostgres(t *testing.T) {
++	clearEnvironment(t)
++	cfg, err := LoadMigration([]string{"--database-url=postgres://fixture@localhost/test"})
++	if err != nil || cfg.Postgres.URL != "postgres://fixture@localhost/test" {
++		t.Fatal("migration should only require Postgres")
++	}
++	_, err = LoadMigration([]string{"--help"})
++	if !flags.WroteHelp(err) || strings.Contains(err.Error(), "Clerk") {
++		t.Fatal("migration help should omit unrelated options")
++	}
++	if _, err := LoadMigration(nil); err == nil {
++		t.Fatal("migration accepted missing database")
++	}
++	if _, err := LoadMigration([]string{"--database-url=private-password"}); err == nil || strings.Contains(err.Error(), "private-password") {
++		t.Fatal("migration must reject invalid URL safely")
++	}
++}
+--- a/backend/internal/integrations/clerk/options.go
++++ b/backend/internal/integrations/clerk/options.go
+@@ -0,0 +1,75 @@
++package clerk
++
++import (
++	"encoding/base64"
++	"fmt"
++	"net/url"
++	"strings"
++)
++
++type Options struct {
++	SecretKey            string `long:"clerk-secret-key" env:"CLERK_SECRET_KEY" required:"true" default-mask:"-" description:"Clerk backend secret key (prefer CLERK_SECRET_KEY)"`
++	PublishableKey       string `long:"clerk-publishable-key" env:"VITE_CLERK_PUBLISHABLE_KEY" required:"true" description:"Clerk publishable key for the expected instance"`
++	WebhookSigningSecret string `long:"clerk-webhook-signing-secret" env:"CLERK_WEBHOOK_SIGNING_SECRET" default-mask:"-" description:"Svix signing secret for the Clerk webhook endpoint"`
++	//nolint:staticcheck // SA5008: go-flags documents repeated default tags for slice defaults.
++	AllowedOrigins []string `long:"app-origin" env:"APP_ORIGINS" env-delim:"," default:"http://127.0.0.1:3100" default:"http://localhost:3100" description:"Allowed application origin; repeat flag or use comma-separated APP_ORIGINS"`
++	Issuer         string   `no-flag:"true"`
++}
++
++// Validate resolves the trusted issuer from the public key and normalizes
++// origins. The issuer cannot be overridden independently through an option.
++func (o *Options) Validate() error {
++	if o.SecretKey == "" {
++		return fmt.Errorf("CLERK_SECRET_KEY or --clerk-secret-key is required")
++	}
++	issuer, err := issuerFromKey(o.PublishableKey)
++	if err != nil {
++		return err
++	}
++	o.Issuer = issuer
++	if strings.HasPrefix(o.PublishableKey, "pk_live_") && o.WebhookSigningSecret == "" {
++		return fmt.Errorf("CLERK_WEBHOOK_SIGNING_SECRET is required for live Clerk accounts")
++	}
++	if len(o.AllowedOrigins) == 0 || (len(o.AllowedOrigins) == 1 && o.AllowedOrigins[0] == "") {
++		o.AllowedOrigins = []string{"http://127.0.0.1:3100", "http://localhost:3100"}
++	}
++	for i, origin := range o.AllowedOrigins {
++		origin = strings.TrimSpace(origin)
++		parsed, err := url.Parse(origin)
++		if err != nil {
++			return fmt.Errorf("APP_ORIGINS or --app-origin must contain HTTP(S) origins without paths")
++		}
++		invalidAddress := (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == ""
++		hasExtraParts := parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.User != nil
++		if invalidAddress || hasExtraParts {
++			return fmt.Errorf("APP_ORIGINS or --app-origin must contain HTTP(S) origins without paths")
++		}
++		o.AllowedOrigins[i] = origin
++	}
++	return nil
++}
++
++func issuerFromKey(key string) (string, error) {
++	encoded, found := strings.CutPrefix(key, "pk_test_")
++	if !found {
++		encoded, found = strings.CutPrefix(key, "pk_live_")
++	}
++	if !found {
++		return "", fmt.Errorf("VITE_CLERK_PUBLISHABLE_KEY or --clerk-publishable-key must be a Clerk publishable key")
++	}
++	decoded, err := base64.RawStdEncoding.DecodeString(strings.TrimRight(encoded, "="))
++	if err != nil || !strings.HasSuffix(string(decoded), "$") {
++		return "", fmt.Errorf("invalid Clerk publishable key")
++	}
++	host := strings.TrimSuffix(string(decoded), "$")
++	parsed, err := url.Parse("https://" + host)
++	if err != nil {
++		return "", fmt.Errorf("invalid Clerk instance host")
++	}
++	invalidHost := parsed.Host != host || parsed.Hostname() == ""
++	hasExtraParts := parsed.Path != "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != ""
++	if invalidHost || hasExtraParts {
++		return "", fmt.Errorf("invalid Clerk instance host")
++	}
++	return parsed.String(), nil
++}
+--- a/backend/internal/repositories/catalogue/options.go
++++ b/backend/internal/repositories/catalogue/options.go
+@@ -0,0 +1,15 @@
++package catalogue
++
++const defaultDirectory = "../exercises"
++
++type Options struct {
++	Directory string `long:"exercise-dir" env:"EXERCISE_DIR" default:"../exercises" description:"Directory containing the exercise catalogues"`
++}
++
++// Resolve keeps the existing empty-environment behavior while defaults remain
++// declared in the option tags and visible in generated help.
++func (o *Options) Resolve() {
++	if o.Directory == "" {
++		o.Directory = defaultDirectory
++	}
++}
+--- a/backend/internal/repositories/postgres/options.go
++++ b/backend/internal/repositories/postgres/options.go
+@@ -0,0 +1,27 @@
++package postgres
++
++import (
++	"fmt"
++	"net/url"
++
++	"github.com/jackc/pgx/v5/pgxpool"
++)
++
++// Options belongs to the store and is shared by the API and migration commands.
++type Options struct {
++	URL string `long:"database-url" env:"DATABASE_URL" required:"true" default-mask:"-" description:"Postgres connection URL (prefer DATABASE_URL for credentials)"`
++}
++
++func (o Options) Validate() error {
++	if o.URL == "" {
++		return fmt.Errorf("DATABASE_URL or --database-url is required")
++	}
++	parsed, err := url.Parse(o.URL)
++	if err != nil || (parsed.Scheme != "postgres" && parsed.Scheme != "postgresql") || parsed.Fragment != "" {
++		return fmt.Errorf("DATABASE_URL or --database-url must be a valid postgres:// or postgresql:// URL")
++	}
++	if _, err := pgxpool.ParseConfig(o.URL); err != nil {
++		return fmt.Errorf("DATABASE_URL or --database-url contains invalid Postgres connection options")
++	}
++	return nil
++}

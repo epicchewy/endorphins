@@ -1,0 +1,12 @@
+# Go backend
+
+- `internal/app` owns constructor wiring and shutdown. Handlers depend on local service interfaces. Services consume small interfaces; repositories implement concrete storage with parameterized queries.
+- Domains stay free of transport concerns. Resource DTOs and their `ToInput` / `New…Response` conversions live together in `internal/api/v1`; persistent JSON mappings belong in the versioned Postgres snapshot codec. Never serialize domain structs directly into historical records.
+- Owner IDs come from verified sessions resolved to internal user UUIDs. Every workout read/write is owner-scoped. Preserve idempotency and deletion/provision transaction invariants.
+- Accept context first for I/O, propagate cancellation, bound deadlines, wrap errors once, and classify expected failures centrally. Log internal causes with request IDs; return only safe API errors.
+- Never add `main_test.go` or command-entrypoint tests. Shared repository lifecycle belongs in `repositories_test.go`; query tests belong beside the resource they cover.
+- Add forward SQL migrations and tests against real Testcontainers Postgres. Docker failures are test failures, never skips. Keep generator and JWT negative-case tests fast and focused.
+- Go1.27.1 is pinned in go.mod/Makefile. Run `make check` from root; its layer checker rejects illegal transitive imports. Keep all `e2e` build-tag fixtures out of release binaries.
+
+- Group config options by owner with `jessevdk/go-flags` tags. Keep CLI flags, environment names, defaults, and descriptions together. Migration config must not require identity credentials. Handle help in the command before opening resources.
+- Name API files by resource and direction (`workout_requests.go`, `workout_responses.go`, `account_responses.go`). Do not add generic `models.go` or `mapping.go` files. Handlers decode, call one service, set HTTP status/headers, and return a response DTO.

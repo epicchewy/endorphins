@@ -1,0 +1,583 @@
+--- before/Makefile
++++ after/Makefile
+@@ -1,6 +1,9 @@
+ DURATION ?= 45
+ LEVEL ?= 2
+ export GOTOOLCHAIN := go1.27.1
++VERSION ?= dev
++REVISION := $(shell git rev-parse --short HEAD)
++API_PACKAGE := github.com/epicchewy/endorphins/backend/internal/app
+ 
+ .PHONY: workout
+ workout:
+@@ -19,6 +22,7 @@
+ setup:
+ 	cd backend && go mod download
+ 	cd frontend && bun install --frozen-lockfile
++	cd e2e && bun install --frozen-lockfile
+ 
+ dev: db-up migrate
+ 	bash scripts/dev.sh
+@@ -32,6 +36,7 @@
+ format:
+ 	cd backend && gofmt -w .
+ 	cd frontend && bun run format
++	cd frontend && bunx prettier --write ../e2e --ignore-path ../.gitignore
+ 
+ test:
+ 	cd backend && go test -race -tags integration ./...
+@@ -42,18 +47,25 @@
+ 	python3 scripts/check-layers.py
+ 	cd backend && GOTOOLCHAIN=go1.27.1 go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run
+ 	cd frontend && bun run lint && bun run format:check
++	cd e2e && bun run typecheck
++	cd frontend && bunx prettier --check ../e2e --ignore-path ../.gitignore
+ 
+ build:
+-	cd backend && go build -o bin/api ./cmd/api
+-	cd frontend && bun run build
++	cd backend && go build -ldflags "-X $(API_PACKAGE).Version=$(VERSION) -X $(API_PACKAGE).Revision=$(REVISION)" -o bin/api ./cmd/api
++	cd frontend && bun run build && bun scripts/check-release.ts
+ 
+ check: lint test
+ 	cd frontend && bun run typegen && bun run typecheck
+ 	$(MAKE) build
+ 
+-.PHONY: smoke
+-smoke:
+-	python3 scripts/smoke.py
++.PHONY: e2e smoke browsers
++e2e:
++	cd e2e && bun run test
++
++smoke: e2e
++
++browsers:
++	cd e2e && bunx playwright install chromium
+ 
+ .PHONY: db-up db-stop migrate
+ db-up:
+--- before/.github/workflows/check.yml
++++ after/.github/workflows/check.yml
+@@ -0,0 +1,35 @@
++name: Check
++on:
++  push:
++  pull_request:
++permissions:
++  contents: read
++jobs:
++  check:
++    runs-on: ubuntu-latest
++    timeout-minutes: 20
++    steps:
++      - uses: actions/checkout@v4
++      - uses: actions/setup-go@v5
++        with:
++          go-version-file: backend/go.mod
++          cache-dependency-path: backend/go.sum
++      - uses: actions/setup-node@v4
++        with:
++          node-version: '22.17.1'
++      - uses: oven-sh/setup-bun@v2
++        with:
++          bun-version: '1.4.2'
++      - run: make setup
++      - run: make check
++      - run: git diff --exit-code -- frontend/app/routeTree.gen.ts frontend/app/types/api.gen.ts
++      - run: cd e2e && bunx playwright install --with-deps chromium
++      - run: make e2e
++      - uses: actions/upload-artifact@v4
++        if: always()
++        with:
++          name: browser-evidence
++          path: |
++            e2e/playwright-report
++            output/playwright
++          retention-days: 7
+--- before/scripts/smoke.py
++++ after/scripts/smoke.py
+@@ -1,207 +0,0 @@
+-#!/usr/bin/env python3
+-"""Exercise the real API with ephemeral Postgres/JWTs and production SSR/proxy."""
+-from pathlib import Path
+-import gzip
+-import json
+-import os
+-import re
+-import socket
+-import subprocess
+-import tempfile
+-import time
+-from urllib.error import HTTPError, URLError
+-from urllib.request import Request, urlopen
+-
+-root = Path(__file__).resolve().parents[1]
+-schema = json.loads((root / "api/openapi.json").read_text())
+-
+-
+-def validate(value, rule):
+-    if "$ref" in rule:
+-        rule = schema["components"]["schemas"][rule["$ref"].split("/")[-1]]
+-    kind = rule["type"]
+-    if kind == "object":
+-        assert isinstance(value, dict), value
+-        assert all(key in value for key in rule.get("required", [])), value
+-        assert not (set(value) - set(rule["properties"])), value
+-        for key, item in value.items():
+-            validate(item, rule["properties"][key])
+-    elif kind == "array":
+-        assert isinstance(value, list)
+-        assert len(value) >= rule.get("minItems", 0)
+-        assert len(value) <= rule.get("maxItems", float("inf"))
+-        for item in value:
+-            validate(item, rule["items"])
+-    elif kind == "integer":
+-        assert type(value) is int
+-        assert rule.get("minimum", float("-inf")) <= value <= rule.get("maximum", float("inf"))
+-    elif kind == "string":
+-        assert isinstance(value, str)
+-    if "enum" in rule:
+-        assert value in rule["enum"]
+-
+-
+-def request(path, data=None, headers=None, method=None):
+-    body = None if data is None else json.dumps(data).encode()
+-    req = Request("http://127.0.0.1:3110" + path, data=body, headers={"Content-Type": "application/json", **(headers or {})}, method=method)
+-    try:
+-        with urlopen(req, timeout=15) as response:
+-            return response.status, response.read(), response.headers
+-    except HTTPError as error:
+-        return error.code, error.read(), error.headers
+-
+-
+-for port in [8098, 3110]:
+-    with socket.socket() as probe:
+-        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+-        probe.bind(("127.0.0.1", port))
+-
+-processes = []
+-with tempfile.TemporaryDirectory() as scratch, tempfile.TemporaryFile(mode="w+") as logs:
+-    try:
+-        env = dict(os.environ, API_ADDRESS="127.0.0.1:8098", EXERCISE_DIR=str(root / "exercises"), API_ORIGIN="http://127.0.0.1:8098", HOST="127.0.0.1", PORT="3110")
+-        binary = Path(scratch) / "smokefixture"
+-        metadata = Path(scratch) / "fixture.json"
+-        subprocess.run(["go", "build", "-tags", "integration", "-o", str(binary), "./cmd/smokefixture"], cwd=root / "backend", env=env, check=True)
+-        processes.append(subprocess.Popen([str(binary), str(metadata)], cwd=root / "backend", env=env, stdout=logs, stderr=logs))
+-        for _ in range(300):
+-            if processes[0].poll() is not None:
+-                raise RuntimeError("API fixture failed to start")
+-            if metadata.exists():
+-                break
+-            time.sleep(0.1)
+-        else:
+-            raise RuntimeError("API fixture did not become ready")
+-        fixture = json.loads(metadata.read_text())
+-        env.update(VITE_CLERK_PUBLISHABLE_KEY=fixture["publishableKey"], CLERK_SECRET_KEY="sk_test_smoke_fixture")
+-        authorization = {"Authorization": "Bearer " + fixture["alice"]}
+-        processes.append(subprocess.Popen(["bun", "run", "server.ts"], cwd=root / "frontend", env=env, stdout=logs, stderr=logs))
+-        for attempt in range(50):
+-            if any(process.poll() is not None for process in processes):
+-                raise RuntimeError("A production server failed to start")
+-            try:
+-                status, body, _ = request("/")
+-                with urlopen("http://127.0.0.1:8098/healthz", timeout=2) as health:
+-                    assert health.status == 200
+-                break
+-            except URLError:
+-                time.sleep(0.1)
+-        else:
+-            raise RuntimeError("Production server did not become ready")
+-        html = body.decode()
+-        assert status == 200 and "Make your" in html and "next move." in html and 'aria-label="Workout preferences"' in html
+-        assert '<script' in html and "Sign in to build my workout" in html
+-        assert 'id="builder"' in html and 'id="how-it-works"' in html
+-        assert 'Color theme' in html and 'fetchPriority="high"' in html
+-        for image_path in ["/images/training-studio.jpg", "/images/before-training.jpg"]:
+-            image_status, image_body, image_headers = request(image_path)
+-            assert image_status == 200 and image_body.startswith(b"\xff\xd8"), image_path
+-            assert image_headers["Content-Type"].startswith("image/jpeg"), image_path
+-            assert "max-age=3600" in image_headers["Cache-Control"], image_path
+-            head_status, head_body, head_headers = request(image_path, method="HEAD")
+-            assert head_status == 200 and not head_body
+-            assert int(head_headers["Content-Length"]) == len(image_body)
+-        custom_status, custom_body, _ = request("/?minutes=75&level=4")
+-        assert custom_status == 200 and 'value="75"' in custom_body.decode()
+-        level_inputs = re.findall(r'<input[^>]*name="level"[^>]*>', custom_body.decode())
+-        assert any('checked=""' in control and 'value="4"' in control for control in level_inputs), level_inputs
+-        assets = set(re.findall(r'(?:src|href)="(/assets/[^"?#]+)', html))
+-        assert assets
+-        compression_sizes = []
+-        for asset in assets:
+-            status, content, headers = request(asset)
+-            assert status == 200 and content, asset
+-            assert "immutable" in headers.get("Cache-Control", ""), asset
+-            if not asset.endswith((".js", ".css")):
+-                continue
+-            assert headers.get("Content-Encoding") is None, asset
+-            assert headers.get("Vary") == "Accept-Encoding", asset
+-            status, compressed, headers = request(asset, headers={"Accept-Encoding": "gzip, br"})
+-            assert status == 200 and headers.get("Content-Encoding") == "gzip", asset
+-            assert gzip.decompress(compressed) == content, asset
+-            if len(content) > 1024:
+-                assert len(compressed) < len(content), asset
+-            assert int(headers["Content-Length"]) == len(compressed), asset
+-            assert headers.get("Vary") == "Accept-Encoding", asset
+-            assert "immutable" in headers.get("Cache-Control", ""), asset
+-            compression_sizes.append((len(content), len(compressed)))
+-            status, body, head_headers = request(asset, headers={"Accept-Encoding": "gzip"}, method="HEAD")
+-            assert status == 200 and not body, asset
+-            for name in ["Content-Type", "Content-Length", "Content-Encoding", "Vary", "Cache-Control"]:
+-                assert head_headers[name] == headers[name], (asset, name)
+-            for encoding in ["gzip;q=0", "gzip;q=0, *;q=1", "br", "gzip;q=0.5, identity;q=1", ""]:
+-                status, body, plain_headers = request(asset, headers={"Accept-Encoding": encoding})
+-                assert status == 200 and body == content, (asset, encoding)
+-                assert plain_headers.get("Content-Encoding") is None, (asset, encoding)
+-            for encoding in ["*;q=1", "GZIP; q=0.5", "gzip;q=1, *;q=0"]:
+-                status, body, gzip_headers = request(asset, headers={"Accept-Encoding": encoding})
+-                assert status == 200 and gzip_headers.get("Content-Encoding") == "gzip", (asset, encoding)
+-                assert gzip.decompress(body) == content, (asset, encoding)
+-            status, _, _ = request(asset, headers={"Accept-Encoding": "gzip;q=0, identity;q=0"})
+-            assert status == 406, asset
+-        assert compression_sizes
+-        raw_size, gzip_size = max(compression_sizes)
+-        print(f"Largest initial asset: {raw_size:,} bytes raw, {gzip_size:,} bytes gzip ({1 - gzip_size / raw_size:.0%} smaller).")
+-        identifiers = set()
+-        for level in range(1, 6):
+-            for duration in [30, 45, 120]:
+-                status, body, _ = request("/api/v1/workouts", {"durationMinutes": duration, "level": level}, headers=authorization)
+-                assert status == 201, body
+-                workout = json.loads(body)
+-                validate(workout, {"$ref": "#/components/schemas/Workout"})
+-                assert workout["id"] not in identifiers
+-                identifiers.add(workout["id"])
+-                assert duration - 5 <= workout["estimatedMinutes"] <= duration
+-                assert workout["level"] == level
+-                assert workout["warmupMinutes"] == (5 if duration >= 45 else 0)
+-                assert workout["estimatedMinutes"] == workout["warmupMinutes"] + sum(b["estimatedMinutes"] for b in workout["blocks"])
+-        status, _, _ = request("/api/v1/workouts", {"durationMinutes": 29, "level": 1}, headers=authorization)
+-        assert status == 422
+-        status, body, headers = request("/api/v1/workouts", headers=authorization)
+-        assert status == 200 and headers["Cache-Control"] == "no-store"
+-        history = json.loads(body)
+-        validate(history, {"$ref": "#/components/schemas/WorkoutPage"})
+-        assert {item["id"] for item in history["items"]} == identifiers
+-        saved = history["items"][0]
+-        status, body, _ = request("/api/v1/workouts/" + saved["id"], headers=authorization)
+-        assert status == 200 and json.loads(body) == saved
+-        status, _, _ = request("/api/v1/workouts/" + saved["id"], headers={"Authorization": "Bearer " + fixture["bob"]})
+-        assert status == 404
+-        status, body, _ = request("/api/v1/me", headers=authorization)
+-        assert status == 200
+-        validate(json.loads(body), {"$ref": "#/components/schemas/User"})
+-        for path in ["/api/v1/me", "/api/v1/workouts", "/api/v1/workouts/" + saved["id"]]:
+-            status, _, _ = request(path)
+-            assert status == 401, path
+-        status, _, _ = request("/api/v1/workouts", {"durationMinutes": 45, "level": 2})
+-        assert status == 401
+-        for path in ["/sign-in", "/sign-up"]:
+-            status, body, _ = request(path)
+-            assert status == 200 and (b"Good to see you." if path == "/sign-in" else b"Your next chapter.") in body, path
+-        status, body, _ = request("/workouts")
+-        assert status == 200 and b"user_alice" not in body and saved["id"].encode() not in body
+-        status, _, _ = request("/missing-page")
+-        assert status == 404
+-        status, _, _ = request("/assets/missing.js")
+-        assert status == 404
+-        status, _, _ = request("/assets/%2e%2e/%2e%2e/package.json")
+-        assert status == 404
+-        # An unavailable API must remain a safe, retryable failure through the proxy.
+-        processes[0].terminate()
+-        processes[0].wait(timeout=10)
+-        status, body, _ = request("/api/v1/workouts", {"durationMinutes": 45, "level": 2})
+-        assert status == 503 and b"unavailable" in body
+-        print("Production smoke passed: SSR, assets, gzip negotiation/HEAD/round-trip, 15 authenticated generations, Postgres history, OpenAPI contracts, account isolation, auth pages, errors, proxy failure, and static path isolation.")
+-    except BaseException:
+-        logs.seek(0)
+-        print(logs.read())
+-        raise
+-    finally:
+-        for process in processes:
+-            if process.poll() is None:
+-                process.terminate()
+-            try:
+-                process.wait(timeout=10)
+-            except subprocess.TimeoutExpired:
+-                process.kill()
+-                process.wait()
+--- before/backend/internal/repositories/postgres/ready.go
++++ after/backend/internal/repositories/postgres/ready.go
+@@ -0,0 +1,27 @@
++package postgres
++
++import (
++	"context"
++	"fmt"
++	"time"
++
++	"github.com/jackc/pgx/v5/pgxpool"
++)
++
++const SchemaVersion = 2
++
++// CheckReady checks connectivity and the exact migration version this binary
++// supports. Future migrations require an explicit compatibility decision.
++func CheckReady(ctx context.Context, pool *pgxpool.Pool) error {
++	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
++	defer cancel()
++	var version int
++	var dirty bool
++	if err := pool.QueryRow(ctx, `SELECT version,dirty FROM schema_migrations`).Scan(&version, &dirty); err != nil {
++		return fmt.Errorf("check database schema: %w", err)
++	}
++	if dirty || version != SchemaVersion {
++		return fmt.Errorf("incompatible database schema: version=%d dirty=%t", version, dirty)
++	}
++	return nil
++}
+--- before/e2e/setup.ts
++++ after/e2e/setup.ts
+@@ -0,0 +1,137 @@
++import { spawn, type ChildProcess } from 'node:child_process'
++import assert from 'node:assert/strict'
++import { mkdtemp, readFile, rm, symlink, copyFile, open, mkdir } from 'node:fs/promises'
++import { createServer } from 'node:net'
++import { tmpdir } from 'node:os'
++import { dirname, resolve } from 'node:path'
++import { fileURLToPath } from 'node:url'
++
++const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
++
++async function freePort() {
++  const server = createServer()
++  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
++  const address = server.address()
++  if (!address || typeof address === 'string') throw new Error('No local port')
++  await new Promise<void>((resolve, reject) =>
++    server.close((error) => (error ? reject(error) : resolve())),
++  )
++  return address.port
++}
++
++export default async function setup() {
++  const scratch = await mkdtemp(resolve(tmpdir(), 'endorphins-e2e-'))
++  const artifactDir = resolve(root, 'output/playwright')
++  await mkdir(artifactDir, { recursive: true })
++  const logs = await open(resolve(artifactDir, 'stack.log'), 'w')
++  const processes: ChildProcess[] = []
++  const env = { ...process.env, GOTOOLCHAIN: 'go1.27.1' }
++  const start = (cmd: string, args: string[], cwd: string, extra = {}) => {
++    const child = spawn(cmd, args, {
++      cwd,
++      env: { ...env, ...extra },
++      stdio: ['ignore', logs.fd, logs.fd],
++    })
++    processes.push(child)
++    return child
++  }
++  const run = async (cmd: string, args: string[], cwd: string, extra = {}) => {
++    const child = start(cmd, args, cwd, extra)
++    await new Promise<void>((resolve, reject) => {
++      child.once('error', reject)
++      child.once('exit', (code) =>
++        code === 0
++          ? resolve()
++          : reject(new Error(`${cmd} ${args.join(' ')} failed; see output/playwright/stack.log`)),
++      )
++    })
++  }
++  const terminate = async (child: ChildProcess) => {
++    if (child.exitCode !== null || child.signalCode !== null) return
++    await new Promise<void>((resolve) => {
++      const timeout = setTimeout(() => {
++        child.kill('SIGKILL')
++        resolve()
++      }, 15_000)
++      child.once('exit', () => {
++        clearTimeout(timeout)
++        resolve()
++      })
++      child.kill('SIGTERM')
++    })
++  }
++  const stop = async () => {
++    for (const child of processes.reverse()) await terminate(child)
++    await logs.close()
++    await rm(scratch, { recursive: true, force: true })
++  }
++  try {
++    const baseURL = `http://127.0.0.1:${await freePort()}`
++    const metadata = resolve(scratch, 'fixture.json')
++    await run(
++      'go',
++      ['build', '-tags', 'integration', '-o', resolve(scratch, 'fixture'), './cmd/smokefixture'],
++      resolve(root, 'backend'),
++    )
++    const fixture = start(resolve(scratch, 'fixture'), [metadata], root, {
++      E2E_FRONTEND_ORIGIN: baseURL,
++      EXERCISE_DIR: resolve(root, 'exercises'),
++    })
++    let apiOrigin: string | undefined
++    for (let attempt = 0; attempt < 150; attempt++) {
++      if (fixture.exitCode !== null)
++        throw new Error('API fixture exited; see output/playwright/stack.log')
++      try {
++        apiOrigin = JSON.parse(await readFile(metadata, 'utf8')).apiOrigin
++        if (apiOrigin) break
++      } catch {
++        /* Starts after migration and signing-key setup. */
++      }
++      await new Promise((resolve) => setTimeout(resolve, 200))
++    }
++    if (!apiOrigin) throw new Error('API fixture startup timed out')
++    await run('bun', ['run', 'build', '--mode', 'e2e'], resolve(root, 'frontend'), {
++      VITE_CLERK_PUBLISHABLE_KEY: 'pk_test_c21va2UuY2xlcmsuYWNjb3VudHMuZGV2JA',
++      CLERK_SECRET_KEY: '',
++    })
++    // Run the same production SSR/static/proxy entry against the isolated test build.
++    await copyFile(resolve(root, 'frontend/server.ts'), resolve(scratch, 'server.ts'))
++    await symlink(resolve(root, 'frontend/build-e2e'), resolve(scratch, 'build'), 'dir')
++    await symlink(resolve(root, 'frontend/node_modules'), resolve(scratch, 'node_modules'), 'dir')
++    start('bun', ['run', resolve(scratch, 'server.ts')], scratch, {
++      API_ORIGIN: apiOrigin,
++      HOST: '127.0.0.1',
++      PORT: new URL(baseURL).port,
++    })
++    for (let attempt = 0; attempt < 100; attempt++) {
++      try {
++        if ((await fetch(baseURL, { signal: AbortSignal.timeout(2_000) })).ok) break
++      } catch {
++        /* Wait for SSR readiness. */
++      }
++      if (attempt === 99) throw new Error('Frontend startup timed out')
++      await new Promise((resolve) => setTimeout(resolve, 100))
++    }
++    process.env.PLAYWRIGHT_TEST_BASE_URL = baseURL
++    process.env.ENDORPHINS_E2E_API_ORIGIN = apiOrigin
++    return async () => {
++      try {
++        // Exercise an actual upstream outage, without mocking fetch or stopping another test's API.
++        await terminate(fixture)
++        const response = await fetch(`${baseURL}/api/v1/workouts`, {
++          signal: AbortSignal.timeout(5_000),
++        })
++        assert.equal(response.status, 503)
++        const error = await response.json()
++        assert.equal(error.code, 'service_unavailable')
++        assert.equal(error.requestId, response.headers.get('x-request-id'))
++        assert.equal(response.headers.get('cache-control'), 'no-store')
++      } finally {
++        await stop()
++      }
++    }
++  } catch (error) {
++    await stop()
++    throw error
++  }
++}
+--- before/frontend/scripts/check-boundaries.ts
++++ after/frontend/scripts/check-boundaries.ts
+@@ -0,0 +1,88 @@
++import ts from 'typescript'
++import { readdir, readFile } from 'node:fs/promises'
++import { dirname, relative, resolve } from 'node:path'
++
++const root = resolve(import.meta.dir, '../app')
++const failures: string[] = []
++async function inspect(directory: string): Promise<void> {
++  for (const entry of await readdir(directory, { withFileTypes: true })) {
++    const file = resolve(directory, entry.name)
++    if (entry.isDirectory()) {
++      await inspect(file)
++      continue
++    }
++    if (!/\.tsx?$/.test(file) || file.endsWith('.gen.ts')) continue
++    const name = relative(root, file)
++    const source = ts.createSourceFile(
++      file,
++      await readFile(file, 'utf8'),
++      ts.ScriptTarget.Latest,
++      true,
++    )
++    const inspectImport = (specifier: string, typeOnly: boolean) => {
++      const local = specifier.startsWith('~/')
++        ? specifier.slice(2)
++        : specifier.startsWith('.')
++          ? relative(root, resolve(dirname(file), specifier))
++          : null
++      const fail = (reason: string) => failures.push(`${name}: ${specifier} — ${reason}`)
++      if (name.startsWith('services/')) {
++        if (local && /^(hooks|components|routes|pages|auth|server)\//.test(local))
++          fail('Services must remain independent of UI, auth adapters, and route state.')
++        if (
++          !typeOnly &&
++          /^(react|@tanstack\/react-query|@tanstack\/react-router|motion|lucide-react)(\/|$)/.test(
++            specifier,
++          )
++        )
++          fail('React orchestration belongs in hooks or presentation.')
++      }
++      if (name.startsWith('hooks/') && local && /^(components|pages|routes)\//.test(local))
++        fail('Shared hooks must not depend on presentation.')
++      if (
++        name.startsWith('components/ui/') &&
++        local &&
++        /^(hooks|services|auth|routes|pages|server)\//.test(local)
++      )
++        fail('UI primitives must be controlled and application-independent.')
++      if (specifier.startsWith('motion/') && !name.startsWith('components/ui/'))
++        fail('Consume the shared UI motion primitives.')
++      if (specifier.startsWith('@clerk/') && !name.startsWith('auth/'))
++        fail('Identity SDK access belongs in the auth adapter.')
++    }
++    const visit = (node: ts.Node) => {
++      if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
++        const clause = node.importClause
++        const typeOnly = Boolean(
++          clause?.isTypeOnly ||
++            (!clause?.name &&
++              clause?.namedBindings &&
++              ts.isNamedImports(clause.namedBindings) &&
++              clause.namedBindings.elements.every((item) => item.isTypeOnly)),
++        )
++        inspectImport(node.moduleSpecifier.text, typeOnly)
++      }
++      if (
++        ts.isExportDeclaration(node) &&
++        node.moduleSpecifier &&
++        ts.isStringLiteral(node.moduleSpecifier)
++      )
++        inspectImport(node.moduleSpecifier.text, node.isTypeOnly)
++      if (
++        ts.isCallExpression(node) &&
++        node.expression.kind === ts.SyntaxKind.ImportKeyword &&
++        node.arguments[0] &&
++        ts.isStringLiteral(node.arguments[0])
++      )
++        inspectImport(node.arguments[0].text, false)
++      ts.forEachChild(node, visit)
++    }
++    visit(source)
++  }
++}
++await inspect(root)
++if (failures.length) {
++  console.error(failures.join('\n'))
++  process.exit(1)
++}
++console.log('Frontend dependency and motion boundaries passed.')
+--- before/frontend/scripts/check-release.ts
++++ after/frontend/scripts/check-release.ts
+@@ -0,0 +1,12 @@
++// The identity fixture must never become an authentication option in a release.
++const forbidden = ['endorphins_test_session', '/api/__fixture/', 'Continue with test identity']
++let bundles = 0
++for await (const path of new Bun.Glob('build/**/*.{js,html}').scan('.')) {
++  bundles++
++  const code = await Bun.file(path).text()
++  for (const marker of forbidden) {
++    if (code.includes(marker)) throw new Error(`Test identity leaked into ${path}: ${marker}`)
++  }
++}
++if (bundles === 0) throw new Error('Build the release before checking its identity boundary')
++console.log(`Release identity boundary passed (${bundles} bundles).`)

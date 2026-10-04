@@ -1,0 +1,33 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Endorphins — architecture refinement</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f2f3f3;color:#181a1b;font:16px/1.65 system-ui,sans-serif}main{max-width:1200px;margin:auto;padding:48px 24px 80px}h1{font:normal clamp(40px,6vw,72px)/1.08 Georgia,serif;letter-spacing:-.04em;max-width:900px}h2{font-size:28px;line-height:1.2}h3{font-size:16px}p{max-width:760px;color:#5b6265}a{color:#a93116;text-underline-offset:4px}section{border-top:1px solid #d5d9da;padding:32px 0;margin-top:32px}.pair{display:grid;grid-template-columns:1fr 1fr;gap:24px}pre{overflow:auto;white-space:pre-wrap;background:#fafafa;border:1px solid #d5d9da;border-radius:12px;padding:24px;font:14px/1.65 ui-monospace,monospace}figure{margin:0}figcaption{display:flex;justify-content:space-between;gap:12px;padding:16px 0;font-weight:600}.frame{height:580px;overflow:auto;background:#fff;border:1px solid #d5d9da;border-radius:12px}.frame img{display:block;width:100%;height:auto}.mobile img{max-width:390px;margin:auto}.tag{font-size:13px;font-weight:650;text-transform:uppercase;letter-spacing:.12em}.counts{display:flex;flex-wrap:wrap;gap:32px;margin:32px 0}.counts strong{display:block;font-size:32px;line-height:1.1}.counts span{color:#5b6265;font-size:14px}@media(max-width:650px){.pair{grid-template-columns:1fr}.frame{height:460px}}
+</style><main><div class="tag">Endorphins / architecture refinement</div><h1>Fewer files.<br>Clearer owners.</h1><p>The first cleanup split CSS without moving styles into Tailwind. It also put unrelated API types and mappings in shared files. This pass corrects both and follows Temper’s config pattern.</p><div class="counts"><div><strong>14 → 1</strong><span>application CSS files</span></div><div><strong>2,856 → 175</strong><span>authored CSS lines</span></div><div><strong>5,399 → 3,204</strong><span>authored frontend app lines</span></div></div><p>Counts cover frontend/app TS, TSX, and CSS, excluding generated files. Source-line reduction does not measure bundle size or speed.</p>
+<section><h2>01. Tailwind and shared primitives</h2><div class="pair"><div><h3>Before</h3><pre>app.css → 13 imported stylesheets
+controls.css → button states
+pages/*.css → page layout
+Button → semantic class-name wrapper</pre></div><div><h3>After</h3><pre>app.css → theme, fonts, base, keyframes
+components/ui → utility variants + states
+pages/components → local layout utilities
+cn → conflict-safe caller overrides</pre></div></div><p>Colors, fonts, layout, native inputs, keyboard focus, reduced motion, and print behavior stay in place. The gallery uses the same components as the app.</p><a href="diffs/ui.patch">Inspect the UI before/after diff</a>
+<h3>Shared controls / desktop</h3><div class="pair"><figure><figcaption>Before<a href="before-primitives-desktop.png">Full size</a></figcaption><div class="frame "><img loading="lazy" src="before-primitives-desktop.png" alt="Shared controls / desktop, before this correction"></div></figure><figure><figcaption>After<a href="after-primitives-desktop.png">Full size</a></figcaption><div class="frame "><img loading="lazy" src="after-primitives-desktop.png" alt="Shared controls / desktop, after this correction"></div></figure></div><h3>Shared controls / mobile</h3><div class="pair"><figure><figcaption>Before<a href="before-primitives-mobile.png">Full size</a></figcaption><div class="frame mobile"><img loading="lazy" src="before-primitives-mobile.png" alt="Shared controls / mobile, before this correction"></div></figure><figure><figcaption>After<a href="after-primitives-mobile.png">Full size</a></figcaption><div class="frame mobile"><img loading="lazy" src="after-primitives-mobile.png" alt="Shared controls / mobile, after this correction"></div></figure></div><h3>Saved library / desktop</h3><div class="pair"><figure><figcaption>Before<a href="before-library-desktop.png">Full size</a></figcaption><div class="frame "><img loading="lazy" src="before-library-desktop.png" alt="Saved library / desktop, before this correction"></div></figure><figure><figcaption>After<a href="after-library-desktop.png">Full size</a></figcaption><div class="frame "><img loading="lazy" src="after-library-desktop.png" alt="Saved library / desktop, after this correction"></div></figure></div></section><section><h2>02. Temper-style configuration</h2><div class="pair"><div><h3>Before</h3><pre>Config{Address, ExerciseDir, DatabaseURL, ...}
+os.Getenv + manual defaults and splitting
+Migration reads its own DATABASE_URL</pre></div><div><h3>After</h3><pre>Config{
+  HTTP      HTTPOptions
+  Catalogue catalogue.Options
+  Postgres  postgres.Options
+  Clerk     clerk.Options
+}
+MigrationConfig{Postgres postgres.Options}
+// long/env/default/description tags
+// jessevdk/go-flags v1.6.1</pre></div></div><p>Flags override environment values. Help works before credentials or database access. Option validation stays with the owner. Commands own output and process exit.</p><a href="diffs/config.patch">Inspect the config before/after diff</a></section>
+<section><h2>03. Resource DTOs and short handlers</h2><div class="pair"><div><h3>Before</h3><pre>api/v1/models.go
+  User, Workout, Summary, Export, Error…
+handlers/mapping.go
+  all resources’ conversions</pre></div><div><h3>After</h3><pre>api/v1/workout_requests.go
+  CreateWorkoutRequest.ToInput()
+api/v1/workout_responses.go
+  NewWorkoutResponse()
+api/v1/account_responses.go
+  NewUserResponse(), NewAccountExportResponse()
+api/v1/errors.go
+  ErrorResponse</pre></div></div><p>Handlers decode the request, call the service, set headers/status, and return a response DTO. REST paths and JSON shapes stay the same. Domain types own business rules; historical snapshots retain their separate versioned codec.</p><a href="diffs/dto.patch">Inspect the DTO before/after diff</a></section><section><h2>Verification</h2><p id="verification"><code>make check</code> passed. Final full-stack browser run: 27 passed, 5 intentional mobile skips. Desktop/mobile images and a rendered workout PDF were inspected. The local API is ready.</p><p><a href="http://127.0.0.1:3100/">Open the app</a> · <a href="http://127.0.0.1:3100/design-system">Open the live component gallery</a></p></section></main></html>
