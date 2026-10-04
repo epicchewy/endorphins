@@ -27,6 +27,14 @@ For separate terminals, run `make db-up`, `make migrate`, then `make api` and `m
 
 Open **Get started** to create your first app account. Signing in to the Clerk CLI only authenticates the CLI; it does not sign you into Endorphins. Your account menu provides profile and sign-out controls, and **My workouts** reopens saved plans.
 
+### Codex local environment
+
+The checked-in [Codex environment](.codex/environments/environment.toml) installs Go/Bun dependencies and Playwright Chromium when Codex sets up a new worktree. Its toolbar actions call the root Make targets: **Run app**, **API**, **Frontend**, **Start Postgres**, **Migrate**, **Stop Postgres**, **Check**, and **E2E**.
+
+Actions that need Node use `npx` to select the version in `.nvmrc`. This caches the project version without changing your global Node default. npm/npx, Bun, Go, Python 3, and Docker must already be installed; Docker must run for the app and database tests.
+
+Complete the Clerk CLI setup above in each new checkout before starting the app. Keys stay in ignored `frontend/.env.local`; setup does not copy credentials or start services. **Run app** uses ports 3100, 8088, and 5548, so run one local development stack at a time. **E2E** uses disposable services on random ports and needs no Clerk credentials.
+
 ## Verify and build
 
 ```sh

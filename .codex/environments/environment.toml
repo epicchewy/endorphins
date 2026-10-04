@@ -1,0 +1,49 @@
+version = 1
+name = "endorphins"
+
+[setup]
+script = '''
+set -eu
+cd "${CODEX_WORKTREE_PATH:-.}"
+npx --yes --package="node@$(cat .nvmrc)" --call 'make setup && make browsers'
+'''
+
+[[actions]]
+name = "Run app"
+icon = "run"
+command = 'npx --yes --package="node@$(cat .nvmrc)" -- make dev'
+
+[[actions]]
+name = "API"
+icon = "run"
+command = "make api"
+
+[[actions]]
+name = "Frontend"
+icon = "run"
+command = 'npx --yes --package="node@$(cat .nvmrc)" -- make web'
+
+[[actions]]
+name = "Start Postgres"
+icon = "tool"
+command = "make db-up"
+
+[[actions]]
+name = "Migrate"
+icon = "tool"
+command = "make migrate"
+
+[[actions]]
+name = "Stop Postgres"
+icon = "tool"
+command = "make db-stop"
+
+[[actions]]
+name = "Check"
+icon = "test"
+command = 'npx --yes --package="node@$(cat .nvmrc)" -- make check'
+
+[[actions]]
+name = "E2E"
+icon = "test"
+command = 'npx --yes --package="node@$(cat .nvmrc)" -- make e2e'
