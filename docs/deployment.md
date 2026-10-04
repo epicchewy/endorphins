@@ -33,7 +33,17 @@ go build -ldflags="-X github.com/epicchewy/endorphins/backend/internal/app.Versi
 go build -o bin/migrate ./cmd/migrate
 ```
 
-Build the frontend from `frontend/` with `bun install --frozen-lockfile` and `bun run build`. Ship `frontend/build`, its required runtime dependencies, and `frontend/server.ts`; run it with `bun run server.ts`. Never ship an `e2e` frontend build or a Go binary built with `-tags=e2e`. The Dockerfiles in `e2e/docker` are test images. The PDF-recovered Sharp Serif asset is a preview; replace it with the original licensed font package before public release.
+Build the frontend from `frontend/` with `bun install --frozen-lockfile` and `bun run build`. Ship `frontend/build`, its required runtime dependencies, and `frontend/server.ts`; run it with `bun run server.ts`. Never ship an `e2e` frontend build or a Go binary built with `-tags=e2e`. The shared `backend/Dockerfile` and `frontend/Dockerfile` default to production. E2E tests opt into `GO_BUILD_TAGS=e2e` and `BUILD_MODE=e2e`; do not use those arguments for a release. The PDF-recovered Sharp Serif asset is a preview; replace it with the original licensed font package before public release.
+
+Build container images from the repository root:
+
+```sh
+docker build -f backend/Dockerfile -t endorphins-api .
+docker build -f frontend/Dockerfile -t endorphins-web \
+  --build-arg VITE_CLERK_PUBLISHABLE_KEY="$VITE_CLERK_PUBLISHABLE_KEY" .
+```
+
+The public Clerk key is a frontend build argument. Supply secret keys and database credentials only at runtime. The backend image includes `/app/migrate` and `/app/api`; its default command starts only the API, so run migrations as a separate deployment step. Testcontainers uses these same images with explicit test build arguments and runs migrations before starting its disposable API.
 
 Deployment sequence:
 

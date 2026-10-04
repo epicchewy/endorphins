@@ -11,7 +11,7 @@ Host: Playwright (desktop + mobile Chromium)
         → ephemeral Clerk JWKS              [inside API container]
 ```
 
-`setup.ts` starts the stack before the tests and closes it afterward. `harness/images.ts` builds both app images in Docker. `harness/stack.ts` owns one private network, fresh Postgres, readiness checks, random ports and cleanup. It also cleans up after partial startup failures; Testcontainers' reaper is the final backstop. No local app process, named volume, `.env` file or provider account is used.
+`setup.ts` starts the stack before the tests and closes it afterward. `harness/images.ts` builds both images from `backend/Dockerfile` and `frontend/Dockerfile` at the repository root, using `GO_BUILD_TAGS=e2e` and `BUILD_MODE=e2e`. Those same Dockerfiles default to production. `harness/stack.ts` owns one private network, fresh Postgres, readiness checks, random ports and cleanup. It also cleans up after partial startup failures; Testcontainers' reaper is the final backstop. No local app process, named volume, `.env` file or provider account is used.
 
 As in Temper, the browser runner stays on the host. All app services run in containers. The frontend uses the same `server.ts` as a release. The backend runs the real migration command, then `cmd/api` with the `e2e` build tag. Only the external Clerk provider and frontend identity adapters change. JWT authorization, signed deletion webhooks, owner-scoped queries and application wiring remain real.
 

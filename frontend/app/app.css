@@ -28,7 +28,7 @@
   --animate-arrive: arrive var(--motion-arrive) var(--motion-ease) both;
 }
 
-/* Preview outlines recovered from the supplied specimen; see docs/design/font-recovery. */
+/* Preview outlines recovered from the supplied specimen; see docs/design-system.md. */
 @font-face {
   font-family: 'Sharp Serif Text PDF Preview';
   src: url('./assets/fonts/sharp-serif-text-pdf-preview-regular.woff2') format('woff2');

@@ -7,7 +7,7 @@ if [ ! -d frontend/node_modules ]; then
 fi
 # Build first so the supervised process is the API itself, not a go run wrapper.
 (cd backend && go build -o bin/api ./cmd/api)
-(cd frontend && exec bun run dev-backend.ts ./bin/api) &
+(cd backend && exec bun --env-file=../.env.example --env-file=../frontend/.env.local run --no-orphans env ./bin/api) &
 api_pid=$!
 (cd frontend && exec node ./node_modules/vite/bin/vite.js) &
 web_pid=$!

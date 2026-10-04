@@ -21,7 +21,7 @@ make dev
 
 Open [Endorphins](http://127.0.0.1:3100). The Go API listens on `127.0.0.1:8088`. The frontend proxies `/api` to Go, keeping browser requests on the same origin. The exercise files are loaded and validated when Go starts.
 
-The Clerk setup only needs to be done once per checkout. It writes ignored development keys to `frontend/.env.local`. `make dev` starts Postgres on loopback port 5548, applies migrations, and starts both servers. The Bun development launcher passes the CLI-configured environment to Go without copying secrets into source.
+The Clerk setup only needs to be done once per checkout. It writes ignored development keys to `frontend/.env.local`. `make dev` starts Postgres on loopback port 5548, applies migrations, and starts both servers. The Make targets use Bun’s CLI to load `.env.example` defaults and `frontend/.env.local`, then run Go directly. Exported variables take precedence.
 
 For separate terminals, run `make db-up`, `make migrate`, then `make api` and `make web`. Export `DATABASE_URL` to use a different database. Set `APP_ORIGINS` to comma-separated frontend origins when changing the frontend address; if changing `API_ADDRESS`, update `API_ORIGIN` too. `make db-stop` preserves your local database volume.
 
@@ -77,7 +77,7 @@ python3 main.py 45 2 0
 
 This creates a workout PDF using the original algorithm. The existing `make workout` target also runs the original repository update script before generation.
 
-The frontend design direction, research, Paper boards, and verification notes are documented in [the redesign brief](docs/design/redesign-brief.md). Generated photography and its prompts are listed in [the asset manifest](docs/design/assets.md).
+The [design system](docs/design-system.md) documents the current typography, tokens, and shared controls.
 
 ### Architecture and verification
 

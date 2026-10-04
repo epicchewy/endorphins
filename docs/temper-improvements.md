@@ -1,61 +1,27 @@
-# Temper-inspired improvements: implemented
+# Temper-inspired improvements
 
-October 4, 2026. This implements the approved [comparison](temper-architecture-comparison.md), preserving Endorphins’ Go/Echo layers, manual constructors, TanStack frontend and Sharp Serif/Inter identity.
+This implements the approved [comparison](temper-architecture-comparison.md). Endorphins keeps Go/Echo layers, manual constructors, TanStack and the Sharp Serif/Inter identity.
 
-Open the [visual before/after review](design/temper-improvements/review.html), [live component gallery](http://127.0.0.1:3100/design-system), or [Paper UI library](https://app.paper.design/file/01M3TVV9XXTXF2N7ZD43K3WH3V/p-3-0). The app is running locally at [localhost:3100](http://127.0.0.1:3100).
+| Area | Before | Current implementation |
+| --- | --- | --- |
+| Frontend data | Mixed transport, repeated query keys, local filter state | Separate account/workout clients, safe HTTP transport, session-scoped keys, query hooks and validated URL state |
+| Backend contracts | Concrete handler dependencies and shared transport/storage shapes | Handler-owned interfaces, resource DTOs, safe API errors and versioned storage snapshots |
+| Saved library | Search, sorting and summaries used loaded pages | Owner-scoped SQL searches the full library, with stable pagination and summaries over all matches |
+| Account lifecycle | Ambiguous retries could duplicate plans; no deletion receiver or export | Idempotent saves, verified deletion webhooks, atomic erasure with stale-session tombstones, and authenticated export |
+| UI system | Large global stylesheet and bespoke controls | Shared Tailwind primitives, one theme stylesheet, common focus/motion rules and a development component gallery |
+| Verification | Separate HTTP orchestration and shallow markup assertions | Desktop/mobile Playwright against the actual app stack; focused SQL, JWT, snapshot and cache tests |
 
-## Each improvement set
+The initial CSS split was replaced by the [Tailwind refinement](architecture-refinement.md). The initial browser fixture was replaced by the [test architecture refinement](test-architecture-refinement.md). Both application Dockerfiles now serve production and E2E builds.
 
-| Set                                  | Before                                                                                                                | After                                                                                                                                                                                                                                                                                                       | Evidence                                                                                                                                                                                                                                          |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Frontend data and state              | Account/workout requests mixed; query keys repeated in routes; filters lived in component state.                      | Shared safe HTTP transport, separate account/workout clients, canonical session keys, query hooks, validated URL state and patch-based navigation. A creation seeds its detail and invalidates every relevant list/summary only for its active session.                                                     | [Focused diff](design/temper-improvements/diffs/01-frontend-data.patch), [cache tests](../frontend/test/session-cache.test.ts), [browser journeys](../e2e/specs/library.spec.ts).                                                                 |
-| Backend contracts                    | Handlers held concrete services; domain objects supplied both HTTP and stored JSON; errors were inconsistent.         | Handler-owned service interfaces, independent API v1 DTOs, explicit mappings, safe error codes and request IDs correlated with logs.                                                                                                                                                                        | [Focused diff](design/temper-improvements/diffs/02-backend-contracts.patch), [API contract checks](../e2e/specs/contracts.spec.ts).                                                                                                               |
-| Library and storage                  | Search, sorting and statistics considered only loaded pages. Snapshot version existed but was not decoded explicitly. | Owner-scoped SQL searches every saved plan; level filters, newest/shortest sorting and stable scoped cursors. Summaries cover every match. The snapshot-v1 codec stays independent of transport/domain evolution.                                                                                           | [Focused diff](design/temper-improvements/diffs/03-storage-library.patch), [real SQL tests](../backend/internal/repositories/postgres/library_integration_test.go), [snapshot tests](../backend/internal/repositories/postgres/snapshot_test.go). |
-| Reliable saves and account lifecycle | An ambiguous manual retry could create another plan; Clerk deletion had no receiver; no application-data export.      | Owner/input-scoped idempotency, verified deletion webhook, transactional cascade and stale-session tombstones. `/account` downloads a consistent user/workout JSON snapshot, guarded against session changes.                                                                                               | [Lifecycle diff](design/temper-improvements/diffs/04-account-lifecycle.patch), [lost-response browser test](../e2e/specs/workouts.spec.ts), [account SQL tests](../backend/internal/repositories/postgres/account_integration_test.go).           |
-| UI system                            | A 2,470-line global stylesheet; bespoke controls/statuses and direct animation usage; no component reference.         | Native Button, Field, Input, Select, SearchInput, RadioOption, Feedback, EmptyState, LoadingState and Presence. Tokens and CSS have clear owners; 48px base controls, 12px supporting-text floor, shared focus/motion/reduced-motion rules. Interactive light/dark gallery and matching Paper board.        | [Primitive diff](design/temper-improvements/diffs/05-ui-primitives.patch), [design contracts](design-system.md), [gallery screenshot](design/temper-improvements/after-primitives-desktop.png).                                                   |
-| Verification and operations          | Separate Python HTTP orchestration, shallow rendered-markup tests, no browser CI, process health only.                | One Playwright harness around actual Go/JWT/Postgres/proxy behavior, desktop/mobile journeys and retained failure artifacts. Focused hard-case unit/SQL tests remain. Frontend/backend import checks, release fixture exclusion, versioned startup logs, clean-schema readiness, CI and deployment runbook. | [Focused diff](design/temper-improvements/diffs/06-browser-and-operations.patch), [test harness](../e2e/setup.ts), [deployment runbook](deployment.md).                                                                                           |
+Inspect `/design-system` in development for the implemented primitives. The [design system](design-system.md) documents their contracts; the [Paper library](https://app.paper.design/file/01M3TVV9XXTXF2N7ZD43K3WH3V/p-3-0) holds the design studies.
 
-The browser tests uncovered and fixed two real integration issues: rapid level/sort changes could overwrite a newer URL field, and nested dark previews inherited the compiled root color values. Builder preferences now merge changes the same way. Skip links remain clipped until keyboard focus. The production proxy now forwards idempotency and Svix verification headers.
+Useful entry points:
 
-## Visual comparisons
+- [Frontend session/cache tests](../frontend/test/session-cache.test.ts)
+- [Workout query tests](../backend/internal/repositories/postgres/workouts_test.go)
+- [Account lifecycle tests](../backend/internal/repositories/postgres/users_test.go)
+- [HTTP contract journeys](../e2e/specs/contracts.spec.ts)
+- [Browser harness](../e2e/README.md)
+- [Deployment runbook](deployment.md)
 
-The landing design is intentionally retained; this is a system consolidation, not another visual reset. Buttons, labels, feedback, spacing and motion now share implementation contracts.
-
-| View                | Before                                                                                                                          | After                                                                                                                                            |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Landing             | [Desktop](design/temper-improvements/before-landing-desktop.png)                                                                | [Desktop](design/temper-improvements/after-landing-desktop.png)                                                                                  |
-| Workout studio      | [Desktop](design/temper-improvements/before-studio-desktop.png) · [Mobile](design/temper-improvements/before-studio-mobile.png) | [Desktop](design/temper-improvements/after-studio-desktop.png) · [Mobile](design/temper-improvements/after-studio-mobile.png)                    |
-| Account library     | [20 loaded plans summarized](design/temper-improvements/before-library-desktop.png)                                             | [All 26 plans summarized](design/temper-improvements/after-library-desktop.png)                                                                  |
-| Older matching plan | [No match in the first page](design/temper-improvements/before-search-desktop.png)                                              | [Found without loading more](design/temper-improvements/after-search-desktop.png)                                                                |
-| Primitive library   | No gallery                                                                                                                      | [Light/dark desktop](design/temper-improvements/after-primitives-desktop.png) · [Mobile](design/temper-improvements/after-primitives-mobile.png) |
-| Account export      | No account-data screen                                                                                                          | [Desktop](design/temper-improvements/after-account-desktop.png) · [Mobile](design/temper-improvements/after-account-mobile.png)                  |
-
-Recordings: [desktop walkthrough](design/temper-improvements/walkthrough-desktop.mp4) and [mobile walkthrough](design/temper-improvements/walkthrough-mobile.mp4). They show the actual hermetic browser run, slowed to one-third speed for readability. [Generated workout PDF](design/temper-improvements/workout-print.pdf).
-
-Before screenshots use the source preserved before this work. The signed-in baseline was rebuilt in a temporary checkout with only the external identity adapter substituted, against the same disposable 26-plan fixture; the old library components and client filtering were unchanged. Dates/IDs and generated workout selections vary between independent runs. All review data belongs to disposable test accounts.
-
-## Code removed, and what grew
-
-Deleted the 207-line Python smoke runner, 139-line mutation/markup test and 65-line rendering test: **411 lines across three retired files**. Removed the remaining markup assertions from the insight tests and the obsolete client filtering/summary functions. Tests now exercise the rendered behavior through the real application.
-
-This is **not an overall code-size reduction**. The new lifecycle features, library queries, durable DTO/snapshot boundaries, UI gallery and browser harness add code. The five focused frontend test files total 442 lines versus 481 before, while providing new URL/cache/idempotency policies. The initial UI pass split CSS by file. That approach was superseded by the [Tailwind and backend refinement](architecture-refinement.md), which moves styles into the shared components and removes the page stylesheets.
-
-For a reproducible scope, counts below include `.go`, `.ts`, `.tsx`, `.css` and `.py` under the named directories; exclude generated `.gen.ts`, dependencies, builds, binaries and test reports. They are source line counts, not a maintainability score.
-
-| Area                                                     | Before | After |
-| -------------------------------------------------------- | -----: | ----: |
-| Backend                                                  |  1,864 | 3,305 |
-| Frontend, including focused tests/adapters/check scripts |  4,779 | 6,218 |
-| Repository Python check/smoke scripts                    |    245 |    38 |
-| Browser harness and specs                                |      0 |   730 |
-
-## Verification and limits
-
-- `make check` passed: backend boundaries/lint, real Postgres race tests, focused frontend tests, generated types, type-checking, release builds and fixture-exclusion scan.
-- Go race/integration evidence: 17 top-level tests, 131 test/subtest passes across seven tested packages. Tests include 20 concurrent same-key saves producing one row, deletion/provision races, rollback, malformed/tampered/expired webhooks, historical snapshots and schema readiness failures.
-- Frontend: 20 focused tests, 70 assertions, zero failures.
-- Playwright: **26 passed**. Four duplicate mobile cases are deliberately skipped: three viewport-independent HTTP contracts and desktop-only PDF output. The harness also stops the API and verifies the production proxy's real safe 503 response during teardown.
-- Browser coverage includes saved generation/reload, full-library search, URL persistence, rapid preference edits, lost-response deduplication, failed shuffle retention, offline recovery, account switching/sign-out, authenticated export, signed deletion through the proxy, light/dark controls, keyboard navigation, 320px overflow, reduced motion, and PDF/disclosure restoration.
-- Only the external Clerk identity provider UI is replaced in the e2e build. Actual Go JWT verification, services, migrations, SQL, router guards and the production proxy/server run. Release builds use Clerk's SDK; a build scan found no fixture identity code in 60 release bundles. These tests do not claim to verify Clerk's hosted sign-up, email delivery or real provider webhooks.
-
-The local schema is migrated and `/readyz` returns ready. The external Clerk `user.deleted` subscription and endpoint secret still need configuration when a public endpoint exists; the [runbook](deployment.md) documents it. Live-key startup requires the secret. No production database or external Clerk configuration was changed. Billing, cloud media and timers remain outside scope.
+Billing, cloud media storage and timers remain outside scope. Hosted Clerk signup and external webhook delivery need separate provider checks.

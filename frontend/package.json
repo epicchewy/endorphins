@@ -13,10 +13,10 @@
     "start": "bun run server.ts",
     "typegen": "bun --bun tsr generate && bun --bun openapi-typescript ../api/openapi.json -o app/types/api.gen.ts",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint --deny-warnings app server.ts dev-backend.ts vite.config.ts && bun scripts/check-boundaries.ts",
+    "lint": "oxlint --deny-warnings app server.ts vite.config.ts && bun scripts/check-boundaries.ts",
     "test": "bun test test",
-    "format": "prettier --write app server.ts dev-backend.ts vite.config.ts test scripts",
-    "format:check": "prettier --check app server.ts dev-backend.ts vite.config.ts test scripts"
+    "format": "prettier --write app server.ts vite.config.ts test scripts",
+    "format:check": "prettier --check app server.ts vite.config.ts test scripts"
   },
   "dependencies": {
     "@clerk/tanstack-react-start": "1.6.3",

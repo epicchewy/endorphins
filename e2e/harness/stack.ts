@@ -64,6 +64,7 @@ export async function startStack() {
     const backend = await start(
       'backend',
       images.backend
+        .withCommand(['sh', '-c', './migrate && exec ./api'])
         .withNetwork(network)
         .withNetworkAliases('api')
         .withEnvironment({

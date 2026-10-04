@@ -28,7 +28,7 @@ dev: db-up migrate
 	bash scripts/dev.sh
 
 api:
-	cd frontend && bun run dev-backend.ts go run ./cmd/api
+	cd backend && bun --env-file=../.env.example --env-file=../frontend/.env.local run --no-orphans go run ./cmd/api
 
 web:
 	cd frontend && bun run dev
@@ -76,4 +76,4 @@ db-stop:
 	docker compose stop postgres
 
 migrate:
-	cd frontend && bun run dev-backend.ts go run ./cmd/migrate
+	cd backend && bun --env-file=../.env.example --env-file=../frontend/.env.local run go run ./cmd/migrate

@@ -50,6 +50,7 @@ Go 1.27.1 was verified against [official downloads](https://go.dev/dl/) and down
 ```text
 api/openapi.json
 frontend/
+  Dockerfile                 # Shared production/e2e image build
   app/
     auth/                    # Production Clerk client/server adapters
     routes/                  # Routes, validated URL state, screen composition
@@ -70,11 +71,11 @@ frontend/
 e2e/
   setup.ts                   # Disposable Postgres/API/frontend lifecycle
   harness/                   # Testcontainers image build, network and app lifecycle
-  docker/                    # Container builds for the e2e app variants
   fixtures.ts                # Per-test identities and local-only network policy
   specs/                     # Browser flows and actual HTTP/OpenAPI contracts
   playwright.config.ts       # Desktop/mobile projects and failure artifacts
 backend/
+  Dockerfile                 # Shared production/e2e image build
   cmd/api/main.go            # Signals, config, application entry point
   cmd/migrate/main.go        # Explicit versioned schema migration
   internal/
@@ -146,7 +147,7 @@ Mobbin informed information hierarchy; the [Paper file](https://app.paper.design
 
 Keep tests at the seam that owns the invariant. Generator/JWT tests and real Postgres race/constraint tests cover cases that are expensive or unreliable to infer through browser flows. Browser tests cover product interactions against the actual application and API. They also validate actual response bodies against OpenAPI, exercising the production same-origin proxy, idempotency, ownership, exports, and verified deletion.
 
-The Playwright harness builds and starts the Go API, frontend and Postgres with Testcontainers on one private network. Each run gets fresh data and random host ports. Playwright runs on the host, as in Temper. The backend runs the normal migration and API commands; the frontend runs the production Bun SSR/static/proxy entry point. Startup and teardown own all containers and the network, including partial-failure cleanup. Tests block external browser requests and retain logs, traces, screenshots and video.
+The Playwright harness builds and starts the Go API, frontend and Postgres with Testcontainers on one private network. Each run gets fresh data and random host ports. Playwright runs on the host, as in Temper. Both image builds use the application Dockerfiles, with explicit E2E build arguments. The backend runs the normal migration and API commands; the frontend runs the production Bun SSR/static/proxy entry point. Startup and teardown own all containers and the network, including partial-failure cleanup. Tests block external browser requests and retain logs, traces, screenshots and video.
 
 The Go `e2e` build swaps only the external Clerk backend for ephemeral keys and fixture routes from `internal/testfixtures`. The frontend substitutes its Clerk adapter only in `e2e` build mode. Tokens and deletion events still pass the real JWT and webhook verifiers; app wiring, owner-scoped queries and SQL migrations remain unchanged. Release import checks reject test fixtures, and frontend release checks reject test identity code. Real Clerk signup and provider webhook delivery remain separate integration checks. See [the harness guide](../e2e/README.md).
 

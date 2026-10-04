@@ -6,7 +6,7 @@ Implemented on 4 October 2026, using Temper's repository tests and Playwright ha
 | --- | --- | --- |
 | Command tests | Two `main_test.go` files; injectable writers used by those tests | Both files removed; command-only injection removed. Root and backend `AGENTS.md` ban entrypoint tests. The layer check rejects `main_test.go`. |
 | Browser fixture | `cmd/smokefixture` started Postgres and wired another copy of the API | `internal/testfixtures` holds signed identity, deletion-event and seed helpers. The `e2e` build runs the actual `cmd/api` and `app.Run`. |
-| Browser stack | Postgres container; API and Bun server ran as host processes | Testcontainers starts Postgres, API and frontend containers on one private network. Images build in Docker from an allowlist; ports and data are disposable. |
+| Browser stack | Postgres container; API and Bun server ran as host processes | Testcontainers starts Postgres, API and frontend containers on one private network. Images use the shared application Dockerfiles and build in Docker from an allowlist; ports and data are disposable. |
 | Repository setup | A new container for each top-level test | One migrated container in `repositories_test.go`; serial tests reset rows. Schema tests use separate databases within that container. |
 | Repository cases | Large tests mixed generation, services, SQL and HTTP orchestration | Resource files cover users, workouts, idempotency, readiness and migrations. Query tests call the actual stores. Playwright covers HTTP journeys. |
 | Service policy | Cursor/filter/key validation mixed into SQL tests | Four focused library-service tests cover those policies without copying database behavior. |

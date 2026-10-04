@@ -30,7 +30,7 @@ The gallery is `frontend/app/components/design-system.tsx`. It owns demonstratio
 `app.css` defines semantic colors with scoped `light-dark()` variables and exposes them through Tailwind `@theme inline`. `color-scheme` chooses system, explicit light, or explicit dark. The gallery can scope each theme without duplicating palettes. Use semantic colors, not raw hex values in new product components.
 
 - **Type:** Sharp Serif Text PDF Preview regular for editorial headings; Inter Variable for body, controls, numbers, and metadata. Body/form inputs are 16px, control labels 14px, supporting metadata at least 12px on screen. Headings use responsive `clamp()` sizing. The brand wordmark remains Inter.
-- **Font asset:** the current Sharp Serif preview was recovered from the supplied PDF. It lacks the original kerning/OpenType tables. Replace it with the licensed original font package before public release; see `docs/design/font-recovery/README.md`.
+- **Font asset:** the current Sharp Serif preview was recovered from the supplied PDF. It lacks the original kerning/OpenType tables. Replace it with the licensed original font package before public release.
 - **Spacing:** Use Tailwind’s 4px scale: `gap-2` is 8px, `p-6` is 24px. Keep the current larger layout values only where the design needs them.
 - **Shape:** 8px controls, 12px panels. Avoid adding a new radius for each component.
 - **Targets:** shared inputs, selects, and default buttons are 48px tall. Small buttons and navigation targets remain at least 44px. Inputs use 16px text to avoid mobile auto-zoom.

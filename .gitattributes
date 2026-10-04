@@ -1,4 +1,2 @@
 frontend/app/routeTree.gen.ts linguist-generated
 frontend/app/types/api.gen.ts linguist-generated
-# Unified patches keep their context prefixes, including spaces before tabs.
-docs/design/**/diffs/*.patch linguist-generated -whitespace

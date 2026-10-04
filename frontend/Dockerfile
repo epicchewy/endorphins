@@ -6,14 +6,16 @@ WORKDIR /app
 COPY frontend/package.json frontend/bun.lock ./
 RUN bun install --frozen-lockfile
 COPY frontend .
-RUN VITE_CLERK_PUBLISHABLE_KEY=pk_test_c21va2UuY2xlcmsuYWNjb3VudHMuZGV2JA \
-    bun run build --mode e2e
+ARG BUILD_MODE=production
+ARG VITE_CLERK_PUBLISHABLE_KEY
+RUN bun run build --mode "${BUILD_MODE}" --outDir build \
+    && if [ "${BUILD_MODE}" = production ]; then bun scripts/check-release.ts; fi
 
 FROM bun
 WORKDIR /app
 COPY frontend/package.json frontend/bun.lock ./
 RUN bun install --frozen-lockfile --production
-COPY --from=build /app/build-e2e ./build
+COPY --from=build /app/build ./build
 COPY frontend/server.ts ./
 USER bun
 ENV HOST=0.0.0.0 PORT=3100
