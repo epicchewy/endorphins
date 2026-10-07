@@ -6,7 +6,7 @@
 - Accept context first for I/O, propagate cancellation, bound deadlines, wrap errors once, and classify expected failures centrally. Log internal causes with request IDs; return only safe API errors.
 - Never add `main_test.go` or command-entrypoint tests. Shared repository lifecycle belongs in `repositories_test.go`; query tests belong beside the resource they cover.
 - Add forward SQL migrations and tests against real Testcontainers Postgres. Docker failures are test failures, never skips. Keep generator and JWT negative-case tests fast and focused.
-- Go1.27.1 is pinned in go.mod/Makefile. Run `make check` from root; its layer checker rejects illegal transitive imports. Keep all `e2e` build-tag fixtures out of release binaries.
-
-- Group config options by owner with `jessevdk/go-flags` tags. Keep CLI flags, environment names, defaults, and descriptions together. Migration config must not require identity credentials. Handle help in the command before opening resources.
+- No foreign key constraints. Lock the owner row for child writes and before account cleanup, and delete owned records explicitly in the erasure transaction.
+- Go 1.27.1 is pinned in go.mod/Makefile. Run `make check` from root; its layer checker rejects illegal transitive imports. Keep all `e2e` build-tag fixtures out of release binaries.
+- Keep config options with their owner. Use `jessevdk/go-flags` tags. Keep CLI flags, environment names, defaults, and descriptions together. Migration config must not require identity credentials. Handle help in the command before opening resources.
 - Name API files by resource and direction (`workout_requests.go`, `workout_responses.go`, `account_responses.go`). Do not add generic `models.go` or `mapping.go` files. Handlers decode, call one service, set HTTP status/headers, and return a response DTO.

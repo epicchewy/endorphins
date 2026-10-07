@@ -7,14 +7,15 @@ const artifacts = resolve(import.meta.dirname, '../../output/playwright/temper-i
 test('sign-in returns to the chosen workout and native validation preserves custom drafts', async ({
   page,
 }) => {
-  await page.goto('/?minutes=75&level=4#builder')
+  await page.goto('/app/new?minutes=75&level=4')
+  await expect(page.getByRole('heading', { name: 'Welcome back.' })).toBeVisible()
+  await page.getByRole('button', { name: 'Continue with test identity' }).click()
+  await expect(page.getByRole('heading', { name: 'Welcome home.' })).toBeVisible()
+  await page.getByRole('button', { name: 'Choose my level' }).click()
+  await page.getByRole('button', { name: 'Set up my workout' }).click()
   const duration = page.getByRole('spinbutton', { name: 'Duration' })
   await expect(duration).toHaveValue('75')
-  await page.getByRole('button', { name: 'Sign in to build my workout', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Good to see you.' })).toBeVisible()
-  await page.getByRole('button', { name: 'Continue with test identity' }).click()
-  await expect(duration).toHaveValue('75')
-  await expect(page.getByRole('radio', { name: 'Level 4: Going a little further' })).toBeChecked()
+  await expect(page.getByRole('radio', { name: 'Level 4: Tough' })).toBeChecked()
   await duration.fill('')
   await duration.pressSequentially('72')
   await expect(duration).toHaveValue('72')
@@ -24,11 +25,11 @@ test('sign-in returns to the chosen workout and native validation preserves cust
   expect(await duration.evaluate((input: HTMLInputElement) => input.validity.rangeUnderflow)).toBe(
     true,
   )
-  await expect(page.getByRole('heading', { name: 'Make this one count.' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Full-body workout' })).toHaveCount(0)
   await duration.fill('60')
   await expect(page).toHaveURL(/minutes=60/)
   await page.getByRole('button', { name: 'Generate my workout', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Make this one count.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Full-body workout' })).toBeVisible()
   await expect(page.getByText('Level 4 · Full body', { exact: true })).toBeVisible()
   await expect(page.getByRole('article')).toContainText('Built for 60 minutes')
 })
@@ -73,14 +74,11 @@ test('component gallery shares accessible light/dark controls and reduced-motion
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 
-test('mobile layout, theme and keyboard navigation stay usable', async ({ page }, info) => {
+test('mobile layout, theme, keyboard navigation, and unsaved preferences stay usable', async ({
+  signedInPage: page,
+}, info) => {
   await page.goto('/')
-  await expect(
-    page.getByRole('button', {
-      name: 'Sign in to build my workout',
-      exact: true,
-    }),
-  ).toBeEnabled()
+  await expect(page.getByRole('link', { name: 'Open my dashboard' })).toBeVisible()
   await page.evaluate(() => document.fonts.ready)
   await mkdir(artifacts, { recursive: true })
   await page.screenshot({
@@ -89,37 +87,60 @@ test('mobile layout, theme and keyboard navigation stay usable', async ({ page }
     scale: 'css',
     animations: 'disabled',
   })
-  await expect(page.getByRole('link', { name: 'Skip to workout builder' })).toHaveCSS(
+  await expect(page.getByRole('link', { name: 'Skip to content' })).toHaveCSS(
     'clip-path',
     'inset(50%)',
   )
   await page.keyboard.press('Tab')
-  await expect(page.getByRole('link', { name: 'Skip to workout builder' })).toBeFocused()
-  await expect(page.getByRole('link', { name: 'Skip to workout builder' })).toHaveCSS(
-    'clip-path',
-    'none',
-  )
+  await expect(page.getByRole('link', { name: 'Skip to content' })).toBeFocused()
+  await expect(page.getByRole('link', { name: 'Skip to content' })).toHaveCSS('clip-path', 'none')
   await page.keyboard.press('Enter')
   await page.getByRole('combobox', { name: 'Color theme' }).selectOption('dark')
   await page.reload()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(21, 24, 25)')
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute(
+    'content',
+    'rgb(21, 24, 25)',
+  )
+  const redesign = resolve(artifacts, '../redesign')
+  await mkdir(redesign, { recursive: true })
+  await page.screenshot({
+    path: resolve(redesign, `landing-dark-${info.project.name}.png`),
+    fullPage: true,
+    scale: 'css',
+    animations: 'disabled',
+  })
   await page.setViewportSize({ width: 320, height: 844 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.goto('/app/new')
+  await page.getByRole('radio', { name: '30min', exact: true }).check()
   await page.getByRole('radio', { name: '30min', exact: true }).focus()
   await page.keyboard.press('ArrowRight')
   await expect(page.getByRole('radio', { name: '45min', exact: true })).toBeChecked()
+  await page.screenshot({
+    path: resolve(redesign, `setup-dark-320-${info.project.name}.png`),
+    fullPage: true,
+    scale: 'css',
+    animations: 'disabled',
+  })
+  await page.getByRole('link', { name: 'Account', exact: true }).click()
+  await page.getByRole('combobox', { name: 'Default level' }).selectOption('5')
+  page.once('dialog', (dialog) => void dialog.dismiss())
+  await page.getByRole('link', { name: 'Dashboard', exact: true }).click()
+  await expect(page).toHaveURL(/\/app\/account$/)
+  await expect(page.getByRole('combobox', { name: 'Default level' })).toHaveValue('5')
+  page.once('dialog', (dialog) => void dialog.accept())
+  await page.getByRole('link', { name: 'Dashboard', exact: true }).click()
+  await expect(page).toHaveURL(/\/app$/)
+  await page.goto('/app/new')
+  await expect(page.getByRole('radio', { name: 'Level 2: Steady' })).toBeChecked()
 })
 
 test('shared action links show hover and pressed feedback', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'Hover feedback requires a pointer')
   await page.goto('/')
-  await expect(
-    page.getByRole('button', { name: 'Sign in to build my workout', exact: true }),
-  ).toBeEnabled()
-  const buildLink = page
-    .locator('section[aria-labelledby="page-title"]')
-    .getByRole('link', { name: 'Build a workout' })
+  const buildLink = page.getByRole('link', { name: 'Get started' }).last()
   await buildLink.hover()
   await expect(buildLink).toHaveCSS('background-color', 'rgb(243, 106, 73)')
   await expect(buildLink).toHaveCSS('translate', '0px -2px')
@@ -133,9 +154,9 @@ test('printing includes closed exercise notes and restores interactive disclosur
   signedInPage: page,
 }, info) => {
   test.skip(info.project.name !== 'desktop', 'PDF output requires desktop Chromium')
-  await page.goto('/')
+  await page.goto('/app/new')
   await page.getByRole('button', { name: 'Generate my workout', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Make this one count.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Full-body workout' })).toBeVisible()
   const details = page.getByRole('article').locator('details')
   await details.first().locator('summary').click()
   const before = await details.evaluateAll((nodes: HTMLDetailsElement[]) =>

@@ -40,9 +40,9 @@ func (s *Users) Ensure(ctx context.Context, subject string) (domains.User, error
 		return domains.User{}, domains.ErrAccountDeleted
 	}
 	var user domains.User
-	err = tx.QueryRow(ctx, `SELECT id::text,clerk_user_id,created_at FROM users WHERE clerk_user_id=$1`, subject).Scan(&user.ID, &user.ClerkUserID, &user.CreatedAt)
+	err = tx.QueryRow(ctx, `SELECT id::text,clerk_user_id,created_at,default_level,onboarding_completed_at FROM users WHERE clerk_user_id=$1`, subject).Scan(&user.ID, &user.ClerkUserID, &user.CreatedAt, &user.DefaultLevel, &user.OnboardingCompletedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		err = tx.QueryRow(ctx, `INSERT INTO users (clerk_user_id) VALUES ($1) RETURNING id::text,clerk_user_id,created_at`, subject).Scan(&user.ID, &user.ClerkUserID, &user.CreatedAt)
+		err = tx.QueryRow(ctx, `INSERT INTO users (clerk_user_id) VALUES ($1) RETURNING id::text,clerk_user_id,created_at,default_level,onboarding_completed_at`, subject).Scan(&user.ID, &user.ClerkUserID, &user.CreatedAt, &user.DefaultLevel, &user.OnboardingCompletedAt)
 	}
 	if err != nil {
 		return domains.User{}, fmt.Errorf("resolve user: %w", err)
@@ -64,6 +64,21 @@ func (s *Users) Erase(ctx context.Context, subject string) error {
 	if _, err := tx.Exec(ctx, `INSERT INTO deleted_accounts (subject_hash) VALUES ($1) ON CONFLICT DO NOTHING`, subjectHash(subject)); err != nil {
 		return fmt.Errorf("record deleted account: %w", err)
 	}
+	// Lock before deleting children. Child writes hold a key-share lock on the
+	// same row, so a concurrent save either precedes cleanup or finds no owner.
+	var userID string
+	err = tx.QueryRow(ctx, `SELECT id::text FROM users WHERE clerk_user_id=$1 FOR UPDATE`, subject).Scan(&userID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("lock account cleanup: %w", err)
+	}
+	if userID != "" {
+		if _, err := tx.Exec(ctx, `DELETE FROM workout_completions WHERE user_id=$1`, userID); err != nil {
+			return fmt.Errorf("erase account completions: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM workouts WHERE user_id=$1`, userID); err != nil {
+			return fmt.Errorf("erase account workouts: %w", err)
+		}
+	}
 	if _, err := tx.Exec(ctx, `DELETE FROM users WHERE clerk_user_id=$1`, subject); err != nil {
 		return fmt.Errorf("erase account: %w", err)
 	}
@@ -79,7 +94,7 @@ func (s *Users) Export(ctx context.Context, userID string) (domains.AccountExpor
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	result := domains.AccountExport{ExportedAt: time.Now().UTC()}
-	err = tx.QueryRow(ctx, `SELECT id::text,clerk_user_id,created_at FROM users WHERE id=$1`, userID).Scan(&result.User.ID, &result.User.ClerkUserID, &result.User.CreatedAt)
+	err = tx.QueryRow(ctx, `SELECT id::text,clerk_user_id,created_at,default_level,onboarding_completed_at FROM users WHERE id=$1`, userID).Scan(&result.User.ID, &result.User.ClerkUserID, &result.User.CreatedAt, &result.User.DefaultLevel, &result.User.OnboardingCompletedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return result, domains.ErrNotFound
 	}
@@ -95,8 +110,31 @@ func (s *Users) Export(ctx context.Context, userID string) (domains.AccountExpor
 	if err != nil {
 		return result, err
 	}
+	completionRows, err := tx.Query(ctx, completionSelect+` WHERE c.user_id=$1 ORDER BY c.completed_at DESC,c.id DESC`, userID)
+	if err != nil {
+		return result, fmt.Errorf("export completions: %w", err)
+	}
+	result.Completions, err = collectCompletions(completionRows)
+	completionRows.Close()
+	if err != nil {
+		return result, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return result, fmt.Errorf("finish account export: %w", err)
 	}
 	return result, nil
+}
+
+func (s *Users) Update(ctx context.Context, userID string, level int, completeOnboarding bool) (domains.User, error) {
+	var user domains.User
+	err := s.db.QueryRow(ctx, `UPDATE users SET default_level=$2,
+ onboarding_completed_at=CASE WHEN $3 THEN COALESCE(onboarding_completed_at,now()) ELSE onboarding_completed_at END
+ WHERE id=$1 RETURNING id::text,clerk_user_id,created_at,default_level,onboarding_completed_at`, userID, level, completeOnboarding).Scan(&user.ID, &user.ClerkUserID, &user.CreatedAt, &user.DefaultLevel, &user.OnboardingCompletedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return user, domains.ErrNotFound
+	}
+	if err != nil {
+		return user, fmt.Errorf("update account: %w", err)
+	}
+	return user, nil
 }

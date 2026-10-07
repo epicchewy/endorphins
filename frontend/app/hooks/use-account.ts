@@ -1,6 +1,6 @@
 import { useClerk, useSession } from '~/auth/client'
-import { useQuery } from '@tanstack/react-query'
-import { getCurrentUser } from '~/services/accounts'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getCurrentUser, updateAccount, type UpdateAccountInput } from '~/services/accounts'
 import { APIError } from '~/services/http'
 import { queryKeys } from '~/services/query-keys'
 
@@ -25,5 +25,19 @@ export function useAccount() {
     enabled: Boolean(userId),
     retry: retryAccountQuery,
     staleTime: 60_000,
+  })
+}
+
+export function useUpdateAccount() {
+  const { sessionId, getToken, isCurrentSession } = useAccountSession()
+  const client = useQueryClient()
+  return useMutation({
+    mutationKey: queryKeys.updateAccount(sessionId),
+    mutationFn: (input: UpdateAccountInput) => updateAccount(input, getToken),
+    retry: false,
+    networkMode: 'always',
+    onSuccess: (user) => {
+      if (isCurrentSession()) client.setQueryData(queryKeys.profile(sessionId), user)
+    },
   })
 }

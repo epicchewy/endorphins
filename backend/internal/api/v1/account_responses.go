@@ -7,31 +7,37 @@ import (
 )
 
 type UserResponse struct {
-	ID          string    `json:"id"`
-	ClerkUserID string    `json:"clerkUserId"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID                    string     `json:"id"`
+	ClerkUserID           string     `json:"clerkUserId"`
+	CreatedAt             time.Time  `json:"createdAt"`
+	DefaultLevel          int        `json:"defaultLevel"`
+	OnboardingCompletedAt *time.Time `json:"onboardingCompletedAt"`
 }
 
 func NewUserResponse(user domains.User) UserResponse {
 	return UserResponse{
-		ID:          user.ID,
-		ClerkUserID: user.ClerkUserID,
-		CreatedAt:   user.CreatedAt,
+		ID:                    user.ID,
+		ClerkUserID:           user.ClerkUserID,
+		CreatedAt:             user.CreatedAt,
+		DefaultLevel:          user.DefaultLevel,
+		OnboardingCompletedAt: user.OnboardingCompletedAt,
 	}
 }
 
 type AccountExportResponse struct {
-	Version    int               `json:"version"`
-	ExportedAt time.Time         `json:"exportedAt"`
-	User       UserResponse      `json:"user"`
-	Workouts   []WorkoutResponse `json:"workouts"`
+	Version     int                  `json:"version"`
+	ExportedAt  time.Time            `json:"exportedAt"`
+	User        UserResponse         `json:"user"`
+	Workouts    []WorkoutResponse    `json:"workouts"`
+	Completions []CompletionResponse `json:"completions"`
 }
 
 func NewAccountExportResponse(export domains.AccountExport) AccountExportResponse {
 	return AccountExportResponse{
-		Version:    1,
-		ExportedAt: export.ExportedAt,
-		User:       NewUserResponse(export.User),
-		Workouts:   newWorkoutResponses(export.Workouts),
+		Version:     2,
+		ExportedAt:  export.ExportedAt,
+		User:        NewUserResponse(export.User),
+		Workouts:    newWorkoutResponses(export.Workouts),
+		Completions: newCompletionResponses(export.Completions),
 	}
 }

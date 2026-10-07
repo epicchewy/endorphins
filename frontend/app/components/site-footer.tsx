@@ -9,7 +9,7 @@ export function SiteFooter() {
         markClassName="size-6 max-[600px]:size-6"
       />
       <p className="text-xs text-muted max-[600px]:order-3 max-[600px]:w-full">
-        A little movement goes a long way.
+        Home workouts. No equipment.
       </p>
       <div className="hidden max-[600px]:block">
         <ThemeControl compact={false} />

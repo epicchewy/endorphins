@@ -80,7 +80,7 @@ test('invalid input gets a specific correction', async () => {
   spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({}, { status: 422 }))
   await expect(
     generateWorkout({ durationMinutes: 10, level: 9 }, async () => 'test-token'),
-  ).rejects.toThrow('30–120 minutes')
+  ).rejects.toThrow('30-120 minutes')
 })
 
 test('a missing session never sends an anonymous generation request', async () => {

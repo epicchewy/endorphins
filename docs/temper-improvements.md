@@ -1,8 +1,8 @@
 # Temper-inspired improvements
 
-This implements the approved [comparison](temper-architecture-comparison.md). Endorphins keeps Go/Echo layers, manual constructors, TanStack and the Sharp Serif/Inter identity.
+This records the October 4, 2026 changes from the approved [comparison](temper-architecture-comparison.md). Endorphins keeps Go/Echo layers, manual constructors, TanStack and the Sharp Serif/Inter identity.
 
-| Area | Before | Current implementation |
+| Area | Before | After |
 | --- | --- | --- |
 | Frontend data | Mixed transport, repeated query keys, local filter state | Separate account/workout clients, safe HTTP transport, session-scoped keys, query hooks and validated URL state |
 | Backend contracts | Concrete handler dependencies and shared transport/storage shapes | Handler-owned interfaces, resource DTOs, safe API errors and versioned storage snapshots |
@@ -24,4 +24,4 @@ Useful entry points:
 - [Browser harness](../e2e/README.md)
 - [Deployment runbook](deployment.md)
 
-Billing, cloud media storage and timers remain outside scope. Hosted Clerk signup and external webhook delivery need separate provider checks.
+Billing, cloud media storage, and timers are deferred. Hosted Clerk signup and external webhook delivery need separate provider checks.

@@ -1,6 +1,6 @@
 # Browser tests
 
-Run `make browsers` once, then `make e2e`. Docker must run. Use Node 26.10.0 (`nvm use`) and Bun 1.4.2. The Testcontainers dependencies require at least Node 22.19.0.
+Run `make browsers` once, then `make e2e`. Docker must run. Use Node 26.10.0 (`nvm use`) and Bun 1.4.2. Testcontainers needs Node 22.19.0 or newer. Do not run a frontend build while E2E images are building; both use `frontend/build`.
 
 ```text
 Host: Playwright (desktop + mobile Chromium)
@@ -11,20 +11,22 @@ Host: Playwright (desktop + mobile Chromium)
         → ephemeral Clerk JWKS              [inside API container]
 ```
 
-`setup.ts` starts the stack before the tests and closes it afterward. `harness/images.ts` builds both images from `backend/Dockerfile` and `frontend/Dockerfile` at the repository root, using `GO_BUILD_TAGS=e2e` and `BUILD_MODE=e2e`. Those same Dockerfiles default to production. `harness/stack.ts` owns one private network, fresh Postgres, readiness checks, random ports and cleanup. It also cleans up after partial startup failures; Testcontainers' reaper is the final backstop. No local app process, named volume, `.env` file or provider account is used.
+`setup.ts` starts and closes the stack. `harness/images.ts` builds the application Dockerfiles with `GO_BUILD_TAGS=e2e` and `BUILD_MODE=e2e`; both default to production. `harness/stack.ts` owns the private network, fresh Postgres, readiness checks, random ports, and cleanup after success or partial startup failure. Testcontainers' reaper is the final backstop. The run needs no local app process, named volume, `.env`, or provider account.
 
-As in Temper, the browser runner stays on the host. All app services run in containers. The frontend uses the same `server.ts` as a release. The backend runs the real migration command, then `cmd/api` with the `e2e` build tag. Only the external Clerk provider and frontend identity adapters change. JWT authorization, signed deletion webhooks, owner-scoped queries and application wiring remain real.
+The runner stays on the host, as in Temper. The frontend runs the release `server.ts`. The backend runs the migration command, then `cmd/api` with the `e2e` tag. Only external Clerk adapters change. JWT authorization, webhook signatures, owner-scoped queries, and app wiring remain real.
 
 The Go `internal/testfixtures` package provides ephemeral signing keys and fixture routes. It can issue a signed session, sign an account-deletion event, and seed older workouts. Release builds cannot import this package. Each test gets a unique subject through `fixtures.ts`, and browser requests outside this run's origin are blocked.
 
 Teardown stops the actual API container and checks that the production proxy returns a safe 503 response. It then removes the remaining containers and network. Failure in one cleanup step does not prevent later steps from running.
 
-Tests cover generation, saved history, search, retries, account isolation, export, deletion, print/PDF, keyboard and mobile interactions. Repository tests cover SQL constraints, races and transaction rollback. Keep these test responsibilities separate.
+Browser tests cover signup, onboarding, saved plans, completion/Undo, activity, search, retries, account isolation, export, deletion, print/PDF, keyboard use, and mobile layouts. Repository tests cover SQL constraints, races, and rollback.
 
 Artifacts:
 
 - `../output/playwright/stack.log`: Postgres, API and frontend logs.
 - `../output/playwright/test-results`: failure screenshots, traces and videos.
+- `../output/playwright/redesign`: desktop/mobile journey WebM videos and screen captures.
+- `../output/playwright/redesign/lighthouse-*.report.html`: optional audits. Set `E2E_AUDIT=1` to run `harness/page-audits.ts` against the landing page and dashboard. It owns the audit browser, temporary profile, and Lighthouse process.
 - `playwright-report/index.html`: browser report.
 
 Use `DEBUG=testcontainers:build make e2e` for image build diagnostics. The first run pulls pinned runtime images and installs locked dependencies; later runs reuse Docker build layers. Builds need registry access. The test journeys need no live Clerk service.

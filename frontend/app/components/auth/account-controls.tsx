@@ -1,6 +1,5 @@
 import { useAuth, UserButton } from '~/auth/client'
 import { Link } from '@tanstack/react-router'
-import { buttonClassName } from '~/components/ui/button'
 
 export function AccountControls() {
   const { isLoaded, isSignedIn } = useAuth()
@@ -16,33 +15,21 @@ export function AccountControls() {
       {isSignedIn ? (
         <>
           <Link
-            to="/workouts"
+            to="/app"
             className="inline-flex min-h-11 items-center text-[13px] font-bold whitespace-nowrap hover:text-focus max-[600px]:text-xs"
           >
-            My workouts
+            Dashboard
           </Link>
           <UserButton appearance={{ elements: { userButtonTrigger: { padding: '8px' } } }} />
         </>
       ) : (
-        <>
-          <Link
-            to="/sign-in/$"
-            params={{ _splat: '' }}
-            className="inline-flex min-h-11 items-center text-[13px] font-bold whitespace-nowrap hover:text-focus max-[600px]:text-xs"
-          >
-            Sign in
-          </Link>
-          <Link
-            to="/sign-up/$"
-            params={{ _splat: '' }}
-            className={buttonClassName({
-              size: 'small',
-              className: 'border-ink bg-ink text-background max-[600px]:hidden',
-            })}
-          >
-            Get started
-          </Link>
-        </>
+        <Link
+          to="/sign-in/$"
+          params={{ _splat: '' }}
+          className="inline-flex min-h-11 items-center text-[13px] font-bold whitespace-nowrap hover:text-focus max-[600px]:text-xs"
+        >
+          Sign in
+        </Link>
       )}
     </div>
   )

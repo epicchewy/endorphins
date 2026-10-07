@@ -1,10 +1,10 @@
 # Deployment runbook
 
-This repository contains production build entries and operational checks; it does not provision hosting, a managed database, TLS, backup policies, or the external Clerk webhook endpoint. Deploy the frontend and Go API together behind one public origin. The Bun server serves the built frontend and proxies `/api/` to Go.
+Deploy the frontend and Go API behind one public origin. Bun serves the frontend and proxies `/api/` to Go. Configure hosting, managed Postgres, TLS, backups, and the Clerk webhook endpoint on the deployment platform.
 
 ## Configure the environment
 
-Use the deployment platform's secret store. Local Clerk CLI credentials in `frontend/.env.local` are development conveniences and must not be copied into images or committed.
+Use the deployment platform's secret store. Local Clerk CLI credentials in `frontend/.env.local` are for development. Never copy them into images or commit them.
 
 | Variable                       | Consumer and purpose                                                                                                                         |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -22,7 +22,7 @@ Use an externally reachable HTTPS origin for the application and webhook, termin
 
 ## Build and start in order
 
-Use the pinned Go and Bun toolchains and frozen frontend lockfile. A release Go build can identify itself in its structured startup log:
+Use the pinned Go and Bun toolchains and frozen frontend lockfile. Include version and revision in the Go startup log:
 
 ```sh
 # Run from backend/. Supply release metadata from the build system.
@@ -53,7 +53,9 @@ Deployment sequence:
 4. Start the Bun frontend/proxy and route traffic only after the Go readiness probe succeeds.
 5. Check a signed-in generation, saved detail/reload, library filters, and account export through the public origin. Check the configured Clerk lifecycle flow separately.
 
-The current API accepts clean schema version **2** only. A dirty migration, old version, future version, or missing migration table prevents startup/readiness. Inspect and repair failed migrations before advancing the version; do not clear dirty state by resetting the database.
+The current API accepts clean schema version 4 only. A dirty migration, old version, future version, or missing migration table prevents startup/readiness. Inspect and repair failed migrations before advancing the version; do not clear dirty state by resetting the database.
+
+Migration 4 removes legacy foreign keys. Stop the old API before applying it, then start the matching API with explicit account cleanup and owner-row locks. Older binaries that depend on cascading deletes cannot safely run against this schema. Rollback migrations never restore foreign keys.
 
 ## Liveness, readiness, and request diagnosis
 
@@ -64,17 +66,17 @@ The current API accepts clean schema version **2** only. A dirty migration, old 
 
 ## Configure Clerk account deletion
 
-The receiver is implemented at `POST /api/webhooks/clerk`. The external endpoint/subscription has **not** been configured by this change.
+Register the receiver at `POST /api/webhooks/clerk`. The external endpoint and subscription are not configured by this repository.
 
 In the intended Clerk instance, register the public HTTPS URL ending in `/api/webhooks/clerk`, subscribe to `user.deleted`, and put that endpoint's signing secret in `CLERK_WEBHOOK_SIGNING_SECRET`. Keep the route reachable without a browser-session redirect; its authentication is the Svix signature. Preserve the raw request body and `svix-id`, `svix-timestamp`, and `svix-signature` headers through every proxy. The checked-in Bun proxy forwards them.
 
-After deployment, send a test delivery from that instance, then verify an actual development-account deletion: a valid event receives `204`, duplicate delivery remains harmless, workouts disappear, and a previously issued token cannot reprovision the account. Invalid signatures or timestamps receive `400`; storage failures receive `500` so delivery can retry. Keep failed-delivery monitoring enabled in Clerk. Local hermetic tests prove signature handling and the proxy/database flow, not external endpoint reachability.
+After deployment, send a test delivery from that instance, then verify an actual development-account deletion: a valid event receives `204`, duplicate delivery remains harmless, workouts disappear, and a previously issued token cannot reprovision the account. Invalid signatures or timestamps receive `400`; storage failures receive `500` so delivery can retry. Keep failed-delivery monitoring enabled in Clerk. Local tests cover signatures and the proxy/database flow. Verify external reachability after deployment.
 
-Clerk delivery is asynchronous. The application erases its active account/workouts when it processes a verified deletion. Short-lived session tokens and the normal Clerk session lifecycle still apply before delivery. Consult Clerk's [webhook overview](https://clerk.com/docs/guides/development/webhooks/overview) for delivery behavior and Svix's [Go verification guide](https://www.svix.com/guides/receiving/receive-webhooks-with-go/) for the signing protocol.
+Clerk delivery is asynchronous. The application erases its account, plans, and completion logs when it processes a verified deletion. Short-lived session tokens and the normal Clerk session lifecycle still apply before delivery. Consult Clerk's [webhook overview](https://clerk.com/docs/guides/development/webhooks/overview) for delivery behavior and Svix's [Go verification guide](https://www.svix.com/guides/receiving/receive-webhooks-with-go/) for the signing protocol.
 
 ## Retention, backups, and rollback
 
-Account erasure atomically inserts a SHA-256 subject digest into `deleted_accounts` and deletes the user; foreign keys cascade to workouts and their idempotency keys. The digest/deletion time currently have no expiry. Retain them to reject stale sessions and late provisioning, and document that narrow retention purpose. A digest is retained account-related data, not a claim of anonymization.
+Account erasure inserts a SHA-256 subject digest into `deleted_accounts`, locks the user row, and deletes completion logs, plans, and the user in one transaction. The digest/deletion time currently have no expiry. Retain them to reject stale sessions and late provisioning, and document that narrow retention purpose. The digest remains account-related data.
 
 Live database deletion does not modify existing backups. Define backup retention and access policies with the hosting operator. Before opening traffic after a restore, preserve or reconcile completed erasures and tombstones so old account data is not restored as active. Backup expiry and restore-time erasure reconciliation are operational responsibilities; this repository does not automate them.
 

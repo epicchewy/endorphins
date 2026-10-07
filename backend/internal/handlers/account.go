@@ -14,6 +14,7 @@ const userKey = "endorphins.user"
 type accountService interface {
 	Resolve(context.Context, string) (domains.User, error)
 	Export(context.Context, string) (domains.AccountExport, error)
+	Update(context.Context, string, int, bool) (domains.User, error)
 }
 type Account struct{ service accountService }
 
@@ -44,4 +45,16 @@ func (h *Account) Export(c *echo.Context) error {
 	}
 	c.Response().Header().Set("Content-Disposition", `attachment; filename="endorphins-account.json"`)
 	return c.JSON(http.StatusOK, v1.NewAccountExportResponse(data))
+}
+
+func (h *Account) Update(c *echo.Context) error {
+	var input v1.UpdateAccountRequest
+	if err := decodeJSON(c, &input); err != nil {
+		return err
+	}
+	user, err := h.service.Update(c.Request().Context(), currentUser(c).ID, input.DefaultLevel, input.CompleteOnboarding)
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, v1.NewUserResponse(user))
 }

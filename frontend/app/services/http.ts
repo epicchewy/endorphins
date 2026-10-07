@@ -15,12 +15,16 @@ export class APIError extends Error {
 function errorMessage(status: number, code?: string) {
   if (code === 'account_deleted')
     return 'This account has been deleted. Sign in with another account.'
+  if (code === 'invalid_level') return 'Choose a level from 1 to 5.'
+  if (code === 'invalid_timezone') return 'Your time zone could not be used. Reload and try again.'
+  if (code === 'completion_undone')
+    return 'This completion was undone. Open the finish screen again to record a new workout.'
   if (code === 'invalid_page') return 'These filters couldn’t be used. Clear them and try again.'
   if (code === 'idempotency_conflict')
-    return 'This save attempt used different preferences. Change your settings and try again.'
+    return 'This request was already used for another workout. Start a new attempt.'
   if (status === 401) return 'Your session has ended. Please sign in again.'
   if (status === 404) return 'This workout couldn’t be found in your account.'
-  if (status === 422) return 'Choose 30–120 minutes and a level from 1 to 5.'
+  if (status === 422) return 'Choose 30-120 minutes and a level from 1 to 5.'
   if (status === 400) return 'Check your selections and try again.'
   return 'Your workouts are unavailable just now. Please try again.'
 }

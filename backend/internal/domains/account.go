@@ -9,9 +9,11 @@ import (
 var ErrNotFound = errors.New("not found")
 
 type User struct {
-	ID          string    `json:"id"`
-	ClerkUserID string    `json:"clerkUserId"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID                    string    `json:"id"`
+	ClerkUserID           string    `json:"clerkUserId"`
+	CreatedAt             time.Time `json:"createdAt"`
+	DefaultLevel          int
+	OnboardingCompletedAt *time.Time
 }
 
 type subjectKey struct{}
@@ -30,7 +32,8 @@ var ErrAccountDeleted = errors.New("account deleted")
 var ErrIdempotencyConflict = errors.New("idempotency key already used for different input")
 
 type AccountExport struct {
-	User       User
-	Workouts   []SavedWorkout
-	ExportedAt time.Time
+	User        User
+	Workouts    []SavedWorkout
+	Completions []Completion
+	ExportedAt  time.Time
 }

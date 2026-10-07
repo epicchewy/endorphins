@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useState } from 'react'
+import { lazy, Suspense, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, Clock3, Printer, RefreshCw, Sunrise, List, Play } from 'lucide-react'
 import { usePrintDetails } from '~/hooks/use-print-details'
 import type { Workout } from '~/services/workouts'
@@ -20,17 +20,14 @@ export function WorkoutSheet({
   pending,
   error,
   onShuffle,
-  changed,
-  headingLevel = 2,
+  children,
 }: {
   workout: Workout
   pending: boolean
   error?: string
   onShuffle: () => void
-  changed: boolean
-  headingLevel?: 1 | 2
+  children: ReactNode
 }) {
-  const Heading = headingLevel === 1 ? 'h1' : 'h2'
   const printRef = usePrintDetails()
   const [view, setView] = useState<'plan' | 'focus'>('plan')
   const overviewButton = useRef<HTMLButtonElement>(null)
@@ -54,16 +51,16 @@ export function WorkoutSheet({
     <article ref={printRef} className="print:block print:w-full" aria-labelledby="workout-title">
       <div className="rounded-panel bg-inverse p-8 text-inverse-ink max-[600px]:p-6 max-[360px]:p-5 print:border print:border-[#919a9e] print:bg-white print:p-5 print:text-ink">
         <div className="flex justify-between gap-4 text-xs text-inverse-muted max-[600px]:gap-2 print:text-muted">
-          <span>Your full-body plan.</span>
+          <span>Saved workout plan</span>
           <span>Level {workout.level} · Full body</span>
         </div>
-        <Heading
+        <h1
           id="workout-title"
           tabIndex={-1}
           className="mt-6 font-display text-[clamp(34px,3.2vw,46px)] leading-[1.16] font-normal tracking-tight focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-6 focus-visible:outline-accent max-[600px]:text-[38px] print:text-[34px]"
         >
-          Make this one count.
-        </Heading>
+          Full-body workout
+        </h1>
         <dl
           aria-label="Workout statistics"
           className="mt-6.5 flex gap-[clamp(24px,4vw,64px)] max-[1150px]:gap-7.5 max-[600px]:justify-between max-[600px]:gap-0 print:mt-3 print:gap-12"
@@ -112,9 +109,6 @@ export function WorkoutSheet({
           ))}
         </dl>
       </div>
-      {changed && (
-        <Feedback tone="info">Settings changed. Generate a new workout to apply them.</Feedback>
-      )}
       <div
         data-testid="workout-toolbar"
         className="my-6 flex flex-wrap items-center justify-between gap-3 max-[600px]:flex-col max-[600px]:items-stretch print:hidden"
@@ -128,7 +122,7 @@ export function WorkoutSheet({
             aria-pressed={view === 'plan'}
             onClick={() => setView('plan')}
           >
-            <List size={16} /> Plan overview
+            <List size={16} aria-hidden="true" /> Plan overview
           </Button>
           <Button
             variant="ghost"
@@ -136,12 +130,13 @@ export function WorkoutSheet({
             aria-pressed={view === 'focus'}
             onClick={() => setView('focus')}
           >
-            <Play size={15} /> Exercise view
+            <Play size={15} aria-hidden="true" /> Exercise view
           </Button>
         </fieldset>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {children}
           <Button variant="secondary" className={actionButton} onClick={() => window.print()}>
-            <Printer size={17} />
+            <Printer size={17} aria-hidden="true" />
             <span>Print / save PDF</span>
           </Button>
           <Button
@@ -164,7 +159,9 @@ export function WorkoutSheet({
               setView('plan')
               overviewButton.current?.focus()
             }}
-          />
+          >
+            {children}
+          </WorkoutFocus>
         </Suspense>
       )}
       <div
@@ -173,9 +170,9 @@ export function WorkoutSheet({
       >
         {workout.warmupMinutes > 0 && (
           <div className="flex items-center gap-3.5 rounded-control bg-accent-soft p-5 max-[600px]:gap-2.5 max-[600px]:p-4 print:mt-5">
-            <Sunrise size={24} strokeWidth={1.6} className="max-[600px]:w-5" />
+            <Sunrise size={24} strokeWidth={1.6} className="max-[600px]:w-5" aria-hidden="true" />
             <div>
-              <h3 className="text-sm font-bold max-[600px]:text-xs">A little warm-up first</h3>
+              <h2 className="text-sm font-bold max-[600px]:text-xs">A little warm-up first</h2>
               <p className="mt-1 text-xs leading-[1.6] text-muted">
                 Ease into movement before your first block.
               </p>
@@ -191,18 +188,18 @@ export function WorkoutSheet({
         {workout.blocks.map((block, index) => (
           <section className="mt-7 print:mt-5" key={block.name} aria-labelledby={`block-${index}`}>
             <div className="flex items-center justify-between gap-5 border-b border-line-strong pb-3.5 print:break-after-avoid">
-              <h3
+              <h2
                 id={`block-${index}`}
                 className="font-body text-[26px] leading-[1.1] font-semibold tracking-tight capitalize max-[600px]:text-2xl print:text-[26px]"
               >
                 {block.name}
-              </h3>
+              </h2>
               <div className="flex items-center gap-3.5 text-xs max-[600px]:gap-2.5">
                 <strong>
                   {block.sets} {block.sets === 1 ? 'set' : 'sets'}
                 </strong>
                 <span className="flex items-center gap-1 text-muted">
-                  <Clock3 size={13} /> ~{block.estimatedMinutes} min
+                  <Clock3 size={13} aria-hidden="true" /> ~{block.estimatedMinutes} min
                 </span>
               </div>
             </div>
@@ -223,6 +220,7 @@ export function WorkoutSheet({
                       </span>
                       <Prescription exercise={exercise} />
                       <ChevronDown
+                        aria-hidden="true"
                         className="text-muted transition-transform duration-180 group-open:rotate-180 print:hidden"
                         size={16}
                       />
@@ -244,7 +242,7 @@ export function WorkoutSheet({
       <p className="mt-6 text-xs leading-[1.8] text-muted print:text-[10px]">
         Built for {workout.requestedMinutes} minutes, with a {workout.estimatedMinutes}-minute
         estimate{workout.warmupMinutes ? ' including warm-up' : ''}. Actual time depends on your
-        pace and rest. Check the exercise notes for any weights or equipment you’ll need.
+        pace and rest. Review the exercise notes before you begin.
       </p>
     </article>
   )

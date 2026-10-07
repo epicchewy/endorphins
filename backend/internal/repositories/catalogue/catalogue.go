@@ -41,6 +41,12 @@ func New(files fs.FS) (*Catalogue, error) {
 				names[e.Name] = true
 			}
 		}
+		for group, exercises := range catalogue {
+			catalogue[group] = slices.DeleteFunc(exercises, func(e domains.Exercise) bool { return !homeExercise(level, e) })
+			if len(catalogue[group]) < 4 {
+				return nil, fmt.Errorf("catalogue %s: too few equipment-free %s exercises", name, group)
+			}
+		}
 		levels[level] = catalogue
 	}
 	return &Catalogue{levels: levels}, nil
@@ -59,4 +65,16 @@ func (r *Catalogue) ForLevel(ctx context.Context, level int) (domains.Catalogue,
 		result[key] = slices.Clone(exercises)
 	}
 	return result, nil
+}
+
+// The application uses floor/wall movements. Keep the original Python catalogue intact.
+func homeExercise(level int, e domains.Exercise) bool {
+	switch e.Name {
+	case "Slow arm circles", "Elevated arm holds", "Tricep extensions", "Reverse arm circles", "Tricep dips":
+		return false
+	case "Handstand shoulder taps", "Hand stand holds", "Hand stand pushups":
+		return level > 2
+	default:
+		return true
+	}
 }

@@ -25,10 +25,11 @@ export function listWorkouts(
   cursor: string,
   getToken: GetToken,
   signal?: AbortSignal,
+  limit = 20,
 ): Promise<WorkoutPage> {
   const params = libraryFilterParams(filters)
   params.set('sort', filters.sort)
-  params.set('limit', '20')
+  params.set('limit', String(limit))
   if (cursor) params.set('cursor', cursor)
   return request(`/api/v1/workouts?${params}`, getToken, { signal })
 }

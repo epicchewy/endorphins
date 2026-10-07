@@ -1,6 +1,6 @@
 # Endorphins frontend review — October 1, 2026
 
-**Resolution: all six findings fixed on October 1, 2026.** The original review below is retained as the record of the issues; its evidence and line references describe the pre-fix implementation.
+All six findings were fixed on October 1, 2026. This record retains the original evidence and line references. Colors, test totals, and access limits describe that version. See [the October 5 review](signup-onboarding-review-2026-10-05.md) for current results.
 
 | Finding | Resolution |
 | --- | --- |
@@ -11,13 +11,13 @@
 | Home-logo reload | The brand uses TanStack `Link` for navigation. |
 | Broad CSS transition | Radio controls transition only background color, border color, and text color. |
 
-Post-fix verification: `make check` passed, including eight frontend tests with 39 assertions, and `make smoke` passed. New regressions exercise offline failure/retry and pending, failed, recovered, and reset status with an existing workout. HTTP smoke coverage now verifies gzip round-trips, preference weights, explicit exclusions, wildcard negotiation, identity fallback, cache headers, and HEAD responses. No dependencies were added. Browser/device and print verification remain unrun under the existing browser-access restriction.
+Post-fix verification: `make check` passed, including eight frontend tests with 39 assertions, and `make smoke` passed. New regressions exercise offline failure/retry and pending, failed, recovered, and reset status with an existing workout. HTTP smoke coverage now verifies gzip round-trips, preference weights, explicit exclusions, wildcard negotiation, identity fallback, cache headers, and HEAD responses. No dependencies were added. Browser, device, and print checks were not run because browser access was restricted.
 
-The frontend structure is suitable for this first pass. The actionable issues concern offline requests, failure feedback, selection contrast, navigation, and public asset delivery. No critical or high-severity issue was identified in the reviewed scope. This is a source review with executable checks, not a completed browser or accessibility certification.
+The source review found no critical or high-severity issue. It identified failures in offline requests, shuffle feedback, selection contrast, navigation, and asset delivery. It did not include browser or screen-reader checks.
 
-Reviewed the current working tree, including uncommitted implementation files: routes, page composition, components, hooks, API client, styles, generated contract, Vite configuration, Bun server, tests, and the documented design system. No application code was changed.
+The initial review read the working tree, including uncommitted implementation files: routes, page composition, components, hooks, API client, styles, generated contract, Vite configuration, Bun server, tests, and the documented design system. The initial review changed no application code.
 
-**Findings, in priority order**
+## Original findings
 
 1. **P2 — Offline generation can leave all generation controls disabled indefinitely.** [use-generate-workout.ts:4](/Users/lchui/.codex/worktrees/3ae1/endorphins/frontend/app/hooks/use-generate-workout.ts:4) uses the default mutation network mode. After TanStack observes an offline event, a new mutation pauses before invoking the fetch function. The page treats `isPending` as active work and disables both fieldsets, Generate, and Shuffle. Consequently, the timeout inside `generateWorkout` never starts. An isolated probe using the installed Query implementation and actual API helper still reported `status: pending`, `isPaused: true`, and zero fetch calls after 16 seconds. Restoring online state resumed the mutation and produced the expected network error. Handle the paused state explicitly, or use `networkMode: 'always'` so the request can fail through the existing error path. This does not require implementing offline workout generation. [TanStack network-mode documentation](https://tanstack.com/query/latest/docs/framework/react/guides/network-mode).
 
@@ -31,9 +31,9 @@ Reviewed the current working tree, including uncommitted implementation files: r
 
 6. **P3 — Narrow the radio control transition properties.** [app.css:248](/Users/lchui/.codex/worktrees/3ae1/endorphins/frontend/app/app.css:248) uses `transition: all`. Specify the intended color, border, and background properties so future layout changes do not animate unintentionally. No current layout-jank measurement is claimed. This is a direct rule from the current [Vercel Web Interface Guidelines](https://raw.githubusercontent.com/vercel-labs/web-interface-guidelines/main/command.md).
 
-**Reviews applied**
+## Review scope
 
-These were manual, skill-guided code reviews with the automated checks below. A skill is review guidance, not a separate scanner executable.
+I used the listed skills for source review and ran the checks below.
 
 | Skill | Scope applied and result |
 | --- | --- |
@@ -56,7 +56,7 @@ These were manual, skill-guided code reviews with the automated checks below. A 
 
 The applicable TanStack guidance was compared with the skills shipped in `node_modules`; the compared portable and installed guidance differed in metadata formatting, not implementation rules. Installed types, successful production builds, and runtime probes provided the compatibility evidence.
 
-**Reviewed for applicability, not run as full audits**
+## Skills screened for use
 
 - `vercel-optimize`: no Vercel production metrics audit was run. This project currently documents a Bun serving path, and no intended Vercel project or production telemetry was established. Its [SKILL.md](/Users/lchui/.agents/skills/vercel-optimize/SKILL.md) explicitly says, “Recommendations start from Vercel production signals, not repo-wide grep.” The local performance findings above come from the React/code review and direct HTTP measurements, not that metrics workflow.
 - `vercel-react-view-transitions`: screened; the app uses CSS transitions and does not use React's ViewTransition API. No migration or React release-channel change is warranted for this review.
@@ -64,7 +64,7 @@ The applicable TanStack guidance was compared with the skills shipped in `node_m
 - `design-taste-frontend`: screened, not applied as a full audit. Its [SKILL.md](/Users/lchui/.codex/skills/design-taste-frontend/SKILL.md) scopes itself to “Landing pages, portfolios, and redesigns.” This request concerns a working workout generator, and its marketing-layout prescriptions should not replace the established product design.
 - TanStack auth, dynamic/search parameters, server functions, middleware, tables, virtualization, and hotkeys: these features are absent. Loader-specific caching and standalone Router SSR setup were not separate audits; the actual Start SSR/Query integration was reviewed above. shadcn/Base UI migration and Vercel deployment tools do not apply to the existing native-control implementation or this review request.
 
-**Verification completed**
+## Original verification
 
 - `make check` passed: backend layer check, formatting, Go lint, Go race/integration test command, frontend lint/format checks, six frontend tests with 19 assertions, generated API/route types, TypeScript, and both production builds. Go reported cached successes. Route generation emitted a non-blocking circular-dependency warning about `replaceRouteChunk`; generation and compilation completed successfully.
 - `make smoke` passed against production builds: SSR, static assets, 15 real-catalogue generation requests, OpenAPI response validation, API errors, proxy failure, and static path isolation.
@@ -73,8 +73,8 @@ The applicable TanStack guidance was compared with the skills shipped in `node_m
 - Production HTTP probes measured raw/gzipped asset sizes and response headers. The temporary production server was stopped afterward.
 - The existing development UI at `http://127.0.0.1:3100/` and API health endpoint on port 8088 both returned HTTP 200.
 
-**Limits**
+## Limits at the time
 
-Browser access was previously declined, so no browser automation, screenshots, Lighthouse, measured Core Web Vitals, screen-reader pass, responsive rendering check, or print/PDF inspection was performed. The [Postmaker UI skill](/Users/lchui/.codex/skills/postmaker-ui/SKILL.md) states, “Class assertions cannot verify rendered geometry.” Source-level mobile and focus checks therefore cannot establish that the app renders and behaves correctly on a device. Those checks remain a distinct follow-up when browser access is available.
+Browser access was previously declined, so no browser automation, screenshots, Lighthouse, measured Core Web Vitals, screen-reader pass, responsive rendering check, or print/PDF inspection was performed. The [Postmaker UI skill](/Users/lchui/.codex/skills/postmaker-ui/SKILL.md) states, “Class assertions cannot verify rendered geometry.” Source-level mobile and focus checks therefore cannot establish that the app renders and behaves correctly on a device. Those checks still needed browser access at the time.
 
-The existing automated tests exercise server rendering and the fetch helper, but do not cover the actual interactive offline/shuffle/error flow. Add focused behavior coverage when fixing those findings. No exhaustive Go business-logic or security audit was claimed by this frontend review.
+The existing automated tests exercise server rendering and the fetch helper, but do not cover the actual interactive offline/shuffle/error flow. Add focused behavior coverage when fixing those findings. The review did not audit all Go business rules or security behavior.

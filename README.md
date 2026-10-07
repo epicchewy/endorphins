@@ -1,12 +1,12 @@
 # Endorphins
 
-A full-body workout generator built with TanStack Start, React, and Go/Echo. Choose 30–120 minutes and one of five levels to create a workout from the original exercise catalogue.
+Home workouts built with TanStack Start, React, and Go/Echo. Choose 30–120 minutes and one of five levels. New plans need only floor space and a wall.
 
-The app includes Clerk sign-in/sign-up, a responsive workout studio, saved-plan analytics and filters, an exercise-by-exercise guide, shuffle, exercise notes, and printable workout sheets. Light, dark, and system appearances share an athletic visual system. Every generated plan belongs to an account and persists in Postgres. Billing and cloud media storage remain outside this pass.
+The landing page is `/`; the signed-in app is `/app`. Signup leads through a welcome, default level choice, and workout setup. Plans save to Postgres. You can search, follow, shuffle, and print them. After you work out, confirm completion to update your dashboard. It shows completed workouts, active days, four weeks of activity, and milestones. Light, dark, and system themes are available. Billing and cloud media storage are deferred.
 
 ## Run locally
 
-Prerequisites: Docker (running), Node.js 26.10.0 (`nvm use`), Bun 1.4.2, Python 3 for repository checks, and Go with automatic toolchain downloads enabled. The backend and Go linter use Go **1.27.1**; the project does not replace your global Go installation.
+Prerequisites: Docker (running), Node.js 26.10.0 (`nvm use`), Bun 1.4.2, Python 3 for repository checks, and Go with automatic toolchain downloads enabled. The backend and Go linter use Go 1.27.1 without changing your global Go installation.
 
 ```sh
 make setup
@@ -25,7 +25,7 @@ The Clerk setup only needs to be done once per checkout. It writes ignored devel
 
 For separate terminals, run `make db-up`, `make migrate`, then `make api` and `make web`. Export `DATABASE_URL` to use a different database. Set `APP_ORIGINS` to comma-separated frontend origins when changing the frontend address; if changing `API_ADDRESS`, update `API_ORIGIN` too. `make db-stop` preserves your local database volume.
 
-Open **Get started** to create your first app account. Signing in to the Clerk CLI only authenticates the CLI; it does not sign you into Endorphins. Your account menu provides profile and sign-out controls, and **My workouts** reopens saved plans.
+Select **Get started** to create your first app account. Signing in to the Clerk CLI only authenticates the CLI; it does not sign you into Endorphins. Your account menu provides profile and sign-out controls, and **Saved workouts** reopens saved plans. After working out, use **I finished** and confirm completion. A repeat of the same plan counts as another workout.
 
 ### Codex local environment
 
@@ -45,7 +45,7 @@ make e2e         # hermetic desktop/mobile browser tests on dynamic ports
 make format      # apply Go and frontend formatting
 ```
 
-`make test` includes real Postgres Testcontainers tests; Docker must be running. `make e2e` builds and starts Postgres, the actual Go API, and the production Bun server in Testcontainers. Playwright runs on the host, as in Temper. The stack uses a private network, random ports, fresh data and ephemeral signing keys; a build-time adapter replaces the external Clerk UI. It verifies generation, saved history, full-library search, retries, session isolation, data export, mobile/keyboard interactions, PDF output, API contracts, signed deletion webhooks, and proxy failure. It needs no real Clerk credentials. Real Clerk sign-up and production webhook delivery remain separate integration checks.
+`make test` runs real Postgres tests and needs Docker. `make e2e` runs desktop/mobile journeys against disposable Postgres, Go API, and Bun frontend containers. Only the external Clerk UI/session adapter is replaced. Real Clerk signup and webhook delivery need separate integration checks. See [browser tests and artifacts](e2e/README.md). `make smoke` is an alias for `make e2e`. Do not run a frontend build while E2E images are building; both use `frontend/build`.
 
 For a production-mode local preview, run these in separate terminals after `make check`:
 
@@ -65,13 +65,17 @@ The Bun server compresses built JavaScript and CSS once at startup and serves ca
 - [Accounts, sessions, and workout data model](docs/accounts-and-workouts.md)
 - [Architecture](docs/architecture.md)
 - [Engineering practices](docs/engineering-practices.md)
-- [Implementation status](docs/implementation-plan.md)
+- [First-pass record, October 1](docs/implementation-plan.md)
 - [Jukebox reference notes](docs/jukebox-backend-notes.md)
 - [OpenAPI contract](api/openapi.json)
+- [Deployment runbook](docs/deployment.md)
+- [October 5 flow review and recordings](docs/signup-onboarding-review-2026-10-05.md)
+
+Open `/design-system` in development to inspect the shared controls. `/app/account` provides an authenticated JSON data export.
 
 Go uses explicit constructor injection and layers for domains, services, repositories, handlers, and server setup. `services/workout` owns generation, `services/library` owns saved workouts, and `services/account` maps Clerk identities to internal users. Concrete stores live under `repositories/catalogue` and `repositories/postgres`. Frontend routes compose pages and components independently of the backend packages.
 
-The generator retains the script’s difficulty-based time estimates, three body-area blocks, and repetition/interval prescriptions. It fixes the accepted level range, duration overshoot, duplicated exercise selection, and lost warm-up accounting. Times remain estimates. The existing exercise catalogue has been preserved; this pass does not reclassify its movements or provide demonstrations.
+The generator retains the script’s difficulty-based time estimates, three body-area blocks, and repetition/interval prescriptions. It fixes the level range, duration overshoot, duplicate choices, and lost warm-up time. The Go catalogue filters out weights, chair dips, and handstands at levels 1–2. It leaves the original exercise files intact. Times remain estimates; exercise demonstrations are not included.
 
 ## Original Python script
 
@@ -84,11 +88,3 @@ python3 main.py 45 2 0
 ```
 
 This creates a workout PDF using the original algorithm. The existing `make workout` target also runs the original repository update script before generation.
-
-The [design system](docs/design-system.md) documents the current typography, tokens, and shared controls.
-
-### Architecture and verification
-
-The UI primitive gallery is available at `/design-system` in development. Shared native controls, feedback, tokens and motion are documented in [the design system](docs/design-system.md). Library filters persist in the URL and search the full saved history. `/account` provides an authenticated JSON data export.
-
-Run `make browsers` once, then `make e2e` with Docker running. The hermetic browser suite runs Postgres, the real Go API and the production frontend/proxy in containers on dynamic ports; it requires no Clerk credentials. Release builds use the actual Clerk SDK and reject fixture code. `make smoke` remains an alias for `make e2e`. See [the test harness](e2e/README.md), [the before/after report](docs/temper-improvements.md) and [deployment runbook](docs/deployment.md).

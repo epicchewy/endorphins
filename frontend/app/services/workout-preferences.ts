@@ -20,13 +20,9 @@ export function workoutSearch(search: Record<string, unknown>): {
   }
 }
 
-export function preferencesFromSearch(search: ReturnType<typeof workoutSearch>): GenerateInput {
-  return { durationMinutes: search.minutes ?? 45, level: search.level ?? 2 }
-}
-
-export function workoutReturnPath(input: GenerateInput) {
-  const valid = preferencesFromSearch(
-    workoutSearch({ minutes: input.durationMinutes, level: input.level }),
-  )
-  return `/?minutes=${valid.durationMinutes}&level=${valid.level}#builder`
+export function preferencesFromSearch(
+  search: ReturnType<typeof workoutSearch>,
+  defaultLevel = 1,
+): GenerateInput {
+  return { durationMinutes: search.minutes ?? 45, level: search.level ?? defaultLevel }
 }

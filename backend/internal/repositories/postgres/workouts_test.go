@@ -34,7 +34,7 @@ func TestWorkoutsCreatePersistsSnapshotAcrossConnections(t *testing.T) {
 	assert.Equal(t, saved, loaded)
 }
 
-func TestWorkoutsCreateEnforcesPrimaryAndForeignKeys(t *testing.T) {
+func TestWorkoutsCreateRejectsDuplicateIDsAndMissingOwners(t *testing.T) {
 	db := setupRepositoryTest(t)
 	repo := store.NewWorkouts(db)
 	user, err := store.NewUsers(db).Ensure(t.Context(), "user_alice")
@@ -49,9 +49,10 @@ func TestWorkoutsCreateEnforcesPrimaryAndForeignKeys(t *testing.T) {
 	require.ErrorAs(t, err, &duplicate)
 	assert.Equal(t, "23505", duplicate.Code)
 	_, err = repo.Create(t.Context(), "00000000-0000-0000-0000-000000000000", workoutSnapshot("orphan"), "", "")
-	var orphan *pgconn.PgError
-	require.ErrorAs(t, err, &orphan)
-	assert.Equal(t, "23503", orphan.Code)
+	assert.ErrorIs(t, err, domains.ErrNotFound)
+	var orphanCount int
+	require.NoError(t, db.QueryRow(t.Context(), `SELECT count(*) FROM workouts WHERE id='orphan'`).Scan(&orphanCount))
+	assert.Zero(t, orphanCount)
 	items, err := repo.List(t.Context(), user.ID, domains.WorkoutFilter{}, nil, 20)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"existing"}, workoutIDs(items))

@@ -77,7 +77,13 @@ export function UserButton() {
   )
 }
 
-export function SignIn() {
+export function SignIn({
+  fallbackRedirectUrl = '/app',
+  forceRedirectUrl,
+}: {
+  fallbackRedirectUrl?: string
+  forceRedirectUrl?: string
+}) {
   const [pending, setPending] = useState(false)
   const signIn = async () => {
     setPending(true)
@@ -85,9 +91,13 @@ export function SignIn() {
     if (!response.ok) throw new Error('Test identity service unavailable')
     const { token } = await response.json()
     document.cookie = `${cookieName}=${encodeURIComponent(token)}; Path=/; SameSite=Strict`
-    const destination = new URLSearchParams(window.location.search).get('returnTo') ?? '/'
+    const destination =
+      forceRedirectUrl ??
+      new URLSearchParams(window.location.search).get('redirect_url') ??
+      new URLSearchParams(window.location.search).get('returnTo') ??
+      fallbackRedirectUrl
     window.location.assign(
-      destination.startsWith('/') && !destination.startsWith('//') ? destination : '/',
+      destination.startsWith('/') && !destination.startsWith('//') ? destination : '/app',
     )
   }
   return (

@@ -5,6 +5,7 @@ package workout
 import (
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 
@@ -37,6 +38,14 @@ func TestOriginalCatalogueGeneration(t *testing.T) {
 						}
 						expected := result.WarmupMinutes
 						for _, b := range result.Blocks {
+							for _, exercise := range b.Exercises {
+								if strings.Contains(strings.ToLower(exercise.Description), "weight") || exercise.Name == "Tricep dips" {
+									t.Errorf("equipment exercise generated: %s", exercise.Name)
+								}
+								if level <= 2 && strings.Contains(strings.ReplaceAll(strings.ToLower(exercise.Name), " ", ""), "handstand") {
+									t.Errorf("handstand generated at level %d", level)
+								}
+							}
 							expected += b.Minutes()
 						}
 						if expected != result.Minutes() {

@@ -56,10 +56,14 @@ func New(workouts *handlers.Workout, accounts *handlers.Account, authenticate fu
 	})
 	api := e.Group("/api/v1", echo.WrapMiddleware(authenticate), accounts.Require)
 	api.GET("/me", accounts.Me)
+	api.PATCH("/me", accounts.Update)
 	api.GET("/me/export", accounts.Export)
 	api.POST("/workouts", workouts.Create)
 	api.GET("/workouts", workouts.List)
 	api.GET("/workouts/summary", workouts.Summary)
 	api.GET("/workouts/:id", workouts.Get)
+	api.POST("/workouts/:id/completions", workouts.Complete)
+	api.DELETE("/completions/:id", workouts.Undo)
+	api.GET("/activity", workouts.Activity)
 	return e
 }

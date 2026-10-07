@@ -1,24 +1,36 @@
 # Accounts and saved workouts
 
-Clerk owns authentication. Endorphins owns application data. There is no local password, refresh-token, or duplicate session table.
+Clerk owns authentication and sessions. Endorphins stores application data in Postgres.
 
 ```mermaid
 erDiagram
   CLERK_USER ||--o| USERS : "verified subject maps to"
   USERS ||--o{ WORKOUTS : owns
+  USERS ||--o{ WORKOUT_COMPLETIONS : records
+  WORKOUTS ||--o{ WORKOUT_COMPLETIONS : uses
   USERS {
     uuid id PK
     text clerk_user_id UK
+    smallint default_level
+    timestamptz onboarding_completed_at
     timestamptz created_at
   }
   WORKOUTS {
     text id PK
-    uuid user_id FK
+    uuid user_id
     timestamptz created_at
     smallint snapshot_version
     jsonb plan
     text idempotency_key
     text input_fingerprint
+  }
+  WORKOUT_COMPLETIONS {
+    uuid id PK
+    uuid user_id
+    text workout_id
+    timestamptz completed_at
+    timestamptz undone_at
+    text idempotency_key
   }
   DELETED_ACCOUNTS {
     text subject_hash PK
@@ -26,7 +38,9 @@ erDiagram
   }
 ```
 
-`deleted_accounts` is deliberately separate from active users. It retains a SHA-256 digest of the Clerk subject after erasure; it contains no workout snapshot or raw Clerk user ID.
+The diagram shows application ownership. The database has no foreign key constraints.
+
+`deleted_accounts` is separate from active users. It retains a SHA-256 digest of the Clerk subject after erasure; it contains no workout snapshot or raw Clerk user ID.
 
 ## Identity and sessions
 
@@ -34,17 +48,17 @@ The Clerk CLI links this project to the Endorphins app (`app_3K5z4w8PFdIMSXl1sR7
 
 Browser API calls obtain a fresh token from the specific Clerk session resource, then send `Authorization: Bearer …` through the same-origin proxy. Go verifies the signature and token times using the Clerk SDK, requires a user subject, session ID and expiry, checks the exact instance issuer derived from the publishable key, and restricts `azp` to `APP_ORIGINS`. Pending/non-active session claims are rejected. Older session tokens without `sts` remain supported. Cookies and client-supplied user IDs do not authorize the Go API.
 
-Verification uses Clerk's cached public signing keys. It does not make a Clerk session lookup on every request: session revocation is reflected as short-lived tokens expire. A processed account-deletion webhook also blocks otherwise valid stale tokens through the local tombstone. Tokens, passwords, and secrets are never stored in Postgres or application browser storage. Clerk owns its own session storage and lifecycle.
+Verification uses Clerk's cached public signing keys. Session revocation takes effect as short-lived tokens expire; the API does not look up the Clerk session on each request. A processed account-deletion webhook also blocks otherwise valid stale tokens through the local tombstone. Tokens, passwords, and secrets are never stored in Postgres or application browser storage. Clerk owns its own session storage and lifecycle.
 
-Private routes use a server auth check before navigation and also withhold their contents if the browser session disappears. These screens fetch their data on the client; Go remains the authorization boundary. The canonical query-key factory scopes profile, workout lists, summaries, details, exports, and generation mutations to the Clerk session ID. On sign-out or account switching, the previous session's requests and caches are cleared, and page state is remounted. Late responses cannot replace the new account's data. Auth-dependent HTML and API responses are not publicly cacheable.
+Private routes use a server auth check when entering the private route tree and also withhold their contents if the browser session disappears. These screens fetch their data on the client; Go remains the authorization boundary. The canonical query-key factory scopes profile, workout lists, summaries, details, exports, activity, and write mutations to the Clerk session ID. On sign-out or account switching, the previous session's requests and caches are cleared, and page state is remounted. Late responses cannot replace the new account's data. Auth-dependent HTML and API responses are not publicly cacheable.
 
 ## Application users
 
 The first authenticated API request resolves `sub` to `users.clerk_user_id`. Resolution and erasure acquire the same per-subject transaction lock. Resolution checks the deletion digest, returns an existing user without rewriting it, or inserts a user. Simultaneous first requests return the same internal UUID; a first request racing a deletion cannot recreate the account after erasure commits.
 
-`users.id` is the stable key for application relationships. Future favorites, completed sessions, preferences, and progress records should reference it. Never use email, display name, or a browser-provided owner ID as the relationship key. Clerk remains the source for email and profile details; no stale mirror is stored just to populate unused columns.
+`users.id` is the stable key for application relationships. Completion logs and preferences use it. Future favorites and other account records should also reference it. Never use email, display name, or a browser-provided owner ID as the relationship key. Clerk remains the source for email and profile details; the app stores no profile copy.
 
-`GET /api/v1/me` returns the current internal user and Clerk linkage. Provisioning is lazy, so a Clerk account that has never called the API may not yet have an Endorphins row. The `/account` screen shows its creation date and application reference, links back to the library, and provides an application-data download. Clerk's profile menu owns sign-in/profile management.
+`GET /api/v1/me` returns the current internal user and Clerk linkage. Provisioning is lazy, so a Clerk account that has never called the API may not yet have an Endorphins row. The `/app/account` screen shows its creation date and application reference, links back to the library, and provides an application-data download. Clerk's profile menu owns sign-in/profile management.
 
 ## Workout ownership and retries
 
@@ -74,35 +88,38 @@ Storage has an explicit version-1 encoder/decoder with its own structs. Every re
 
 Newest ordering uses `(created_at DESC, id DESC)`. Shortest ordering uses estimated minutes ascending, then the same timestamp/ID tie-breakers. Cursors carry the relevant position and a scope digest; changing owner, filters, or order requires starting a new first page. An empty `nextCursor` means the final page. Cursors are positions, not credentials: SQL still checks the authenticated owner on every request.
 
-`GET /api/v1/workouts/summary` applies the same `q` and `level` filters to the complete library. It returns matching `count`, total estimated `plannedMinutes`, `averageMinutes` (zero for an empty result), and five `{ level, count }` entries including zero counts. These describe generated plans, not completed training. Library filters and sorting live in validated route search, so refresh and browser navigation restore the view.
+`GET /api/v1/workouts/summary` applies the same `q` and `level` filters to the complete library. It returns matching `count`, total estimated `plannedMinutes`, `averageMinutes` (zero for an empty result), and five `{ level, count }` entries including zero counts. These totals describe generated plans. Completion records supply activity totals. Library filters and sorting live in validated route search, so refresh and browser navigation restore the view.
 
 `GET /api/v1/workouts/{id}` applies both owner and workout ID in SQL. Missing and other-account IDs both return `404`. There is no unscoped repository read method, public share link, or workout-edit endpoint.
 
 ## Export and account erasure
 
-`GET /api/v1/me/export` returns a versioned JSON download containing the application user, all owned workout snapshots, and an export timestamp. A read-only, repeatable-read transaction gives the export a consistent database view. It does not export Clerk-held credentials or profile information. The account screen fetches it with the captured session's bearer token, verifies the returned application owner, downloads a Blob, and discards the payload. Switching sessions suppresses a late download from the previous account.
+`GET /api/v1/me/export` returns a versioned JSON download containing the application user, all owned workout snapshots, completion logs (including undone records), and an export timestamp. Version 2 adds the completion array and account preferences. A read-only, repeatable-read transaction gives the export a consistent database view. It does not export Clerk-held credentials or profile information. The account screen fetches it with the captured session's bearer token, verifies the returned application owner, downloads a Blob, and discards the payload. Switching sessions suppresses a late download from the previous account.
 
-`POST /api/webhooks/clerk` accepts verified Clerk/Svix deliveries without requiring a browser session. It verifies the signature and timestamp over the raw, size-bounded body before decoding. A `user.deleted` event records the subject digest and deletes the application user in one transaction; the workout foreign key cascades the deletion. Duplicate deletions are harmless. A deletion received before initial provisioning still records a tombstone. Other verified event types are acknowledged without changing application data.
+`POST /api/webhooks/clerk` verifies the signature and timestamp over the raw, size-bounded body before decoding. It needs no browser session. A `user.deleted` event records the subject digest and deletes completion logs, plans, and the user in one transaction. Duplicate deletions are harmless. A deletion received before initial provisioning still records a tombstone. Other verified event types are acknowledged without changing application data.
 
 The receiver is implemented, but its external Clerk endpoint subscription and signing secret still need deployment configuration. Delivery is asynchronous; erasure occurs when a valid deletion event is processed. Erasure failures return an error so the provider can retry. There is no separate application-only deletion button: account deletion is managed through Clerk and synchronized by the verified event.
 
-Tombstones currently have no automatic expiry. They retain only the subject digest and deletion time to prevent stale sessions or late events from reprovisioning an erased account; they remain security-related retained data. Database backups and restored copies require a separate retention and erasure-reconciliation policy. Deleting the live row does not rewrite old backups. See the [deployment runbook](deployment.md) before enabling public accounts. Billing and media storage remain separate future work.
+Tombstones currently have no automatic expiry. They retain only the subject digest and deletion time to prevent stale sessions or late events from reprovisioning an erased account; they remain security-related retained data. Database backups and restored copies require a separate retention and erasure-reconciliation policy. Deleting the live row does not rewrite old backups. See the [deployment runbook](deployment.md) before enabling public accounts. Billing and media storage are deferred.
 
-## Storage and migrations
+## Migrations
 
-- `repositories/catalogue` is the concrete read-only filesystem store.
-- `repositories/postgres` owns pool configuration, explicit parameterized SQL, snapshot codecs, and atomic storage operations.
-- `services/account`, `services/library`, and `services/workout` own small consumer-side interfaces and application behavior.
-- Handlers consume small service interfaces and return public DTOs through their resource response constructors.
-- `internal/app` wires constructors and closes the pool after HTTP shutdown.
-- Embedded SQL migrations run explicitly through `cmd/migrate`, using golang-migrate's version table, database lock, and dirty-state handling. API startup never migrates implicitly.
+`cmd/migrate` applies embedded SQL with golang-migrate’s version table, lock, and dirty-state handling. API startup never applies migrations. See [architecture](architecture.md) for module ownership.
 
-The current API requires clean schema version 2, both at startup and in its database-aware `/readyz` probe. `/healthz` reports process liveness separately. Run migrations before deploying a matching API binary. A future schema change adds a migration; do not edit an already applied migration or silently reset a database to clear a dirty state.
+The current API requires clean schema version 4, both at startup and in its database-aware `/readyz` probe. `/healthz` reports process liveness separately. Run migrations before deploying a matching API binary. Future schema changes add migrations. The user's removal of legacy foreign keys is the authorized exception to preserving applied SQL. Never silently reset a database to clear a dirty state.
 
-## Verification
+## Preferences and completion records
 
-Go tests retain the invariants that browser flows cannot efficiently prove: deterministic generator behavior, signed JWT rejection cases, historical snapshot compatibility, real Postgres constraints, cancellation, owner isolation, pagination ties, concurrent idempotency, provisioning/deletion races, erasure rollback, and schema readiness. Database tests use isolated Testcontainers databases under the race detector.
+Migration 3 adds `users.default_level` (1–5, initially Light) and `users.onboarding_completed_at`. `PATCH /api/v1/me` updates the caller's level and can set the onboarding timestamp once. It cannot change ownership or clear onboarding.
 
-The hermetic Playwright suite builds a disposable real stack: the integration-only Go fixture, ephemeral signing keys, a migrated Postgres container, the TanStack application, and the production Bun SSR/static/proxy entry point. Each test has an isolated account. Desktop and mobile projects exercise generation, saving, detail/reload, failed shuffle recovery, URL filters, account isolation, exports, accessibility interactions, layout, reduced motion, and print behavior. Contract checks validate actual responses against OpenAPI, including idempotency and a signed deletion event traveling through the production proxy.
+`workout_completions` stores an ID, account ID, saved plan ID, server confirmation time, optional undo time, and required retry key. Repository transactions check plan ownership and lock the account row before writing. The account/key pair is unique. `POST /api/v1/workouts/{id}/completions` replays the same record for the same key and plan; another plan with that key returns 409. A fresh key counts another workout. `DELETE /api/v1/completions/{id}` voids the caller's record; repeating Undo is harmless. Replaying a voided completion returns 409. Account erasure removes all logs.
 
-Only the external Clerk UI/session adapter is substituted at build time for hermetic runs. Go's real JWT verifier still validates fixture tokens, and the private server guard calls the real API. The normal release build uses Clerk adapters and excludes the fixture binary and test identity modules. Browser tests block external network requests and retain failure artifacts. Actual Clerk signup, login, profile changes, and externally delivered webhooks still require a configured development-instance check; local fixtures do not claim to test Clerk itself.
+`GET /api/v1/activity?timezone=America/New_York` excludes voided records. It counts all completed workouts, distinct local dates this week, four Monday-start weeks, and five recent records. Local calendar arithmetic preserves week boundaries across daylight-saving changes. Weekly chart counts are zero-filled. Confirmation time is not a measured training duration. Generated plans stay separate from activity totals.
+
+## No foreign keys
+
+Foreign keys are prohibited in all application migrations, including rollback migrations. Migrations 1 and 3 contain no relationship constraints. Migration 4 drops the legacy constraints and the redundant owner/plan unique index from already migrated databases. Rollback never restores foreign keys. Primary keys, unique retry keys, value checks, and query indexes remain.
+
+Workout and completion writes hold a `FOR KEY SHARE` lock on the owner row until commit. Missing owners return `ErrNotFound`. Account erasure takes `FOR UPDATE` on that row before deleting completion logs, saved workouts, and the account. A concurrent write either commits before cleanup or finds no owner after cleanup. The subject tombstone and all data deletion commit together. The locks prevent child records from surviving account erasure.
+
+Real Postgres tests cover zero-foreign-key schemas, legacy version-three upgrades without data loss, writes during erasure, and rollback after a failed user delete. [Browser contracts](../e2e/specs/contracts.spec.ts) check ownership, retries, exports, and signed deletion through the production proxy. See [test ownership](engineering-practices.md#test-ownership) for the remaining checks. Actual Clerk signup, profile changes, and webhook delivery need a development-instance check.

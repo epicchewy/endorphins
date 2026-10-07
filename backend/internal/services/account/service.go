@@ -3,6 +3,7 @@ package account
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/epicchewy/endorphins/backend/internal/domains"
@@ -12,7 +13,11 @@ type Users interface {
 	Ensure(context.Context, string) (domains.User, error)
 	Erase(context.Context, string) error
 	Export(context.Context, string) (domains.AccountExport, error)
+	Update(context.Context, string, int, bool) (domains.User, error)
 }
+
+var ErrInvalidLevel = errors.New("choose a default level from 1 to 5")
+
 type Service struct{ users Users }
 
 func New(users Users) *Service { return &Service{users: users} }
@@ -33,4 +38,11 @@ func (s *Service) Export(ctx context.Context, userID string) (domains.AccountExp
 		return domains.AccountExport{}, fmt.Errorf("account owner is required")
 	}
 	return s.users.Export(ctx, userID)
+}
+
+func (s *Service) Update(ctx context.Context, userID string, level int, completeOnboarding bool) (domains.User, error) {
+	if level < 1 || level > 5 {
+		return domains.User{}, ErrInvalidLevel
+	}
+	return s.users.Update(ctx, userID, level, completeOnboarding)
 }
