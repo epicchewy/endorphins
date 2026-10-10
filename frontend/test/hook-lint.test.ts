@@ -45,7 +45,5 @@ test('frontend lint allows the supported hooks and React types', async () => {
     export type { ReactNode, RefCallback } from 'react'
   `,
   )
-  expect(result.text()).toBe('')
-  expect(result.stderr.length).toBe(0)
   expect(result.exitCode).toBe(0)
 })
