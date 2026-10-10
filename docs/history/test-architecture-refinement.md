@@ -17,7 +17,7 @@ Implemented October 4, 2026, using Temper’s repository tests and Playwright ha
 
 As in Temper, Playwright runs on the host. All application services run in containers. The build replaces the external Clerk adapters; JWT checks, webhook signatures, migrations, owner-scoped queries and application wiring remain real. Fixture code requires `-tags=e2e` and cannot enter a normal release build.
 
-The harness needs no local `.env`, live provider account or persistent database. Image builds need registry access. Test journeys block external browser requests. See [the harness guide](../e2e/README.md) for commands and artifacts.
+The harness needs no local `.env`, live provider account or persistent database. Image builds need registry access. Test journeys block external browser requests. See [the harness guide](../../e2e/README.md) for commands and artifacts.
 
 Node 26.10.0 is pinned in `.nvmrc` and CI. Testcontainers' dependencies require Node 22.19.0 or newer; the previous Node 22.17.1 pin was too old.
 

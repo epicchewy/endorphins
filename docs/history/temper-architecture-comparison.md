@@ -2,7 +2,7 @@
 
 Reviewed October 3, 2026; implemented October 4. This records the proposal and pre-change baseline. See [the implementation report](temper-improvements.md) for changes, screenshots, tests, and limits.
 
-Persistence changed on October 9, 2026: Endorphins now uses GORM for application queries and follows Temper's separate model-driven `AutoMigrate` command. Versioned SQL migrations and their runner are removed. Its models and transactions remain in repositories. The pgx decisions below describe the earlier baseline. See [current architecture](architecture.md) for the implemented rules.
+Persistence changed on October 9, 2026: Endorphins now uses GORM for application queries and follows Temper's separate model-driven `AutoMigrate` command. Versioned SQL migrations and their runner are removed. Its models and transactions remain in repositories. The pgx decisions below describe the earlier baseline. See [current architecture](../architecture.md) for the implemented rules.
 
 The comparison used Endorphins’ working files, including the uncommitted full-stack application, and the local Fireworks checkout at `16bec7603b7`. Temper's most recent path-specific commit is `cc0e515b6c2`. Source links point to the inspected local checkouts. Endorphins does not depend on them. I followed representative backend request/storage paths, frontend query/navigation/UI paths, and test/CI configuration. This is not an exhaustive audit of Temper's agent, infrastructure, or analytics subsystems.
 

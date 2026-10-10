@@ -66,11 +66,9 @@ The Bun server compresses built JavaScript and CSS once at startup and serves ca
 - [Accounts, sessions, and workout data model](docs/accounts-and-workouts.md)
 - [Architecture](docs/architecture.md)
 - [Engineering practices](docs/engineering-practices.md)
-- [First-pass record, October 1](docs/implementation-plan.md)
-- [Jukebox reference notes](docs/jukebox-backend-notes.md)
 - [OpenAPI contract](api/openapi.json)
 - [Deployment runbook](docs/deployment.md)
-- [October 5 flow review and recordings](docs/signup-onboarding-review-2026-10-05.md)
+- [History: dated reviews, research, and decision records](docs/history/)
 
 Open `/design-system` in development to inspect the shared controls. `/app/account` provides an authenticated JSON data export.
 

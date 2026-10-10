@@ -4,6 +4,7 @@ export GOTOOLCHAIN := go1.27.1
 VERSION ?= dev
 REVISION := $(shell git rev-parse --short HEAD)
 API_PACKAGE := github.com/epicchewy/endorphins/backend/internal/app
+NODE_VERSION := $(shell cat .nvmrc)
 
 .PHONY: workout
 workout:
@@ -18,22 +19,26 @@ install:
 	@bash build/install.sh
 
 # Full-stack app. The original Python targets above remain available.
-.PHONY: setup dev api web check test lint build format
-setup:
+.PHONY: node-version setup dev api web check test lint build format
+# Another Node on PATH breaks Vite and the e2e harness in confusing ways.
+node-version:
+	@test "$$(node --version)" = "v$(NODE_VERSION)" || { echo "Found Node $$(node --version); .nvmrc pins v$(NODE_VERSION). Run 'nvm use', or prefix the command with: npx --yes --package=node@$(NODE_VERSION) --" >&2; exit 1; }
+
+setup: node-version
 	cd backend && go mod download
 	cd frontend && bun install --frozen-lockfile
 	cd e2e && bun install --frozen-lockfile
 
-dev: db-up migrate
+dev: node-version db-up migrate
 	bash scripts/dev.sh
 
 api:
 	cd backend && bun --env-file=../.env.example --env-file=../frontend/.env.local run --no-orphans go run ./cmd/api
 
-web:
+web: node-version
 	cd frontend && bun run dev
 
-format:
+format: node-version
 	cd backend && gofmt -w .
 	cd frontend && bun run format
 	cd frontend && bunx prettier --write ../e2e --ignore-path ../.gitignore
@@ -42,7 +47,7 @@ test:
 	cd backend && go test -race -tags integration ./...
 	cd frontend && bun test test
 
-lint:
+lint: node-version
 	@test -z "$$(cd backend && gofmt -l .)" || (echo 'Run make format'; exit 1)
 	python3 scripts/check-layers.py
 	cd backend && GOTOOLCHAIN=go1.27.1 go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run
@@ -51,7 +56,7 @@ lint:
 	cd e2e && bun run typecheck
 	cd frontend && bunx prettier --check ../e2e --ignore-path ../.gitignore
 
-build:
+build: node-version
 	cd backend && go build -ldflags "-X $(API_PACKAGE).Version=$(VERSION) -X $(API_PACKAGE).Revision=$(REVISION)" -o bin/api ./cmd/api
 	cd frontend && bun run build && bun scripts/check-release.ts
 
@@ -60,12 +65,12 @@ check: lint test
 	$(MAKE) build
 
 .PHONY: e2e smoke browsers
-e2e:
+e2e: node-version
 	cd e2e && bun run test
 
 smoke: e2e
 
-browsers:
+browsers: node-version
 	cd e2e && bunx playwright install chromium
 
 .PHONY: db-up db-stop migrate
