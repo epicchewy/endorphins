@@ -4,52 +4,85 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/epicchewy/endorphins/backend/internal/domains"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
-type Workouts struct{ db *pgxpool.Pool }
+type Workouts struct{ db *gorm.DB }
 
-func NewWorkouts(db *pgxpool.Pool) *Workouts { return &Workouts{db: db} }
+func NewWorkouts(db *gorm.DB) *Workouts { return &Workouts{db: db} }
+
+type workoutRow struct {
+	ID               string `gorm:"primaryKey"`
+	UserID           string
+	CreatedAt        time.Time `gorm:"autoCreateTime:false;default:(-)"`
+	SnapshotVersion  int       `gorm:"default:(-)"`
+	Plan             []byte    `gorm:"type:jsonb"`
+	IdempotencyKey   *string
+	InputFingerprint *string
+}
+
+func (workoutRow) TableName() string { return "workouts" }
+
+func (row workoutRow) domain() (domains.SavedWorkout, error) {
+	plan, err := decodeSnapshot(row.SnapshotVersion, row.Plan)
+	if err != nil {
+		return domains.SavedWorkout{}, err
+	}
+	return domains.SavedWorkout{ID: row.ID, CreatedAt: row.CreatedAt, WorkoutPlan: plan}, nil
+}
 
 func (s *Workouts) Create(ctx context.Context, userID string, workout domains.SavedWorkout, key, fingerprint string) (domains.SavedWorkout, error) {
 	plan, err := encodeSnapshot(workout.WorkoutPlan)
 	if err != nil {
 		return domains.SavedWorkout{}, fmt.Errorf("encode workout: %w", err)
 	}
-	tx, err := s.db.Begin(ctx)
-	if err != nil {
-		return domains.SavedWorkout{}, fmt.Errorf("begin workout save: %w", err)
+	row := workoutRow{ID: workout.ID, UserID: userID, Plan: plan}
+	if key != "" {
+		row.IdempotencyKey = &key
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	if err := lockWorkoutOwner(ctx, tx, userID); err != nil {
-		return domains.SavedWorkout{}, err
+	if fingerprint != "" {
+		row.InputFingerprint = &fingerprint
 	}
-	// The unique owner/key constraint serializes concurrent retries. PostgreSQL
-	// returns the original immutable snapshot; a different input cannot overwrite it.
-	result, err := scanWorkout(tx.QueryRow(ctx, `INSERT INTO workouts (id,user_id,plan,idempotency_key,input_fingerprint)
- VALUES ($1,$2,$3,NULLIF($4,''),NULLIF($5,''))
- ON CONFLICT (user_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key
- WHERE workouts.input_fingerprint=EXCLUDED.input_fingerprint
- RETURNING id,created_at,snapshot_version,plan`, workout.ID, userID, plan, key, fingerprint))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return domains.SavedWorkout{}, domains.ErrIdempotencyConflict
-	}
+	var result domains.SavedWorkout
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockWorkoutOwner(tx, userID); err != nil {
+			return err
+		}
+		// A retry returns the original snapshot; a different input cannot replace it.
+		saved := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "user_id"}, {Name: "idempotency_key"}},
+			DoUpdates: clause.AssignmentColumns([]string{"idempotency_key"}),
+			Where: clause.Where{Exprs: []clause.Expression{clause.Eq{
+				Column: clause.Column{Table: "workouts", Name: "input_fingerprint"},
+				Value:  clause.Column{Table: "excluded", Name: "input_fingerprint"},
+			}}},
+		}, clause.Returning{}).Create(&row)
+		if saved.Error != nil {
+			return saved.Error
+		}
+		if saved.RowsAffected == 0 {
+			return domains.ErrIdempotencyConflict
+		}
+		item, err := row.domain()
+		result = item
+		return err
+	})
 	if err != nil {
 		return domains.SavedWorkout{}, fmt.Errorf("save workout: %w", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return domains.SavedWorkout{}, fmt.Errorf("commit workout save: %w", err)
 	}
 	return result, nil
 }
 
-func lockWorkoutOwner(ctx context.Context, tx pgx.Tx, userID string) error {
-	var id string
-	err := tx.QueryRow(ctx, `SELECT id::text FROM users WHERE id=$1 FOR KEY SHARE`, userID).Scan(&id)
-	if errors.Is(err, pgx.ErrNoRows) {
+func lockWorkoutOwner(tx *gorm.DB, userID string) error {
+	var owner userRow
+	err := tx.Select("id").Clauses(clause.Locking{Strength: "KEY SHARE"}).
+		Where(map[string]any{"id": userID}).Take(&owner).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return domains.ErrNotFound
 	}
 	if err != nil {
@@ -57,102 +90,104 @@ func lockWorkoutOwner(ctx context.Context, tx pgx.Tx, userID string) error {
 	}
 	return nil
 }
+
 func (s *Workouts) Get(ctx context.Context, userID, id string) (domains.SavedWorkout, error) {
-	result, err := scanWorkout(s.db.QueryRow(ctx, `SELECT id,created_at,snapshot_version,plan FROM workouts WHERE user_id=$1 AND id=$2`, userID, id))
-	if errors.Is(err, pgx.ErrNoRows) {
+	var row workoutRow
+	err := s.db.WithContext(ctx).Where(map[string]any{"user_id": userID, "id": id}).Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return domains.SavedWorkout{}, domains.ErrNotFound
 	}
 	if err != nil {
 		return domains.SavedWorkout{}, fmt.Errorf("get workout: %w", err)
 	}
-	return result, nil
+	return row.domain()
 }
 
-// Search covers focus, block and exercise names, matching the library's displayed
-// content. strpos treats %, _ and backslashes literally instead of LIKE wildcards.
-const workoutFilterSQL = `user_id=$1 AND ($2::int=0 OR (plan->>'level')::int=$2)
- AND ($3='' OR strpos(lower(plan->>'focus'),$3)>0
- OR EXISTS (SELECT 1 FROM jsonb_array_elements(plan->'blocks') b
- WHERE strpos(lower(b->>'name'),$3)>0 OR EXISTS (SELECT 1 FROM jsonb_array_elements(b->'exercises') e WHERE strpos(lower(e->>'name'),$3)>0)))`
+// Both list and summary use the same owner and search scope.
+func filterWorkouts(db *gorm.DB, userID string, filter domains.WorkoutFilter) *gorm.DB {
+	query := db.Model(&workoutRow{}).Where(map[string]any{"user_id": userID})
+	if filter.Level != 0 {
+		query = query.Where(clause.Eq{
+			Column: clause.Column{Name: strings.TrimSpace(workoutLevelSQL), Raw: true},
+			Value:  filter.Level,
+		})
+	}
+	if filter.Query != "" {
+		query = query.Where(gorm.Expr(workoutSearchSQL, filter.Query, filter.Query, filter.Query))
+	}
+	return query
+}
 
 func (s *Workouts) List(ctx context.Context, userID string, filter domains.WorkoutFilter, before *domains.WorkoutCursor, limit int) ([]domains.SavedWorkout, error) {
 	if limit < 1 || limit > 51 {
 		return nil, fmt.Errorf("workout list limit must be 1–51")
 	}
-	args := []any{userID, filter.Level, filter.Query, limit}
-	query := `SELECT id,created_at,snapshot_version,plan FROM workouts WHERE ` + workoutFilterSQL
+	query := filterWorkouts(s.db.WithContext(ctx), userID, filter)
+	minutes := clause.Column{Name: strings.TrimSpace(workoutMinutesSQL), Raw: true}
 	if before != nil {
-		args = append(args, before.CreatedAt, before.ID)
+		position := clause.Or(
+			clause.Lt{Column: "created_at", Value: before.CreatedAt},
+			clause.And(
+				clause.Eq{Column: "created_at", Value: before.CreatedAt},
+				clause.Lt{Column: "id", Value: before.ID},
+			),
+		)
 		if filter.Sort == "shortest" {
-			args = append(args, before.EstimatedMinutes)
-			query += ` AND ((plan->>'estimatedMinutes')::int>$7 OR ((plan->>'estimatedMinutes')::int=$7 AND (created_at,id)<($5,$6)))`
+			query = query.Where(clause.Or(
+				clause.Gt{Column: minutes, Value: before.EstimatedMinutes},
+				clause.And(clause.Eq{Column: minutes, Value: before.EstimatedMinutes}, position),
+			))
 		} else {
-			query += ` AND (created_at,id)<($5,$6)`
+			query = query.Where(position)
 		}
 	}
 	if filter.Sort == "shortest" {
-		query += ` ORDER BY (plan->>'estimatedMinutes')::int ASC,created_at DESC,id DESC LIMIT $4`
-	} else {
-		query += ` ORDER BY created_at DESC,id DESC LIMIT $4`
+		query = query.Order(clause.OrderByColumn{Column: minutes})
 	}
-	// Only fixed SQL fragments above are joined. Every user-supplied value is bound.
-	rows, err := s.db.Query(ctx, query, args...)
-	if err != nil {
+	query = query.Order(clause.OrderByColumn{Column: clause.Column{Name: "created_at"}, Desc: true}).
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "id"}, Desc: true}).Limit(limit)
+	var rows []workoutRow
+	if err := query.Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("list workouts: %w", err)
 	}
-	return collectWorkouts(rows)
+	return workoutDomains(rows)
 }
+
 func (s *Workouts) Summary(ctx context.Context, userID string, filter domains.WorkoutFilter) (domains.WorkoutSummary, error) {
 	result := domains.WorkoutSummary{Levels: make([]domains.LevelCount, 5)}
 	for i := range result.Levels {
 		result.Levels[i].Level = i + 1
 	}
-	rows, err := s.db.Query(ctx, `SELECT (plan->>'level')::int,count(*),COALESCE(sum((plan->>'estimatedMinutes')::int),0)
- FROM workouts WHERE `+workoutFilterSQL+` GROUP BY (plan->>'level')::int`, userID, filter.Level, filter.Query)
+	var rows []struct{ Level, Count, Minutes int }
+	err := filterWorkouts(s.db.WithContext(ctx), userID, filter).
+		Select(workoutSummaryFieldsSQL).
+		Clauses(clause.GroupBy{Columns: []clause.Column{{Name: strings.TrimSpace(workoutLevelSQL), Raw: true}}}).
+		Scan(&rows).Error
 	if err != nil {
 		return result, fmt.Errorf("summarize workouts: %w", err)
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var level, count, minutes int
-		if err := rows.Scan(&level, &count, &minutes); err != nil {
-			return result, fmt.Errorf("read summary: %w", err)
-		}
-		if level < 1 || level > 5 {
+	for _, row := range rows {
+		if row.Level < 1 || row.Level > 5 {
 			return result, fmt.Errorf("invalid stored workout level")
 		}
-		result.Levels[level-1].Count = count
-		result.Count += count
-		result.PlannedMinutes += minutes
-	}
-	if err := rows.Err(); err != nil {
-		return result, fmt.Errorf("read summary: %w", err)
+		result.Levels[row.Level-1].Count = row.Count
+		result.Count += row.Count
+		result.PlannedMinutes += row.Minutes
 	}
 	if result.Count > 0 {
 		result.AverageMinutes = float64(result.PlannedMinutes) / float64(result.Count)
 	}
 	return result, nil
 }
-func collectWorkouts(rows pgx.Rows) ([]domains.SavedWorkout, error) {
-	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (domains.SavedWorkout, error) {
-		return scanWorkout(row)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("read workouts: %w", err)
+
+func workoutDomains(rows []workoutRow) ([]domains.SavedWorkout, error) {
+	result := make([]domains.SavedWorkout, 0, len(rows))
+	for _, row := range rows {
+		item, err := row.domain()
+		if err != nil {
+			return nil, fmt.Errorf("read workout: %w", err)
+		}
+		result = append(result, item)
 	}
-	return result, nil
-}
-func scanWorkout(row pgx.Row) (domains.SavedWorkout, error) {
-	var result domains.SavedWorkout
-	var plan []byte
-	var version int
-	if err := row.Scan(&result.ID, &result.CreatedAt, &version, &plan); err != nil {
-		return result, err
-	}
-	decoded, err := decodeSnapshot(version, plan)
-	if err != nil {
-		return domains.SavedWorkout{}, err
-	}
-	result.WorkoutPlan = decoded
 	return result, nil
 }

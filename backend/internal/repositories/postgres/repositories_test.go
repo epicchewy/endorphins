@@ -12,13 +12,13 @@ import (
 
 	store "github.com/epicchewy/endorphins/backend/internal/repositories/postgres"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
+	"gorm.io/gorm"
 )
 
 var (
-	repositoryTestDB  *pgxpool.Pool
+	repositoryTestDB  *gorm.DB
 	repositoryTestURL string
 )
 
@@ -62,31 +62,38 @@ func runRepositoryTests(m *testing.M) (code int) {
 		fmt.Fprintln(os.Stderr, "open repository test database:", err)
 		return 1
 	}
-	defer repositoryTestDB.Close()
+	pool, err := repositoryTestDB.DB()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "get repository test pool:", err)
+		return 1
+	}
+	defer func() { _ = pool.Close() }()
 	return m.Run()
 }
 
 // Repository tests run serially. Each starts with empty application tables while
 // retaining the schema migrated once by TestMain.
-func setupRepositoryTest(t *testing.T) *pgxpool.Pool {
+func setupRepositoryTest(t *testing.T) *gorm.DB {
 	t.Helper()
-	_, err := repositoryTestDB.Exec(t.Context(), `TRUNCATE workout_completions, workouts, users, deleted_accounts RESTART IDENTITY`)
+	err := repositoryTestDB.WithContext(t.Context()).Exec(testResetTablesSQL).Error
 	require.NoError(t, err)
 	return repositoryTestDB
 }
 
 // Schema mutations and fault injection use another database in the same
 // container. A failed assertion cannot leave DDL behind for another test.
-func isolatedRepositoryDatabase(t *testing.T) (*pgxpool.Pool, string) {
+func isolatedRepositoryDatabase(t *testing.T) (*gorm.DB, string) {
 	t.Helper()
 	name := fmt.Sprintf("isolated_%d", time.Now().UnixNano())
+	// Database names cannot use value parameters. Escape this generated identifier
+	// before inserting it into the embedded DDL templates.
 	identifier := pgx.Identifier{name}.Sanitize()
-	_, err := repositoryTestDB.Exec(t.Context(), "CREATE DATABASE "+identifier)
+	err := repositoryTestDB.WithContext(t.Context()).Exec(fmt.Sprintf(testCreateDatabaseSQL, identifier)).Error
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		_, err := repositoryTestDB.Exec(ctx, "DROP DATABASE "+identifier+" WITH (FORCE)")
+		err := repositoryTestDB.WithContext(ctx).Exec(fmt.Sprintf(testDropDatabaseSQL, identifier)).Error
 		require.NoError(t, err)
 	})
 	parsed, err := url.Parse(repositoryTestURL)
@@ -95,6 +102,13 @@ func isolatedRepositoryDatabase(t *testing.T) (*pgxpool.Pool, string) {
 	databaseURL := parsed.String()
 	pool, err := store.Open(t.Context(), databaseURL)
 	require.NoError(t, err)
-	t.Cleanup(pool.Close)
+	cleanupRepositoryDatabase(t, pool)
 	return pool, databaseURL
+}
+
+func cleanupRepositoryDatabase(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	pool, err := db.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, pool.Close()) })
 }

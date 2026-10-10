@@ -11,9 +11,9 @@ import (
 	"github.com/epicchewy/endorphins/backend/internal/domains"
 	store "github.com/epicchewy/endorphins/backend/internal/repositories/postgres"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestWorkoutsCreatePersistsSnapshotAcrossConnections(t *testing.T) {
@@ -28,7 +28,7 @@ func TestWorkoutsCreatePersistsSnapshotAcrossConnections(t *testing.T) {
 
 	other, err := store.Open(t.Context(), repositoryTestURL)
 	require.NoError(t, err)
-	t.Cleanup(other.Close)
+	cleanupRepositoryDatabase(t, other)
 	loaded, err := store.NewWorkouts(other).Get(t.Context(), user.ID, "saved-plan")
 	require.NoError(t, err)
 	assert.Equal(t, saved, loaded)
@@ -50,8 +50,8 @@ func TestWorkoutsCreateRejectsDuplicateIDsAndMissingOwners(t *testing.T) {
 	assert.Equal(t, "23505", duplicate.Code)
 	_, err = repo.Create(t.Context(), "00000000-0000-0000-0000-000000000000", workoutSnapshot("orphan"), "", "")
 	assert.ErrorIs(t, err, domains.ErrNotFound)
-	var orphanCount int
-	require.NoError(t, db.QueryRow(t.Context(), `SELECT count(*) FROM workouts WHERE id='orphan'`).Scan(&orphanCount))
+	var orphanCount int64
+	require.NoError(t, db.WithContext(t.Context()).Table("workouts").Where(map[string]any{"id": "orphan"}).Count(&orphanCount).Error)
 	assert.Zero(t, orphanCount)
 	items, err := repo.List(t.Context(), user.ID, domains.WorkoutFilter{}, nil, 20)
 	require.NoError(t, err)
@@ -127,7 +127,7 @@ func TestWorkoutsListPaginatesStableTimestampAndDurationTies(t *testing.T) {
 		plan.EstimatedMinutes = row.minutes
 		_, err := repo.Create(t.Context(), user.ID, plan, "", "")
 		require.NoError(t, err)
-		_, err = db.Exec(t.Context(), `UPDATE workouts SET created_at=$1 WHERE id=$2`, time.Date(2026, 1, row.day, 12, 0, 0, 0, time.UTC), row.id)
+		err = db.WithContext(t.Context()).Table("workouts").Where(map[string]any{"id": row.id}).Update("created_at", time.Date(2026, 1, row.day, 12, 0, 0, 0, time.UTC)).Error
 		require.NoError(t, err)
 	}
 	for _, tt := range []struct {
@@ -185,7 +185,7 @@ func TestWorkoutsReadsRejectUnsupportedSnapshotVersion(t *testing.T) {
 	repo := store.NewWorkouts(db)
 	_, err = repo.Create(t.Context(), user.ID, workoutSnapshot("future-snapshot"), "", "")
 	require.NoError(t, err)
-	_, err = db.Exec(t.Context(), `ALTER TABLE workouts DROP CONSTRAINT workouts_snapshot_version_check; UPDATE workouts SET snapshot_version=2`)
+	err = db.WithContext(t.Context()).Exec(testUnsupportedSnapshotSQL).Error
 	require.NoError(t, err)
 	_, err = repo.Get(t.Context(), user.ID, "future-snapshot")
 	assert.ErrorContains(t, err, "unsupported snapshot version 2")
@@ -193,6 +193,10 @@ func TestWorkoutsReadsRejectUnsupportedSnapshotVersion(t *testing.T) {
 	assert.ErrorContains(t, err, "unsupported snapshot version 2")
 	_, err = users.Export(t.Context(), user.ID)
 	assert.ErrorContains(t, err, "unsupported snapshot version 2")
+	completion, err := repo.Complete(t.Context(), user.ID, "future-snapshot", "metadata-only")
+	require.NoError(t, err)
+	assert.Equal(t, 2, completion.Level)
+	assert.Equal(t, "legs", completion.Focus)
 }
 
 func workoutSnapshot(id string) domains.SavedWorkout {
@@ -213,7 +217,7 @@ func workoutIDs(items []domains.SavedWorkout) []string {
 	return ids
 }
 
-func seedWorkoutLibrary(t *testing.T, db *pgxpool.Pool) string {
+func seedWorkoutLibrary(t *testing.T, db *gorm.DB) string {
 	t.Helper()
 	users, repo := store.NewUsers(db), store.NewWorkouts(db)
 	alice, err := users.Ensure(t.Context(), "user_alice")
@@ -236,7 +240,7 @@ func seedWorkoutLibrary(t *testing.T, db *pgxpool.Pool) string {
 	other.Focus, other.EstimatedMinutes = "Rare shoulder press", 999
 	_, err = repo.Create(t.Context(), bob.ID, other, "", "")
 	require.NoError(t, err)
-	_, err = db.Exec(t.Context(), `UPDATE workouts SET created_at='2026-01-01T12:00:00Z'`)
+	err = db.WithContext(t.Context()).Session(&gorm.Session{AllowGlobalUpdate: true}).Table("workouts").Update("created_at", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)).Error
 	require.NoError(t, err)
 	return alice.ID
 }

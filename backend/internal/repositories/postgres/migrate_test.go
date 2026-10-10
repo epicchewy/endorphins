@@ -3,13 +3,13 @@
 package postgres_test
 
 import (
-	"os"
 	"testing"
 
 	store "github.com/epicchewy/endorphins/backend/internal/repositories/postgres"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func TestMigrateReapplicationPreservesAccountsAndWorkouts(t *testing.T) {
@@ -31,19 +31,14 @@ func TestMigrateReapplicationPreservesAccountsAndWorkouts(t *testing.T) {
 func TestVersionThreeUpgradeRemovesLegacyRelationshipsWithoutLosingData(t *testing.T) {
 	db, databaseURL := isolatedRepositoryDatabase(t)
 	for _, name := range []string{"migrations/000001_accounts_workouts.up.sql", "migrations/000002_library_lifecycle.up.sql", "migrations/000003_onboarding_activity.up.sql"} {
-		sql, err := os.ReadFile(name)
+		sql, err := testMigrationFiles.ReadFile(name)
 		require.NoError(t, err)
-		_, err = db.Exec(t.Context(), string(sql))
+		err = db.WithContext(t.Context()).Exec(string(sql)).Error
 		require.NoError(t, err)
 	}
 	// Simulate an already deployed version-three database. These constraints
 	// are legacy test data, never part of the application's current schema.
-	_, err := db.Exec(t.Context(), `ALTER TABLE workouts ADD CONSTRAINT workouts_user_id_fkey FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE;
- ALTER TABLE workouts ADD CONSTRAINT workouts_owner_id UNIQUE(user_id,id);
- ALTER TABLE workout_completions ADD CONSTRAINT workout_completions_user_id_fkey FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE;
- ALTER TABLE workout_completions ADD CONSTRAINT workout_completions_user_id_workout_id_fkey FOREIGN KEY(user_id,workout_id) REFERENCES workouts(user_id,id) ON DELETE CASCADE;
- CREATE TABLE schema_migrations(version bigint NOT NULL PRIMARY KEY,dirty boolean NOT NULL);
- INSERT INTO schema_migrations VALUES(3,false)`)
+	err := db.WithContext(t.Context()).Exec(testLegacyVersionThreeSQL).Error
 	require.NoError(t, err)
 	users, plans := store.NewUsers(db), store.NewWorkouts(db)
 	user, err := users.Ensure(t.Context(), "legacy-owner")
@@ -63,30 +58,41 @@ func TestVersionThreeUpgradeRemovesLegacyRelationshipsWithoutLosingData(t *testi
 	assert.Equal(t, before.Workouts, after.Workouts)
 	assert.Equal(t, before.Completions, after.Completions)
 	require.NoError(t, users.Erase(t.Context(), "legacy-owner"))
-	var count int
-	require.NoError(t, db.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM workouts) + (SELECT count(*) FROM workout_completions)`).Scan(&count))
-	assert.Zero(t, count)
+	for _, table := range []string{"workouts", "workout_completions"} {
+		var count int64
+		require.NoError(t, db.WithContext(t.Context()).Table(table).Count(&count).Error)
+		assert.Zero(t, count, table)
+	}
 }
 
-func assertNoForeignKeys(t *testing.T, db *pgxpool.Pool) {
+func assertNoForeignKeys(t *testing.T, db *gorm.DB) {
 	t.Helper()
-	var count int
-	require.NoError(t, db.QueryRow(t.Context(), `SELECT count(*) FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE c.contype='f' AND n.nspname='public'`).Scan(&count))
+	var count int64
+	var namespace struct {
+		OID uint32 `gorm:"column:oid"`
+	}
+	require.NoError(t, db.WithContext(t.Context()).Table("pg_namespace").
+		Select("oid").Where(map[string]any{"nspname": "public"}).Take(&namespace).Error)
+	require.NoError(t, db.WithContext(t.Context()).Table("pg_constraint").
+		Where(map[string]any{"contype": "f", "connamespace": namespace.OID}).Count(&count).Error)
 	assert.Zero(t, count, "application migrations must leave no foreign keys")
 }
 
 func TestVersionTwoUpgradePreservesHistoricalPlans(t *testing.T) {
 	db, databaseURL := isolatedRepositoryDatabase(t)
 	for _, name := range []string{"migrations/000001_accounts_workouts.up.sql", "migrations/000002_library_lifecycle.up.sql"} {
-		sql, err := os.ReadFile(name)
+		sql, err := testMigrationFiles.ReadFile(name)
 		require.NoError(t, err)
-		_, err = db.Exec(t.Context(), string(sql))
+		err = db.WithContext(t.Context()).Exec(string(sql)).Error
 		require.NoError(t, err)
 	}
-	_, err := db.Exec(t.Context(), `CREATE TABLE schema_migrations(version bigint NOT NULL PRIMARY KEY,dirty boolean NOT NULL);INSERT INTO schema_migrations VALUES(2,false)`)
+	err := db.WithContext(t.Context()).Exec(testLegacyVersionTwoSQL).Error
 	require.NoError(t, err)
-	var owner string
-	require.NoError(t, db.QueryRow(t.Context(), `INSERT INTO users(clerk_user_id) VALUES('historical') RETURNING id::text`).Scan(&owner))
+	var historical struct{ ID, ClerkUserID string }
+	historical.ClerkUserID = "historical"
+	require.NoError(t, db.WithContext(t.Context()).Table("users").Select("clerk_user_id").
+		Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).Create(&historical).Error)
+	owner := historical.ID
 	plans := store.NewWorkouts(db)
 	original, err := plans.Create(t.Context(), owner, workoutSnapshot("historical-plan"), "", "")
 	require.NoError(t, err)

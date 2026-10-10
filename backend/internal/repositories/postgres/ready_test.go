@@ -8,6 +8,7 @@ import (
 	store "github.com/epicchewy/endorphins/backend/internal/repositories/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestCheckReadyRejectsUnmigratedDatabase(t *testing.T) {
@@ -31,10 +32,10 @@ func TestCheckReadyRequiresCleanSupportedSchema(t *testing.T) {
 		{"future schema", 5, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := db.Exec(t.Context(), `UPDATE schema_migrations SET version=$1, dirty=$2`, tt.version, tt.dirty)
+			err := db.WithContext(t.Context()).Session(&gorm.Session{AllowGlobalUpdate: true}).Table("schema_migrations").Updates(map[string]any{"version": tt.version, "dirty": tt.dirty}).Error
 			require.NoError(t, err)
 			assert.ErrorContains(t, store.CheckReady(t.Context(), db), "incompatible database schema")
-			_, err = db.Exec(t.Context(), `UPDATE schema_migrations SET version=4, dirty=false`)
+			err = db.WithContext(t.Context()).Session(&gorm.Session{AllowGlobalUpdate: true}).Table("schema_migrations").Updates(map[string]any{"version": store.SchemaVersion, "dirty": false}).Error
 			require.NoError(t, err)
 			assert.NoError(t, store.CheckReady(t.Context(), db))
 		})
@@ -44,8 +45,10 @@ func TestCheckReadyRequiresCleanSupportedSchema(t *testing.T) {
 func TestCheckReadyRejectsClosedDatabase(t *testing.T) {
 	db, err := store.Open(t.Context(), repositoryTestURL)
 	require.NoError(t, err)
-	t.Cleanup(db.Close)
+	cleanupRepositoryDatabase(t, db)
 	require.NoError(t, store.CheckReady(t.Context(), db))
-	db.Close()
+	pool, err := db.DB()
+	require.NoError(t, err)
+	require.NoError(t, pool.Close())
 	assert.ErrorContains(t, store.CheckReady(t.Context(), db), "check database schema")
 }

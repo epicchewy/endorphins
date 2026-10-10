@@ -3,6 +3,8 @@ package postgres
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/epicchewy/endorphins/backend/internal/domains"
 )
@@ -88,4 +90,24 @@ func decodeSnapshot(version int, data []byte) (domains.WorkoutPlan, error) {
 		result.Blocks = append(result.Blocks, block)
 	}
 	return result, nil
+}
+
+// Completion metadata reads saved JSON fields independently of snapshot
+// version decoding, as the original database projection did.
+func decodeCompletionMetadata(data []byte) (int, string, error) {
+	var stored struct {
+		Level *json.Number `json:"level"`
+		Focus *string      `json:"focus"`
+	}
+	if err := json.Unmarshal(data, &stored); err != nil {
+		return 0, "", fmt.Errorf("read completion plan: %w", err)
+	}
+	if stored.Level == nil || stored.Focus == nil {
+		return 0, "", fmt.Errorf("read completion plan: missing level or focus")
+	}
+	level, err := strconv.ParseInt(strings.TrimSpace(stored.Level.String()), 10, 32)
+	if err != nil {
+		return 0, "", fmt.Errorf("read completion level: %w", err)
+	}
+	return int(level), *stored.Focus, nil
 }

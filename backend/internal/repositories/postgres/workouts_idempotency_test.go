@@ -78,7 +78,7 @@ func TestWorkoutsCreateFailureDoesNotReserveIdempotencyKey(t *testing.T) {
 	repo := store.NewWorkouts(db)
 	user, err := store.NewUsers(db).Ensure(t.Context(), "user_alice")
 	require.NoError(t, err)
-	_, err = db.Exec(t.Context(), `ALTER TABLE workouts ADD CONSTRAINT reject_fixture CHECK (id <> 'rejected')`)
+	err = db.WithContext(t.Context()).Exec(testRejectWorkoutWriteSQL).Error
 	require.NoError(t, err)
 	_, err = repo.Create(t.Context(), user.ID, workoutSnapshot("rejected"), "retry-key", strings.Repeat("a", 64))
 	var rejected *pgconn.PgError

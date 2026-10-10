@@ -3,6 +3,7 @@
 package postgres_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -53,7 +54,14 @@ func TestOnboardingCompletionRetryUndoAndErasure(t *testing.T) {
 	assert.Equal(t, 2, activity.CompletedCount)
 	assert.Equal(t, 1, activity.ActiveDaysThisWeek)
 	require.NoError(t, service.Undo(t.Context(), alice.ID, first.ID))
+	undone, err := plans.Complete(t.Context(), alice.ID, "one", "first")
+	require.NoError(t, err)
+	require.NotNil(t, undone.UndoneAt)
 	require.NoError(t, service.Undo(t.Context(), alice.ID, first.ID))
+	replayed, err := plans.Complete(t.Context(), alice.ID, "one", "first")
+	require.NoError(t, err)
+	assert.Equal(t, undone, replayed)
+	assert.ErrorIs(t, service.Undo(t.Context(), alice.ID, "missing"), domains.ErrNotFound)
 	_, err = service.Complete(t.Context(), alice.ID, "one", "first")
 	assert.ErrorIs(t, err, library.ErrCompletionUndone)
 	activity, err = service.Activity(t.Context(), alice.ID, "America/New_York")
@@ -67,8 +75,8 @@ func TestOnboardingCompletionRetryUndoAndErasure(t *testing.T) {
 	_, err = plans.Complete(t.Context(), bob.ID, "one", "fk")
 	assert.ErrorIs(t, err, domains.ErrNotFound)
 	require.NoError(t, users.Erase(t.Context(), "alice"))
-	var count int
-	require.NoError(t, db.QueryRow(t.Context(), `SELECT count(*) FROM workout_completions WHERE user_id=$1`, alice.ID).Scan(&count))
+	var count int64
+	require.NoError(t, db.WithContext(t.Context()).Table("workout_completions").Where(map[string]any{"user_id": alice.ID}).Count(&count).Error)
 	assert.Zero(t, count)
 }
 
@@ -120,7 +128,7 @@ func TestActivityUsesLocalDaysAndMondayWeeksAcrossAllLogs(t *testing.T) {
 	for i, date := range dates {
 		item, err := repo.Complete(t.Context(), user.ID, "plan", fmt.Sprintf("log-%d", i))
 		require.NoError(t, err)
-		_, err = db.Exec(t.Context(), `UPDATE workout_completions SET completed_at=$1 WHERE id=$2`, date, item.ID)
+		err = db.WithContext(t.Context()).Table("workout_completions").Where(map[string]any{"id": item.ID}).Update("completed_at", date).Error
 		require.NoError(t, err)
 	}
 	activity, err := repo.Activity(t.Context(), user.ID, "America/New_York")
@@ -130,4 +138,88 @@ func TestActivityUsesLocalDaysAndMondayWeeksAcrossAllLogs(t *testing.T) {
 	assert.Equal(t, []domains.ActivityWeek{{Start: monday.AddDate(0, 0, -21).Format("2006-01-02"), Count: 1}, {Start: monday.AddDate(0, 0, -14).Format("2006-01-02"), Count: 1}, {Start: monday.AddDate(0, 0, -7).Format("2006-01-02"), Count: 2}, {Start: monday.Format("2006-01-02"), Count: 3}}, activity.Weeks)
 	assert.Len(t, activity.Recent, 5)
 	assert.Equal(t, monday.AddDate(0, 0, 1).UTC(), activity.Recent[0].CompletedAt.UTC())
+}
+
+func TestCompletionConcurrentDifferentPlansWithOneKeyKeepOneWinner(t *testing.T) {
+	db := setupRepositoryTest(t)
+	repo := store.NewWorkouts(db)
+	user, err := store.NewUsers(db).Ensure(t.Context(), "mixed-retries")
+	require.NoError(t, err)
+	for _, id := range []string{"one", "two"} {
+		_, err := repo.Create(t.Context(), user.ID, workoutSnapshot(id), "", "")
+		require.NoError(t, err)
+	}
+	type result struct {
+		item domains.Completion
+		err  error
+	}
+	start := make(chan struct{})
+	results := make(chan result, 12)
+	for i := range 12 {
+		id := []string{"one", "two"}[i%2]
+		go func() {
+			<-start
+			item, err := repo.Complete(t.Context(), user.ID, id, "one-intent")
+			results <- result{item, err}
+		}()
+	}
+	close(start)
+	received := make([]result, 0, 12)
+	for range 12 {
+		received = append(received, <-results)
+	}
+	exported, err := store.NewUsers(db).Export(t.Context(), user.ID)
+	require.NoError(t, err)
+	require.Len(t, exported.Completions, 1)
+	winner := exported.Completions[0]
+	for _, got := range received {
+		if got.err == nil {
+			assert.Equal(t, winner, got.item)
+		} else {
+			assert.ErrorIs(t, got.err, domains.ErrIdempotencyConflict)
+		}
+	}
+	replayed, err := repo.Complete(t.Context(), user.ID, winner.WorkoutID, "one-intent")
+	require.NoError(t, err)
+	assert.Equal(t, winner, replayed)
+}
+
+func TestCompletionRejectsInvalidMetadataWithoutReservingRetryKey(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		plan map[string]any
+	}{
+		{"missing level", map[string]any{"focus": "legs"}},
+		{"missing focus", map[string]any{"level": 2}},
+		{"null fields", map[string]any{"level": nil, "focus": nil}},
+		{"invalid level", map[string]any{"level": "bad", "focus": "legs"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			db := setupRepositoryTest(t)
+			repo := store.NewWorkouts(db)
+			user, err := store.NewUsers(db).Ensure(t.Context(), "invalid-metadata")
+			require.NoError(t, err)
+			_, err = repo.Create(t.Context(), user.ID, workoutSnapshot("plan"), "", "")
+			require.NoError(t, err)
+			plan, err := json.Marshal(tt.plan)
+			require.NoError(t, err)
+			query := db.WithContext(t.Context()).Table("workouts").Where(map[string]any{"user_id": user.ID, "id": "plan"})
+			require.NoError(t, query.Update("plan", plan).Error)
+			_, err = repo.Complete(t.Context(), user.ID, "plan", "one-intent")
+			require.Error(t, err)
+			var count int64
+			require.NoError(t, db.WithContext(t.Context()).Table("workout_completions").
+				Where(map[string]any{"user_id": user.ID}).Count(&count).Error)
+			assert.Zero(t, count)
+
+			// Historical projections accepted integer levels stored as strings.
+			plan, err = json.Marshal(map[string]any{"level": "2", "focus": "legs"})
+			require.NoError(t, err)
+			require.NoError(t, query.Update("plan", plan).Error)
+			completed, err := repo.Complete(t.Context(), user.ID, "plan", "one-intent")
+			require.NoError(t, err)
+			assert.Equal(t, 2, completed.Level)
+			assert.Equal(t, "legs", completed.Focus)
+		})
+	}
 }

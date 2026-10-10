@@ -32,7 +32,7 @@ Use Jukebox's direct control flow as a starting point: validate inputs, return e
 
 ## Deliberate differences
 
-- **GORM boundaries:** Jukebox's services and store interfaces expose `GetDB`/`WithTx`, and its domain structs contain GORM fields and hooks. Endorphins keeps SQL transactions and persistence rows under repositories/PostgreSQL code. Domain structs stay independent of GORM; services express atomic operations through interfaces.
+- **GORM boundaries:** Jukebox's services and store interfaces expose `GetDB`/`WithTx`, and its domain structs contain GORM fields and hooks. Endorphins now uses GORM but keeps its models and transactions in repositories/PostgreSQL code. Domain structs stay independent of GORM; services express atomic operations through interfaces.
 - **Interface ownership:** Jukebox collects persistence contracts in `internal/stores`. Endorphins declares the small interface where the service consumes it. Implementations satisfy it structurally through domain/standard types; adding a central stores layer is unnecessary for this plan.
 - **Identity consistency:** Jukebox's database guide records Clerk IDs as link owners and internal user IDs for other records. Endorphins consistently uses internal account IDs after resolving Clerk identity.
 - **Not-found behavior:** Some Jukebox repositories return `(nil, nil)`. Endorphins returns a shared domain error and tests that contract. Handlers should never infer not-found from a dereference failure.

@@ -12,6 +12,7 @@ import (
 	store "github.com/epicchewy/endorphins/backend/internal/repositories/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestUsersEnsurePreservesApplicationIdentity(t *testing.T) {
@@ -58,9 +59,9 @@ func TestUsersEnsureConcurrentFirstRequestsCreateOneAccount(t *testing.T) {
 		assert.Equal(t, "user_racing", got.user.ClerkUserID)
 		assert.Equal(t, received[0].user, got.user)
 	}
-	var count int
-	require.NoError(t, db.QueryRow(t.Context(), `SELECT count(*) FROM users WHERE clerk_user_id=$1`, "user_racing").Scan(&count))
-	assert.Equal(t, 1, count)
+	var count int64
+	require.NoError(t, db.WithContext(t.Context()).Table("users").Where(map[string]any{"clerk_user_id": "user_racing"}).Count(&count).Error)
+	assert.Equal(t, int64(1), count)
 }
 
 func TestUsersEraseRemovesOnlyOwnedWorkoutsAndRejectsStaleSessions(t *testing.T) {
@@ -134,9 +135,9 @@ func TestUsersConcurrentProvisioningCannotUndoErasure(t *testing.T) {
 		}
 		_, err := repo.Ensure(t.Context(), subject)
 		assert.ErrorIs(t, err, domains.ErrAccountDeleted)
-		var count int
-		require.NoError(t, db.QueryRow(t.Context(), `SELECT count(*) FROM users WHERE clerk_user_id=$1`, subject).Scan(&count))
-		assert.Equal(t, 0, count)
+		var count int64
+		require.NoError(t, db.WithContext(t.Context()).Table("users").Where(map[string]any{"clerk_user_id": subject}).Count(&count).Error)
+		assert.Zero(t, count)
 	}
 }
 
@@ -152,9 +153,7 @@ func TestUsersEraseFailureRollsBackTombstoneAndData(t *testing.T) {
 	require.NoError(t, err)
 	// Fail the final delete, after explicit child cleanup, to prove all data and
 	// the tombstone roll back together without relying on database relationships.
-	_, err = db.Exec(t.Context(), `CREATE FUNCTION reject_account_delete() RETURNS trigger LANGUAGE plpgsql AS $$
- BEGIN RAISE EXCEPTION 'injected erasure failure'; END $$;
- CREATE TRIGGER reject_account_delete BEFORE DELETE ON users FOR EACH ROW EXECUTE FUNCTION reject_account_delete()`)
+	err = db.WithContext(t.Context()).Exec(testRejectAccountErasureSQL).Error
 	require.NoError(t, err)
 
 	require.Error(t, repo.Erase(t.Context(), "retained-user"))
@@ -166,7 +165,7 @@ func TestUsersEraseFailureRollsBackTombstoneAndData(t *testing.T) {
 	assert.Equal(t, []string{"retained-plan"}, workoutIDs(exported.Workouts))
 	assert.Len(t, exported.Completions, 1)
 
-	_, err = db.Exec(t.Context(), `DROP TRIGGER reject_account_delete ON users; DROP FUNCTION reject_account_delete()`)
+	err = db.WithContext(t.Context()).Exec(testAllowAccountErasureSQL).Error
 	require.NoError(t, err)
 	require.NoError(t, repo.Erase(t.Context(), "retained-user"))
 	_, err = repo.Ensure(t.Context(), "retained-user")
@@ -211,12 +210,15 @@ func TestUsersEraseRacingWorkoutAndCompletionWritesLeavesNoOrphans(t *testing.T)
 				require.NoError(t, err)
 			}
 		}
-		var remaining int
-		require.NoError(t, db.QueryRow(t.Context(), `SELECT
- (SELECT count(*) FROM users WHERE id=$1) +
- (SELECT count(*) FROM workouts WHERE user_id=$1) +
- (SELECT count(*) FROM workout_completions WHERE user_id=$1)`, user.ID).Scan(&remaining))
-		assert.Zero(t, remaining)
+		for _, table := range []string{"users", "workouts", "workout_completions"} {
+			column := "user_id"
+			if table == "users" {
+				column = "id"
+			}
+			var remaining int64
+			require.NoError(t, db.WithContext(t.Context()).Table(table).Where(map[string]any{column: user.ID}).Count(&remaining).Error)
+			assert.Zero(t, remaining, table)
+		}
 		_, err = users.Ensure(t.Context(), subject)
 		assert.ErrorIs(t, err, domains.ErrAccountDeleted)
 	}
@@ -236,7 +238,7 @@ func TestUsersExportIncludesOnlyOwnedWorkoutsInStableOrder(t *testing.T) {
 	}
 	_, err = workouts.Create(t.Context(), bob.ID, workoutSnapshot("bob-private"), "", "")
 	require.NoError(t, err)
-	_, err = db.Exec(t.Context(), `UPDATE workouts SET created_at='2026-01-01T12:00:00Z'`)
+	err = db.WithContext(t.Context()).Session(&gorm.Session{AllowGlobalUpdate: true}).Table("workouts").Update("created_at", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)).Error
 	require.NoError(t, err)
 
 	exported, err := repo.Export(t.Context(), alice.ID)
@@ -249,4 +251,42 @@ func TestUsersExportIncludesOnlyOwnedWorkoutsInStableOrder(t *testing.T) {
 	}
 	_, err = repo.Export(t.Context(), "00000000-0000-0000-0000-000000000000")
 	assert.ErrorIs(t, err, domains.ErrNotFound)
+}
+
+func TestUsersUpdateChangesLevelWithoutRestartingOnboarding(t *testing.T) {
+	repo := store.NewUsers(setupRepositoryTest(t))
+	user, err := repo.Ensure(t.Context(), "preferences")
+	require.NoError(t, err)
+	updated, err := repo.Update(t.Context(), user.ID, 4, false)
+	require.NoError(t, err)
+	assert.Equal(t, 4, updated.DefaultLevel)
+	assert.Nil(t, updated.OnboardingCompletedAt)
+	assert.Equal(t, user.ID, updated.ID)
+	assert.Equal(t, user.CreatedAt, updated.CreatedAt)
+
+	completed, err := repo.Update(t.Context(), user.ID, 4, true)
+	require.NoError(t, err)
+	require.NotNil(t, completed.OnboardingCompletedAt)
+	updated, err = repo.Update(t.Context(), user.ID, 2, false)
+	require.NoError(t, err)
+	assert.Equal(t, 2, updated.DefaultLevel)
+	assert.Equal(t, completed.OnboardingCompletedAt, updated.OnboardingCompletedAt)
+	_, err = repo.Update(t.Context(), "00000000-0000-0000-0000-000000000000", 2, true)
+	assert.ErrorIs(t, err, domains.ErrNotFound)
+}
+
+func TestRepositoryTimestampsComeFromPostgres(t *testing.T) {
+	db := setupRepositoryTest(t).Session(&gorm.Session{NowFunc: func() time.Time {
+		return time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+	}})
+	user, err := store.NewUsers(db).Ensure(t.Context(), "database-clock")
+	require.NoError(t, err)
+	assert.WithinDuration(t, time.Now(), user.CreatedAt, 5*time.Second)
+	repo := store.NewWorkouts(db)
+	plan, err := repo.Create(t.Context(), user.ID, workoutSnapshot("database-clock-plan"), "", "")
+	require.NoError(t, err)
+	assert.WithinDuration(t, time.Now(), plan.CreatedAt, 5*time.Second)
+	completion, err := repo.Complete(t.Context(), user.ID, plan.ID, "database-clock-completion")
+	require.NoError(t, err)
+	assert.WithinDuration(t, time.Now(), completion.CompletedAt, 5*time.Second)
 }

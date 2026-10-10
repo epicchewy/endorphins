@@ -35,7 +35,7 @@ Start renders pages; the browser calls Go through TanStack Query. Each router ha
 | Styling        | Tailwind 4.3.3 utilities, semantic tokens and locally served fonts                            |
 | Runtime/build  | Bun 1.4.2, Node 26.10.0, Vite 8.3.1                                                           |
 | Authentication | Clerk TanStack Start SDK 1.6.3 / Go SDK v2.7.0; Svix v1.99.1 for webhook verification         |
-| Persistence    | Postgres 17, pgx v5.11.0, golang-migrate v4.20.1                                              |
+| Persistence    | Postgres 17, GORM v1.31.2 / Postgres driver v1.6.3, pgx v5.11.0, golang-migrate v4.20.1 |
 | Database tests | Testcontainers Go v0.44.0                                                                     |
 | Browser tests  | Playwright 1.61.0, desktop Chromium and Pixel 7 mobile emulation                              |
 | Contract       | OpenAPI 3.0.3, generated TypeScript with openapi-typescript 7.13.0                            |
@@ -89,7 +89,10 @@ backend/
     integrations/clerk/     # JWT verification and verified deletion webhook
     domains/                # Application values and pure workout rules
     repositories/catalogue/ # Concrete filesystem store
-    repositories/postgres/  # SQL stores, versioned snapshots, migrations, query tests
+    repositories/postgres/  # Stores, versioned snapshots, and query tests
+      queries/              # Embedded Postgres-specific expressions and advisory lock
+      migrations/           # Embedded versioned schema migrations
+      testdata/queries/     # SQL fixtures embedded only in integration tests
     testfixtures/           # e2e-tag-only Clerk signing and workout seed helpers
 exercises/                  # Original catalogue, shared with Python
 scripts/                    # Development lifecycle and backend layer checks
@@ -155,6 +158,10 @@ The [browser harness](../e2e/README.md) uses the application Dockerfiles and ent
 Only the external Clerk adapters change in `e2e` builds. `internal/testfixtures` supplies signing keys and fixture routes. Real JWT/webhook verifiers, owner-scoped queries, wiring, and migrations stay in use. Release import checks reject test fixtures, and frontend release checks reject test identity code. Real Clerk signup and provider webhook delivery need separate integration checks.
 
 Postgres tests use one migrated container per package, created by `TestMain` in `repositories_test.go`. Serial resource tests reset rows before each case. Schema and migration tests use temporary databases within that same container. These tests call repositories directly and cover SQL behavior; browser tests own full HTTP journeys.
+
+Repositories use GORM for reads, writes, joins, filters, cursor ordering, row locks, and conditional upserts. Persistence rows stay inside the Postgres package; domains and services have no ORM dependency. List and summary share one owner/search filter. Completion joins include both owner and workout IDs. Database defaults still generate account/completion UUIDs and timestamps. GORM runs explicit transactions for account lifecycle operations, child writes, exports, and activity snapshots.
+
+`queries.go` embeds the Postgres-specific advisory lock, JSON search and projection expressions, and local-time aggregates. GORM composes these expressions and binds their values; Go has no inline SQL statements or expressions. Integration tests use GORM for routine setup and assertions. `queries_integration_test.go` embeds schema and failure fixtures plus historical migrations. These test fixtures stay out of release binaries. GORM uses pgx through its Postgres driver. Schema changes still use versioned golang-migrate files; startup does not call `AutoMigrate`.
 
 ## Signup, onboarding, and activity
 

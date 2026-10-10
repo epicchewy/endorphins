@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5"
 )
 
 // Options belongs to the store and is shared by the API and migration commands.
@@ -20,7 +20,7 @@ func (o Options) Validate() error {
 	if err != nil || (parsed.Scheme != "postgres" && parsed.Scheme != "postgresql") || parsed.Fragment != "" {
 		return fmt.Errorf("DATABASE_URL or --database-url must be a valid postgres:// or postgresql:// URL")
 	}
-	if _, err := pgxpool.ParseConfig(o.URL); err != nil {
+	if _, err := pgx.ParseConfig(o.URL); err != nil {
 		return fmt.Errorf("DATABASE_URL or --database-url contains invalid Postgres connection options")
 	}
 	return nil
