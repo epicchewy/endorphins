@@ -1,5 +1,5 @@
 import { ArrowUpRight, Check } from 'lucide-react'
-import { useState } from 'react'
+import { useReducer } from 'react'
 import { Button } from '~/components/ui/button'
 import { Field, Input, RadioOption } from '~/components/ui/field'
 import { Feedback } from '~/components/ui/feedback'
@@ -7,6 +7,14 @@ import { Presence } from '~/components/ui/presence'
 import type { GenerateInput } from '~/services/workouts'
 
 import { workoutLevels as levels } from '~/services/workout-levels'
+
+function durationEditor(minutes: number) {
+  return { expanded: false, source: minutes, text: String(minutes) }
+}
+function editDuration(state: ReturnType<typeof durationEditor>, patch: Partial<typeof state>) {
+  return { ...state, ...patch }
+}
+
 export function WorkoutBuilder({
   value,
   onChange,
@@ -20,15 +28,10 @@ export function WorkoutBuilder({
   pending: boolean
   error: string | undefined
 }) {
-  const [customTimeExpanded, setCustomTime] = useState(false)
-  const customTime = customTimeExpanded || ![30, 45, 60].includes(value.durationMinutes)
-  const [durationDraft, setDurationDraft] = useState({
-    source: value.durationMinutes,
-    text: String(value.durationMinutes),
-  })
-  if (durationDraft.source !== value.durationMinutes) {
-    setDurationDraft({ source: value.durationMinutes, text: String(value.durationMinutes) })
-  }
+  const [duration, dispatch] = useReducer(editDuration, value.durationMinutes, durationEditor)
+  if (duration.source !== value.durationMinutes)
+    dispatch({ source: value.durationMinutes, text: String(value.durationMinutes) })
+  const customTime = duration.expanded || ![30, 45, 60].includes(value.durationMinutes)
   const currentLevel = levels.find((level) => level.number === value.level) ?? levels[1]
   return (
     <form
@@ -58,7 +61,7 @@ export function WorkoutBuilder({
               value={minutes}
               checked={!customTime && value.durationMinutes === minutes}
               onChange={() => {
-                setCustomTime(false)
+                dispatch(durationEditor(minutes))
                 onChange({ durationMinutes: minutes })
               }}
             >
@@ -75,11 +78,10 @@ export function WorkoutBuilder({
           type="button"
           aria-expanded={customTime}
           onClick={() => {
-            setDurationDraft({ source: value.durationMinutes, text: String(value.durationMinutes) })
             if (customTime && ![30, 45, 60].includes(value.durationMinutes)) {
               onChange({ durationMinutes: 45 })
             }
-            setCustomTime(!customTime)
+            dispatch({ ...durationEditor(value.durationMinutes), expanded: !customTime })
           }}
         >
           {customTime ? 'Use a preset duration' : 'Custom duration'}
@@ -104,10 +106,13 @@ export function WorkoutBuilder({
               max="120"
               step="1"
               required
-              value={durationDraft.text}
+              value={duration.text}
               onChange={(event) => {
-                setCustomTime(true)
-                setDurationDraft({ source: value.durationMinutes, text: event.target.value })
+                dispatch({
+                  expanded: true,
+                  source: value.durationMinutes,
+                  text: event.target.value,
+                })
                 const minutes = event.target.valueAsNumber
                 if (Number.isInteger(minutes) && minutes >= 30 && minutes <= 120) {
                   onChange({ durationMinutes: minutes })

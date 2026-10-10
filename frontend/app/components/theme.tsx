@@ -1,22 +1,13 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useId,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from 'react'
+import { createContext, useContext, useId, useSyncExternalStore, type ReactNode } from 'react'
 import { Monitor, Moon, Sun } from 'lucide-react'
 import { Select } from '~/components/ui/field'
 import { cn } from '~/components/ui/cn'
 
 type Theme = 'system' | 'light' | 'dark'
-const ThemeContext = createContext<{ theme: Theme; setTheme: (theme: Theme) => void }>({
-  theme: 'system',
-  setTheme: () => {},
-})
+const ThemeContext = createContext<Theme>('system')
 let memoryTheme: Theme = 'system'
+const serverSnapshot: { theme: Theme; themeColor?: string } = { theme: 'system' }
+let browserSnapshot = serverSnapshot
 // Apply the saved theme before first paint. This script contains no user data.
 export const themeScript = `(()=>{try{const t=localStorage.getItem('endorphins-theme');document.documentElement.dataset.theme=t==='dark'||t==='light'?t:'system'}catch{}})()`
 function readTheme(): Theme {
@@ -28,12 +19,28 @@ function readTheme(): Theme {
   }
 }
 function subscribe(listener: () => void) {
-  window.addEventListener('storage', listener)
-  window.addEventListener('endorphins-theme', listener)
-  return () => {
-    window.removeEventListener('storage', listener)
-    window.removeEventListener('endorphins-theme', listener)
+  const media = window.matchMedia('(prefers-color-scheme: dark)')
+  const refresh = () => {
+    document.documentElement.dataset.theme = readTheme()
+    listener()
   }
+  window.addEventListener('storage', refresh)
+  window.addEventListener('endorphins-theme', refresh)
+  media.addEventListener('change', refresh)
+  refresh()
+  return () => {
+    window.removeEventListener('storage', refresh)
+    window.removeEventListener('endorphins-theme', refresh)
+    media.removeEventListener('change', refresh)
+  }
+}
+function readSnapshot() {
+  const theme = readTheme()
+  const themeColor = getComputedStyle(document.documentElement).backgroundColor
+  // React needs the same snapshot object until a browser value changes.
+  if (browserSnapshot.theme !== theme || browserSnapshot.themeColor !== themeColor)
+    browserSnapshot = { theme, themeColor }
+  return browserSnapshot
 }
 function setTheme(next: Theme) {
   memoryTheme = next
@@ -45,20 +52,9 @@ function setTheme(next: Theme) {
   window.dispatchEvent(new Event('endorphins-theme'))
 }
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const theme = useSyncExternalStore(subscribe, readTheme, () => 'system' as const)
-  const [themeColor, setThemeColor] = useState<string>()
-  useEffect(() => {
-    const media = window.matchMedia('(prefers-color-scheme: dark)')
-    const apply = () => {
-      document.documentElement.dataset.theme = readTheme()
-      setThemeColor(getComputedStyle(document.documentElement).backgroundColor)
-    }
-    apply()
-    media.addEventListener('change', apply)
-    return () => media.removeEventListener('change', apply)
-  }, [theme])
+  const { theme, themeColor } = useSyncExternalStore(subscribe, readSnapshot, () => serverSnapshot)
   return (
-    <ThemeContext value={{ theme, setTheme }}>
+    <ThemeContext value={theme}>
       {themeColor && <meta name="theme-color" content={themeColor} />}
       {children}
     </ThemeContext>
@@ -69,7 +65,7 @@ export function ThemeControl({
   className,
 }: { compact?: boolean; className?: string } = {}) {
   const id = useId()
-  const { theme, setTheme } = useContext(ThemeContext)
+  const theme = useContext(ThemeContext)
   const Icon = theme === 'system' ? Monitor : theme === 'dark' ? Moon : Sun
   return (
     <label

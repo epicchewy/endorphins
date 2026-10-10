@@ -56,5 +56,16 @@ test('downloads the account data as JSON', async ({ signedInPage: page, seedLibr
   expect(download.suggestedFilename()).toMatch(/^endorphins-data-\d{4}-\d{2}-\d{2}\.json$/)
   const data = JSON.parse(await readFile((await download.path())!, 'utf8'))
   expect(data.workouts).toHaveLength(26)
+  expect(download.url()).toMatch(/^blob:/)
+  expect(
+    await page.evaluate(
+      (url) =>
+        fetch(url).then(
+          () => true,
+          () => false,
+        ),
+      download.url(),
+    ),
+  ).toBe(false)
   await expect(page.getByRole('status').filter({ hasText: 'download' })).toBeVisible()
 })

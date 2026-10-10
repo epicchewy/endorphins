@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useReducer } from 'react'
 import { ArrowLeft, ArrowUpRight, Check } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Brand } from './brand'
 import { ThemeControl } from './theme'
-import { Button, buttonClassName } from './ui/button'
+import { Button } from './ui/button'
+import { buttonClassName } from './ui/button-styles'
 import { Field, Input, RadioOption, SearchInput, Select } from './ui/field'
 import { EmptyState, Feedback, LoadingState } from './ui/feedback'
 import { Presence } from './ui/presence'
@@ -11,12 +12,13 @@ import { SkipLink } from './ui/skip-link'
 
 const colors = ['background', 'surface', 'ink', 'muted', 'line', 'accent', 'focus', 'error']
 
+const initialPreview = { duration: 45, query: '', error: true, step: 1 }
+function previewReducer(state: typeof initialPreview, patch: Partial<typeof state>) {
+  return { ...state, ...patch }
+}
+
 function ComponentPreview({ theme }: { theme: 'light' | 'dark' }) {
-  const [duration, setDuration] = useState(45)
-  const [query, setQuery] = useState('')
-  const [level, setLevel] = useState('2')
-  const [error, setError] = useState(true)
-  const [step, setStep] = useState(1)
+  const [{ duration, query, error, step }, dispatch] = useReducer(previewReducer, initialPreview)
   const id = (name: string) => `${theme}-${name}`
   return (
     <section
@@ -49,11 +51,11 @@ function ComponentPreview({ theme }: { theme: 'light' | 'dark' }) {
           One clear primary action. A visible focus ring. Room to tap.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Button variant="primary" onClick={() => setStep((current) => current + 1)}>
+          <Button variant="primary" onClick={() => dispatch({ step: step + 1 })}>
             Next move <ArrowUpRight size={18} aria-hidden="true" />
           </Button>
-          <Button onClick={() => setStep(1)}>Reset preview</Button>
-          <Button variant="ghost" onClick={() => setQuery('')}>
+          <Button onClick={() => dispatch({ step: 1 })}>Reset preview</Button>
+          <Button variant="ghost" onClick={() => dispatch({ query: '' })}>
             Clear search
           </Button>
           <Button disabled>Unavailable</Button>
@@ -76,15 +78,11 @@ function ComponentPreview({ theme }: { theme: 'light' | 'dark' }) {
               min={30}
               max={120}
               value={duration}
-              onChange={(event) => setDuration(event.target.valueAsNumber || 30)}
+              onChange={(event) => dispatch({ duration: event.target.valueAsNumber || 30 })}
             />
           </Field>
           <Field label="Your level" htmlFor={id('level')}>
-            <Select
-              id={id('level')}
-              value={level}
-              onChange={(event) => setLevel(event.target.value)}
-            >
+            <Select id={id('level')} defaultValue="2">
               {[1, 2, 3, 4, 5].map((value) => (
                 <option key={value} value={value}>
                   Level {value}
@@ -97,7 +95,7 @@ function ComponentPreview({ theme }: { theme: 'light' | 'dark' }) {
               id={id('search')}
               placeholder="Exercise or body area"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => dispatch({ query: event.target.value })}
             />
           </Field>
           <Field
@@ -124,7 +122,7 @@ function ComponentPreview({ theme }: { theme: 'light' | 'dark' }) {
                 key={minutes}
                 value={minutes}
                 checked={duration === minutes}
-                onChange={() => setDuration(minutes)}
+                onChange={() => dispatch({ duration: minutes })}
               >
                 <span className="inline-flex items-center gap-2 text-sm font-semibold max-[600px]:gap-1">
                   {minutes} min{' '}
@@ -147,7 +145,7 @@ function ComponentPreview({ theme }: { theme: 'light' | 'dark' }) {
         <Feedback
           tone={error ? 'error' : 'info'}
           title={error ? 'We couldn’t save your workout.' : 'Ready to try again.'}
-          retry={() => setError((value) => !value)}
+          retry={() => dispatch({ error: !error })}
           retryLabel={error ? 'Try again' : 'Show error state'}
         >
           {error ? 'Your current plan is unchanged.' : 'Your previous plan is still available.'}
@@ -157,7 +155,7 @@ function ComponentPreview({ theme }: { theme: 'light' | 'dark' }) {
           className="mt-4"
           title="A fresh start."
           action={
-            <Button variant="primary" onClick={() => setStep((current) => current + 1)}>
+            <Button variant="primary" onClick={() => dispatch({ step: step + 1 })}>
               Build a workout <ArrowUpRight size={18} aria-hidden="true" />
             </Button>
           }

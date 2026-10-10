@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getActivity, completeWorkout, undoCompletion, type Completion } from '~/services/activity'
+import { getActivity, completeWorkout, undoCompletion } from '~/services/activity'
 import { APIError } from '~/services/http'
 import { queryKeys } from '~/services/query-keys'
 import { useAccountSession, retryAccountQuery } from './use-account'
@@ -16,46 +16,53 @@ export function useActivity() {
     staleTime: 30_000,
   })
 }
-type CompletionAction = { type: 'confirm' } | { type: 'undo'; id: string }
-
 export function useWorkoutCompletion(workoutId: string) {
   const { sessionId, getToken, isCurrentSession } = useAccountSession()
   const client = useQueryClient()
   const attempt = useRef<string | null>(null)
-  const [completion, setCompletion] = useState<Completion | null>(null)
-  const mutation = useMutation({
+  const confirmation = useMutation({
     mutationKey: queryKeys.completion(sessionId),
-    mutationFn: async (action: CompletionAction) => {
-      if (action.type === 'undo') {
-        await undoCompletion(action.id, getToken)
-        return null
-      }
+    mutationFn: () => {
       attempt.current ??= crypto.randomUUID()
       return completeWorkout(workoutId, attempt.current, getToken)
     },
     retry: false,
     networkMode: 'always',
-    onSuccess: (result) => {
+    onSuccess: () => {
       if (!isCurrentSession()) return
-      setCompletion(result)
-      if (result === null) attempt.current = null
       void client.invalidateQueries({ queryKey: queryKeys.activities(sessionId) })
     },
   })
+  const removal = useMutation({
+    mutationKey: queryKeys.completion(sessionId),
+    mutationFn: (id: string) => undoCompletion(id, getToken),
+    retry: false,
+    networkMode: 'always',
+    onSuccess: () => {
+      if (!isCurrentSession()) return
+      confirmation.reset()
+      attempt.current = null
+      void client.invalidateQueries({ queryKey: queryKeys.activities(sessionId) })
+    },
+  })
+  const completion = confirmation.data ?? null
   return {
     completion,
-    pending: mutation.isPending,
-    error: mutation.error,
-    undone: mutation.isSuccess && mutation.variables.type === 'undo',
-    confirm: () => mutation.mutate({ type: 'confirm' }),
+    pending: confirmation.isPending || removal.isPending,
+    error: confirmation.error ?? removal.error,
+    undone: removal.isSuccess,
+    confirm: () => {
+      removal.reset()
+      confirmation.mutate()
+    },
     undo: () => {
-      if (completion) mutation.mutate({ type: 'undo', id: completion.id })
+      if (completion) removal.mutate(completion.id)
     },
     restart:
-      mutation.error instanceof APIError && mutation.error.code === 'completion_undone'
+      confirmation.error instanceof APIError && confirmation.error.code === 'completion_undone'
         ? () => {
             attempt.current = null
-            mutation.reset()
+            confirmation.reset()
           }
         : undefined,
   }

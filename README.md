@@ -38,11 +38,12 @@ Complete the Clerk CLI setup above in each new checkout before starting the app.
 ## Verify and build
 
 ```sh
-make check       # formatting, layer boundaries, lint, race tests, frontend tests,
+make check       # formatting, boundaries, lint, React Doctor, race and frontend tests,
                  # API types, TypeScript, and both production builds
 make browsers    # install pinned Chromium once
 make e2e         # hermetic desktop/mobile browser tests on dynamic ports
 make format      # apply Go and frontend formatting
+cd frontend && bun run doctor # full React Doctor scan; errors and warnings fail
 ```
 
 `make test` runs real Postgres tests and needs Docker. `make e2e` runs desktop/mobile journeys against disposable Postgres, Go API, and Bun frontend containers. Only the external Clerk UI/session adapter is replaced. Real Clerk signup and webhook delivery need separate integration checks. See [browser tests and artifacts](e2e/README.md). `make smoke` is an alias for `make e2e`. Do not run a frontend build while E2E images are building; both use `frontend/build`.

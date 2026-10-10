@@ -21,7 +21,8 @@ jobs:
         with:
           bun-version: '1.4.2'
       - run: make setup
-      - run: make check
+      - name: Lint, React Doctor, tests, and release builds
+        run: make check
       - run: git diff --exit-code -- frontend/app/routeTree.gen.ts frontend/app/types/api.gen.ts
       - run: cd e2e && bunx playwright install --with-deps chromium
       - run: make e2e

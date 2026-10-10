@@ -12,7 +12,9 @@ for await (const asset of new Bun.Glob('assets/**/*.{js,css}').scan(clientRoot))
   }
 }
 const { default: handler } = await import(new URL('./build/server/server.js', import.meta.url).href)
-const apiOrigin = new URL(process.env.API_ORIGIN ?? 'http://127.0.0.1:8088')
+const origin = process.env.API_ORIGIN ?? 'http://127.0.0.1:8088'
+if (!URL.canParse(origin)) throw new Error('API_ORIGIN must be a valid URL')
+const apiOrigin = new URL(origin)
 if (!['http:', 'https:'].includes(apiOrigin.protocol))
   throw new Error('API_ORIGIN must use HTTP or HTTPS')
 const server = Bun.serve({

@@ -1,5 +1,7 @@
 import { test, expect } from '../fixtures'
 
+test.use({ locale: 'en-GB', timezoneId: 'America/Los_Angeles' })
+
 test('generates, saves, reopens, and follows a workout', async ({ signedInPage: page }) => {
   await page.goto('/app/new')
   await page.getByRole('radio', { name: '60min', exact: true }).check()
@@ -21,9 +23,21 @@ test('generates, saves, reopens, and follows a workout', async ({ signedInPage: 
   await expect(page.getByRole('heading', { name: 'Your saved plans', exact: true })).toBeVisible()
   await page.getByRole('link', { name: /View plan/ }).click()
   await expect(page).toHaveURL(/\/workouts\/[^/?]+/)
+  await page.route(
+    '**/api/v1/workouts/*',
+    async (route) => {
+      const response = await route.fetch()
+      await route.fulfill({
+        response,
+        json: { ...(await response.json()), createdAt: '2026-10-09T00:30:00Z' },
+      })
+    },
+    { times: 1 },
+  )
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Full-body workout' })).toBeVisible()
   await expect(page.getByText('Level 3 · Full body', { exact: true })).toBeVisible()
+  await expect(page.getByText('Saved 8 October 2026.', { exact: false })).toBeVisible()
 })
 
 test('failed shuffle retains the saved plan and supports a retry', async ({

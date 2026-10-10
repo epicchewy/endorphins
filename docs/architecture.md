@@ -1,6 +1,6 @@
 # Endorphins architecture
 
-Updated October 5, 2026. This describes the current application. Earlier changes are recorded in the [Temper comparison](temper-architecture-comparison.md).
+Updated October 9, 2026. This describes the current application. Earlier changes are recorded in the [Temper comparison](temper-architecture-comparison.md).
 
 ## Product
 
@@ -25,21 +25,21 @@ Start renders pages; the browser calls Go through TanStack Query. Each router ha
 
 ## Stack
 
-| Area           | Implemented                                                                           |
-| -------------- | ------------------------------------------------------------------------------------- |
-| Go             | 1.27.1, project toolchain; exact compiler also selected for the linter                |
-| HTTP           | Echo v5.4.0, request IDs, recovery, structured request logs                           |
-| React          | 19.3.0                                                                                |
-| Routing        | TanStack Start 1.168.59 / Router 1.170.40                                             |
-| Remote state   | Query 5.104.0 / SSR bridge 1.167.3                                                    |
-| Styling        | Tailwind 4.3.3 utilities, semantic tokens and locally served fonts                    |
-| Runtime/build  | Bun 1.4.2, Node 26.10.0, Vite 8.3.1                                                   |
-| Authentication | Clerk TanStack Start SDK 1.6.3 / Go SDK v2.7.0; Svix v1.99.1 for webhook verification |
-| Persistence    | Postgres 17, pgx v5.11.0, golang-migrate v4.20.1                                      |
-| Database tests | Testcontainers Go v0.44.0                                                             |
-| Browser tests  | Playwright 1.61.0, desktop Chromium and Pixel 7 mobile emulation                      |
-| Contract       | OpenAPI 3.0.3, generated TypeScript with openapi-typescript 7.13.0                    |
-| Checks         | strict TypeScript, Oxlint, Prettier, Go race tests, golangci-lint 2.14.0              |
+| Area           | Implemented                                                                                   |
+| -------------- | --------------------------------------------------------------------------------------------- |
+| Go             | 1.27.1, project toolchain; exact compiler also selected for the linter                        |
+| HTTP           | Echo v5.4.0, request IDs, recovery, structured request logs                                   |
+| React          | 19.3.0                                                                                        |
+| Routing        | TanStack Start 1.168.59 / Router 1.170.40                                                     |
+| Remote state   | Query 5.104.0 / SSR bridge 1.167.3                                                            |
+| Styling        | Tailwind 4.3.3 utilities, semantic tokens and locally served fonts                            |
+| Runtime/build  | Bun 1.4.2, Node 26.10.0, Vite 8.3.1                                                           |
+| Authentication | Clerk TanStack Start SDK 1.6.3 / Go SDK v2.7.0; Svix v1.99.1 for webhook verification         |
+| Persistence    | Postgres 17, pgx v5.11.0, golang-migrate v4.20.1                                              |
+| Database tests | Testcontainers Go v0.44.0                                                                     |
+| Browser tests  | Playwright 1.61.0, desktop Chromium and Pixel 7 mobile emulation                              |
+| Contract       | OpenAPI 3.0.3, generated TypeScript with openapi-typescript 7.13.0                            |
+| Checks         | strict TypeScript, Oxlint, React Doctor 0.9.17, Prettier, Go race tests, golangci-lint 2.14.0 |
 
 The frontend versions follow the inspected Postmaker migration in `/Users/lchui/.codex/worktrees/1825/postmaker`, HEAD `ec8e694224e8f1db3e26b2b8133fe6e129bf94ad`. Shared primitives use native controls. The app does not need TanStack Form, Base UI, or Zustand.
 
@@ -105,6 +105,8 @@ Services cannot import Echo, handlers, server, repositories, application setup, 
 
 Frontend import rules also run as part of linting. UI primitives and pure services cannot depend on application hooks/routes; hooks own remote-state policy; product components compose primitives. Motion ownership stays in the UI library. The checks keep dependencies explicit.
 
+Frontend lint runs the pinned React Doctor full scan. CI fails on errors or warnings. The scan shares the generated-file exclusions in the Oxlint config and uses no remote score or supply-chain service.
+
 `POST /api/v1/workouts` persists a resource and returns `201` with its retrieval URL. Optional owner/input-scoped idempotency keys replay the saved result; a conflicting input receives `409`. Authenticated reads include `/api/v1/workouts`, `/api/v1/workouts/summary`, `/api/v1/workouts/{id}`, `/api/v1/me`, and `/api/v1/me/export`. Errors use safe `{message, code, requestId}` envelopes. The server generates the correlation ID; structured internal logs retain unexpected causes while responses expose safe copy.
 
 `GET /healthz` is process liveness. `GET /readyz` checks the database and clean supported schema version with a two-second bound. Startup validates both catalogue and database schema. See [the account and workout model](accounts-and-workouts.md) for ownership, cursors, snapshots, idempotency, and deletion semantics; see [deployment](deployment.md) for operational setup.
@@ -124,6 +126,8 @@ Random choices are local to each calculation and use concurrency-safe randomness
 
 ## Frontend ownership
 
+Reducers own local UI transitions. Query mutations own confirmation and Undo results. Refs hold retry keys and generation attempts. Theme and test identity use `useSyncExternalStore` with stable browser snapshots and fixed server snapshots. Print listeners use a callback ref with cleanup when the plan element leaves the page. A keyed session boundary clears private caches on unmount. The app route records its requested return URL in route context before rendering an onboarding redirect with `Navigate`. Frontend lint rejects `useState` and `useEffect`, including aliases and property access; it checks application code, scripts, and test adapters.
+
 Validated URL search owns builder minutes/level and library query/level/sort. The custom-duration input keeps an editing draft so intermediate values can be typed; only valid integers update route state. Library search typing replaces the current history entry, while deliberate filter/sort navigation can be revisited with back/forward. The default 45-minute duration is omitted from the URL. An explicit level remains so links do not depend on another account's saved preference. Changing filters selects a new query key and starts a fresh page.
 
 Hooks own fetching, pagination, retries, and mutations. `services/http.ts` owns authenticated transport, cancellation/deadlines, and safe error parsing; account and workout transport are separate modules. One key factory scopes every private query and mutation to the Clerk session. Generating a workout seeds its detail cache and invalidates all list/summary variants only if the originating session remains current.
@@ -134,7 +138,7 @@ The library fetches filtered, ordered records and a count across all matching sa
 
 ## Design system
 
-`components/ui` is the controlled primitive library: native buttons and link presentation, fields/inputs/selects/search/radios, error/retry feedback, loading/empty states, and Presence transitions. These components own presentation and interaction contracts; callers own application values, routing, and requests. Native exercise disclosures remain workout-specific components.
+`components/ui` is the controlled primitive library: native buttons and link presentation, fields/inputs/selects/search/radios, error/retry feedback, loading/empty states, local date display, and Presence transitions. Button styles live outside the component so Fast Refresh can preserve state. `LocalDate` uses TanStack's `ClientOnly` with a fixed date fallback before hydration. Presence uses `LazyMotion` with animation features. These components own presentation and interaction contracts; callers own application values, routing, and requests. Native exercise disclosures remain workout-specific components.
 
 `app.css` contains font loading, semantic Tailwind tokens, base rules, and keyframes. It is the only application stylesheet. Shared primitives own control styles and states through Tailwind utilities; layouts and responsive/print variants stay beside their markup. The palette supports light and dark schemes. Shared controls preserve readable text, keyboard focus, disabled/pending behavior, and touch targets. Motion follows the shared reduced-motion policy.
 

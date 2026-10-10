@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
-import { exportAccount } from '~/services/accounts'
+import { exportAccount, type AccountExport } from '~/services/accounts'
 import { queryKeys } from '~/services/query-keys'
 import { useAccountSession } from './use-account'
 
@@ -19,21 +19,25 @@ export function useAccountExport() {
           'We couldn’t confirm this download belongs to your account. Please try again.',
         )
       }
-      const url = URL.createObjectURL(
-        new Blob([`${JSON.stringify(data, null, 2)}\n`], { type: 'application/json' }),
-      )
-      const link = document.createElement('a')
-      try {
-        link.href = url
-        link.download = `endorphins-data-${data.exportedAt.slice(0, 10)}.json`
-        document.body.append(link)
-        link.click()
-      } finally {
-        link.remove()
-        URL.revokeObjectURL(url)
-      }
+      downloadAccount(data)
       // Keep only completion state in the mutation cache, never the exported personal data.
       return true
     },
   })
+}
+
+function downloadAccount(data: AccountExport) {
+  const link = document.createElement('a')
+  const url = URL.createObjectURL(
+    new Blob([`${JSON.stringify(data, null, 2)}\n`], { type: 'application/json' }),
+  )
+  try {
+    link.href = url
+    link.download = `endorphins-data-${data.exportedAt.slice(0, 10)}.json`
+    document.body.append(link)
+    link.click()
+  } finally {
+    URL.revokeObjectURL(url)
+    link.remove()
+  }
 }
