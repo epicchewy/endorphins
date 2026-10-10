@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowUpRight } from 'lucide-react'
 import { SearchInput, Select } from '~/components/ui/field'
+import { LocalDate } from '~/components/ui/local-date'
 import type { Workout, WorkoutSummary } from '~/services/workouts'
 import type { LibrarySearch } from '~/services/library-search'
 
@@ -104,13 +105,7 @@ export function WorkoutLibrary({
                     <span className="capitalize">{workout.focus}</span> focus
                   </h3>
                   <p className="mt-[7px] flex flex-wrap gap-2 text-xs leading-[1.8] text-muted max-[600px]:gap-[5px]">
-                    <time dateTime={workout.createdAt}>
-                      {new Date(workout.createdAt).toLocaleDateString(undefined, {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </time>
+                    <LocalDate value={workout.createdAt} year="numeric" />
                     <span>·</span>
                     {workout.blocks.reduce((sum, block) => sum + block.exercises.length, 0)}{' '}
                     exercises

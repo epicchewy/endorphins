@@ -19,7 +19,7 @@ The Go `internal/testfixtures` package provides ephemeral signing keys and fixtu
 
 Teardown stops the actual API container and checks that the production proxy returns a safe 503 response. It then removes the remaining containers and network. Failure in one cleanup step does not prevent later steps from running.
 
-Browser tests cover signup, onboarding, saved plans, completion/Undo, activity, search, retries, account isolation, export, deletion, print/PDF, keyboard use, and mobile layouts. Repository tests cover SQL constraints, races, and rollback.
+Browser tests cover signup, onboarding, saved plans, completion/Undo, activity, search, retries, account isolation, export, deletion, print/PDF, keyboard use, and mobile layouts. HTTP contracts run in the desktop project; viewport changes do not affect them. Repository tests cover SQL constraints, races, and rollback.
 
 Artifacts:
 

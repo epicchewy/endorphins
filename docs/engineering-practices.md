@@ -8,7 +8,8 @@ Read [architecture](architecture.md) for module ownership and [Jukebox notes](ju
 - `make db-up` starts local Postgres; `make migrate` applies versioned SQL using golang-migrate.
 - `make dev` starts the database, runs migrations, and supervises the API and frontend; Ctrl-C stops both.
 - `make format` applies formatting; `make lint` checks formatting and code without fixing it.
-- `make check` checks layers, lint, race tests, frontend tests, generated types, TypeScript, and production builds.
+- `make check` checks layers, lint, React Doctor, race tests, frontend tests, generated types, TypeScript, and production builds.
+- `cd frontend && bun run doctor` runs the pinned React Doctor full scan. Errors and warnings fail the command. Lint and CI use the same scan; it does not use the remote score or supply-chain services.
 - `make browsers` installs pinned Chromium once. `make e2e` runs desktop/mobile journeys against disposable app containers. See [browser tests](../e2e/README.md). `make smoke` is an alias.
 
 CI runs `make check` and `make e2e`, rejects generated route/API drift, checks release bundles for test-identity leakage, and uploads browser reports, traces, videos and stack logs. The external Clerk provider UI is replaced only in the explicit e2e build; real API authorization and SQL remain exercised. Real Clerk sign-up still needs a provider integration check.
@@ -34,7 +35,11 @@ Routes own navigation and document metadata. Pages compose controls and presenta
 
 Create a QueryClient for each router instance, with `defaultPreloadStaleTime: 0`. Put user actions in event handlers and mutations. Use `useSyncExternalStore` for browser subscriptions, with stable snapshots and a fixed server snapshot. Use callback refs with cleanup for DOM listeners, and declarative router navigation for redirects. The keyed session boundary owns cache cleanup on unmount. Do not access `window` during server rendering or create a global SSR cache. Scope private queries and mutations by Clerk session ID, clear the old session on changes, and capture tokens from the specific session resource. Route guards never replace API authorization.
 
+Use `LocalDate` for dates shown in the reader's locale and time zone. It renders a fixed date fallback until hydration. Keep button styles separate from the component for Fast Refresh. Presence loads only the Motion animation features it uses.
+
 Use native controls until richer interaction needs an accessible primitive. Keep URL preferences in validated search. Use local reducers for editing drafts and UI transitions, Query for remote state, and refs for retry keys. Frontend lint bans `useState` and `useEffect` imports and property access in application code, scripts, and test adapters. Named React imports keep this rule explicit. This is a project convention; do not move the same logic to layout effects or add a global store to bypass it. Generated API types come from `api/openapi.json`; do not edit generated files manually. Update the contract, Go response mapping, and UI together.
+
+Keep simple editor reducers local and use typed field patches. Let native controls own values that no other control needs.
 
 Keep pending, error, and success states distinct. Failed shuffles keep the saved plan. Writes have no automatic retry. A manual retry keeps its key; changed inputs or a new action get a new key. Saved-plan input is immutable. Confirmation and Undo belong to one hook. Refresh analytics without delaying confirmation.
 
@@ -55,3 +60,5 @@ Review the final diff, run relevant checks, and report only checks actually comp
 Browser tests own generation, retry/offline behavior, URL persistence, account switching, library search, export, keyboard/mobile interactions and print output. The production-proxy contract checks live in the same Playwright harness. Focused tests retain algorithm budgets, JWT rejection cases, immutable snapshot compatibility, concurrent SQL/idempotency/deletion invariants and session-cache policy. Retire a duplicated test only after its replacement has passed; do not replace hard-to-reach database failures with browser mocks.
 
 Reuse browser fixtures for identity and saved-plan setup. Use Playwright's one-shot routes and JSON responses instead of custom flags and serialization. Keep failure artifacts and the print PDF; keep review recordings and pauses out of the test suite.
+
+Combine related retry steps in one journey. Check the visible error, recovery, and final saved count before retiring separate tests.

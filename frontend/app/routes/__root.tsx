@@ -1,4 +1,5 @@
-import { Button, buttonClassName } from '~/components/ui/button'
+import { Button } from '~/components/ui/button'
+import { buttonClassName } from '~/components/ui/button-styles'
 import { ClerkProvider } from '~/auth/client'
 import type { ReactNode } from 'react'
 import type { QueryClient } from '@tanstack/react-query'

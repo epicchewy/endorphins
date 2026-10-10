@@ -3,7 +3,8 @@ import { Check, ArrowLeft } from 'lucide-react'
 import { useWorkout } from '~/hooks/use-workouts'
 import { useActivity, useWorkoutCompletion } from '~/hooks/use-activity'
 import { completionMilestone } from '~/services/activity'
-import { Button, buttonClassName } from '~/components/ui/button'
+import { Button } from '~/components/ui/button'
+import { buttonClassName } from '~/components/ui/button-styles'
 import { Feedback, LoadingState } from '~/components/ui/feedback'
 
 export const Route = createFileRoute('/_authenticated/app/workouts/$workoutId_/finish')({

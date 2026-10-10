@@ -1,4 +1,5 @@
 import { afterAll, expect, test } from 'bun:test'
+import { $ } from 'bun'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
@@ -10,22 +11,10 @@ afterAll(() => rm(directory, { recursive: true, force: true }))
 async function lint(name: string, source: string) {
   const file = resolve(directory, `${name}.tsx`)
   await writeFile(file, source)
-  const process = Bun.spawn(
-    [
-      resolve(root, 'node_modules/.bin/oxlint'),
-      '--config',
-      resolve(root, '.oxlintrc.json'),
-      '--deny-warnings',
-      file,
-    ],
-    { cwd: root, stdout: 'pipe', stderr: 'pipe' },
-  )
-  const [exitCode, stdout, stderr] = await Promise.all([
-    process.exited,
-    new Response(process.stdout).text(),
-    new Response(process.stderr).text(),
-  ])
-  return { exitCode, output: stdout + stderr }
+  return $`${resolve(root, 'node_modules/.bin/oxlint')} --config ${resolve(root, '.oxlintrc.json')} --deny-warnings ${file}`
+    .cwd(root)
+    .quiet()
+    .nothrow()
 }
 
 const forbidden = [
@@ -42,13 +31,11 @@ const forbidden = [
   ['dynamic-effect', "const R = await import('react'); export const hook = R['useEffect']"],
 ] as const
 
-for (const [name, source] of forbidden) {
-  test(`frontend lint rejects ${name}`, async () => {
-    const result = await lint(name, source)
-    expect(result.exitCode).toBe(1)
-    expect(result.output).toContain('no-restricted-')
-  })
-}
+test.each(forbidden)('frontend lint rejects %s', async (name, source) => {
+  const result = await lint(name, source)
+  expect(result.exitCode).toBe(1)
+  expect(result.text()).toContain('no-restricted-')
+})
 
 test('frontend lint allows the supported hooks and React types', async () => {
   const result = await lint(
@@ -58,6 +45,7 @@ test('frontend lint allows the supported hooks and React types', async () => {
     export type { ReactNode, RefCallback } from 'react'
   `,
   )
-  expect(result.output).toBe('')
+  expect(result.text()).toBe('')
+  expect(result.stderr.length).toBe(0)
   expect(result.exitCode).toBe(0)
 })

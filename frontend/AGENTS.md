@@ -8,4 +8,4 @@
 - Follow `docs/design-system.md`. Keep Sharp Serif/Inter, global tokens and fonts in `app.css`, shared control styles in `components/ui`, and layout beside its markup. Use Tailwind utilities and responsive/print variants. Do not add page stylesheets or copy old selectors into `@apply`. Preview controls at `/design-system` in development.
 - Import Clerk through `auth/client.ts` or `auth/server.ts`. The test adapter is selected only by the explicit e2e build mode; `scripts/check-release.ts` rejects its presence in release bundles.
 - Test user journeys in `../e2e`; retain focused policy tests for cache isolation, URL normalization and transport errors. Do not assert serialized HTML attribute order.
-- Run typegen, typecheck and lint; verify UI changes in real browsers at desktop and mobile sizes, including reduced motion and keyboard use.
+- Run typegen, typecheck and lint. Lint includes the full React Doctor scan and fails on errors or warnings. Verify UI changes in real browsers at desktop and mobile sizes, including reduced motion and keyboard use.

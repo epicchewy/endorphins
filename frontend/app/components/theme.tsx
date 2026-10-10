@@ -4,10 +4,7 @@ import { Select } from '~/components/ui/field'
 import { cn } from '~/components/ui/cn'
 
 type Theme = 'system' | 'light' | 'dark'
-const ThemeContext = createContext<{ theme: Theme; setTheme: (theme: Theme) => void }>({
-  theme: 'system',
-  setTheme: () => {},
-})
+const ThemeContext = createContext<Theme>('system')
 let memoryTheme: Theme = 'system'
 const serverSnapshot: { theme: Theme; themeColor?: string } = { theme: 'system' }
 let browserSnapshot = serverSnapshot
@@ -57,7 +54,7 @@ function setTheme(next: Theme) {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { theme, themeColor } = useSyncExternalStore(subscribe, readSnapshot, () => serverSnapshot)
   return (
-    <ThemeContext value={{ theme, setTheme }}>
+    <ThemeContext value={theme}>
       {themeColor && <meta name="theme-color" content={themeColor} />}
       {children}
     </ThemeContext>
@@ -68,7 +65,7 @@ export function ThemeControl({
   className,
 }: { compact?: boolean; className?: string } = {}) {
   const id = useId()
-  const { theme, setTheme } = useContext(ThemeContext)
+  const theme = useContext(ThemeContext)
   const Icon = theme === 'system' ? Monitor : theme === 'dark' ? Moon : Sun
   return (
     <label

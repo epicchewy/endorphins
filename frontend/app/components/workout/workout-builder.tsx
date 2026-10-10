@@ -11,22 +11,8 @@ import { workoutLevels as levels } from '~/services/workout-levels'
 function durationEditor(minutes: number) {
   return { expanded: false, source: minutes, text: String(minutes) }
 }
-type DurationAction =
-  | { type: 'sync'; minutes: number }
-  | { type: 'preset'; minutes: number }
-  | { type: 'custom'; expanded: boolean; minutes: number }
-  | { type: 'draft'; source: number; text: string }
-function editDuration(state: ReturnType<typeof durationEditor>, action: DurationAction) {
-  switch (action.type) {
-    case 'sync':
-      return { ...state, source: action.minutes, text: String(action.minutes) }
-    case 'preset':
-      return durationEditor(action.minutes)
-    case 'custom':
-      return { expanded: action.expanded, source: action.minutes, text: String(action.minutes) }
-    case 'draft':
-      return { expanded: true, source: action.source, text: action.text }
-  }
+function editDuration(state: ReturnType<typeof durationEditor>, patch: Partial<typeof state>) {
+  return { ...state, ...patch }
 }
 
 export function WorkoutBuilder({
@@ -44,7 +30,7 @@ export function WorkoutBuilder({
 }) {
   const [duration, dispatch] = useReducer(editDuration, value.durationMinutes, durationEditor)
   if (duration.source !== value.durationMinutes)
-    dispatch({ type: 'sync', minutes: value.durationMinutes })
+    dispatch({ source: value.durationMinutes, text: String(value.durationMinutes) })
   const customTime = duration.expanded || ![30, 45, 60].includes(value.durationMinutes)
   const currentLevel = levels.find((level) => level.number === value.level) ?? levels[1]
   return (
@@ -75,7 +61,7 @@ export function WorkoutBuilder({
               value={minutes}
               checked={!customTime && value.durationMinutes === minutes}
               onChange={() => {
-                dispatch({ type: 'preset', minutes })
+                dispatch(durationEditor(minutes))
                 onChange({ durationMinutes: minutes })
               }}
             >
@@ -95,7 +81,7 @@ export function WorkoutBuilder({
             if (customTime && ![30, 45, 60].includes(value.durationMinutes)) {
               onChange({ durationMinutes: 45 })
             }
-            dispatch({ type: 'custom', expanded: !customTime, minutes: value.durationMinutes })
+            dispatch({ ...durationEditor(value.durationMinutes), expanded: !customTime })
           }}
         >
           {customTime ? 'Use a preset duration' : 'Custom duration'}
@@ -122,7 +108,11 @@ export function WorkoutBuilder({
               required
               value={duration.text}
               onChange={(event) => {
-                dispatch({ type: 'draft', source: value.durationMinutes, text: event.target.value })
+                dispatch({
+                  expanded: true,
+                  source: value.durationMinutes,
+                  text: event.target.value,
+                })
                 const minutes = event.target.valueAsNumber
                 if (Number.isInteger(minutes) && minutes >= 30 && minutes <= 120) {
                   onChange({ durationMinutes: minutes })

@@ -4,7 +4,8 @@ import { WorkoutSheet } from '~/components/workout/workout-sheet'
 import { WorkoutStatus } from '~/components/workout/workout-status'
 import { useWorkout } from '~/hooks/use-workouts'
 import { Feedback, LoadingState } from '~/components/ui/feedback'
-import { buttonClassName } from '~/components/ui/button'
+import { LocalDate } from '~/components/ui/local-date'
+import { buttonClassName } from '~/components/ui/button-styles'
 import { librarySearch, librarySearchDefaults } from '~/services/library-search'
 import { useAccountSession } from '~/hooks/use-account'
 import { useGenerateWorkout } from '~/hooks/use-generate-workout'
@@ -37,13 +38,8 @@ function SavedWorkout() {
       {workout.data && (
         <>
           <p className="mt-3 mb-7 text-xs leading-[1.8] text-muted print:text-[10px]">
-            Saved{' '}
-            {new Date(workout.data.createdAt).toLocaleDateString(undefined, {
-              month: 'long',
-              day: 'numeric',
-              year: 'numeric',
-            })}
-            . Shuffling saves a new workout to your account.
+            Saved <LocalDate value={workout.data.createdAt} month="long" year="numeric" />.
+            Shuffling saves a new workout to your account.
           </p>
           <div aria-busy={generator.isPending}>
             <WorkoutSheet

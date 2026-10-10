@@ -27,6 +27,7 @@ export default defineConfig({
     },
     {
       name: 'mobile',
+      testIgnore: '**/contracts.spec.ts',
       use: { ...devices['Pixel 7'], viewport: { width: 390, height: 844 } },
     },
   ],

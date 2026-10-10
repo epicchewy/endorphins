@@ -20,8 +20,7 @@ test('production proxy preserves API contracts, idempotency, errors and ownershi
   request,
   subject,
   authorization,
-}, info) => {
-  test.skip(info.project.name !== 'desktop', 'HTTP contract is independent of viewport')
+}) => {
   const headers = { ...authorization, 'Idempotency-Key': crypto.randomUUID() }
   const data = { durationMinutes: 45, level: 2 }
   const created = await request.post('/api/v1/workouts', { headers, data })
@@ -84,8 +83,7 @@ test('production proxy preserves API contracts, idempotency, errors and ownershi
 
 test('production static server preserves compression, HEAD and path isolation', async ({
   request,
-}, info) => {
-  test.skip(info.project.name !== 'desktop', 'Static contract is independent of viewport')
+}) => {
   const html = await request.get('/')
   expect(html.headers()['cache-control']).toBe('private, no-store')
   const body = await html.text()
@@ -119,8 +117,7 @@ test('verified account deletion crosses the production proxy and rejects stale s
   request,
   subject,
   authorization,
-}, info) => {
-  test.skip(info.project.name !== 'desktop', 'HTTP contract is independent of viewport')
+}) => {
   const saved = await request.post('/api/v1/workouts', {
     headers: authorization,
     data: { durationMinutes: 45, level: 2 },
@@ -157,8 +154,7 @@ test('preferences and completion contracts separate plans, repeats, retries and 
   request,
   subject,
   authorization,
-}, info) => {
-  test.skip(info.project.name !== 'desktop', 'HTTP contract is independent of viewport')
+}) => {
   const updated = await request.patch('/api/v1/me', {
     headers: authorization,
     data: { defaultLevel: 4, completeOnboarding: true },

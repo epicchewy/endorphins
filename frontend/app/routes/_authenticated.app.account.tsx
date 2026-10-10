@@ -2,6 +2,7 @@ import { createFileRoute, Link, useBlocker } from '@tanstack/react-router'
 import { ArrowLeft, Download } from 'lucide-react'
 import { useReducer } from 'react'
 import { Field, Select } from '~/components/ui/field'
+import { LocalDate } from '~/components/ui/local-date'
 import { workoutLevels } from '~/services/workout-levels'
 import { useAccount, useUpdateAccount } from '~/hooks/use-account'
 import { useAccountExport } from '~/hooks/use-account-export'
@@ -63,13 +64,7 @@ function Account() {
               <div>
                 <dt className="mb-2 text-xs text-muted">Member since</dt>
                 <dd className="text-sm leading-[1.7] wrap-anywhere">
-                  <time dateTime={account.data.createdAt}>
-                    {new Date(account.data.createdAt).toLocaleDateString(undefined, {
-                      month: 'long',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
-                  </time>
+                  <LocalDate value={account.data.createdAt} month="long" year="numeric" />
                 </dd>
               </div>
               <div>

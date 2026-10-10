@@ -5,11 +5,11 @@ import { requireUser } from '~/server/auth'
 
 export const Route = createFileRoute('/_authenticated')({
   ssr: false,
-  head: () => ({ meta: [{ name: 'robots', content: 'noindex' }] }),
   // The server checks entry. SessionBoundary and the API protect later session changes.
   // Search edits must not wait for another auth round trip on each key press.
   beforeLoad: ({ location, cause }) =>
     cause === 'stay' ? undefined : requireUser({ data: location.href }),
+  head: () => ({ meta: [{ name: 'robots', content: 'noindex' }] }),
   component: Authenticated,
 })
 function Authenticated() {

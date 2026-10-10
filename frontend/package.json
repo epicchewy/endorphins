@@ -13,7 +13,8 @@
     "start": "bun run server.ts",
     "typegen": "bun --bun tsr generate && bun --bun openapi-typescript ../api/openapi.json -o app/types/api.gen.ts",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint --deny-warnings app test scripts server.ts vite.config.ts && bun scripts/check-boundaries.ts",
+    "lint": "oxlint --deny-warnings app test scripts server.ts vite.config.ts && bun scripts/check-boundaries.ts && bun run doctor",
+    "doctor": "react-doctor . --scope full --blocking warning --no-score --no-supply-chain",
     "test": "bun test test",
     "format": "prettier --write app server.ts vite.config.ts test scripts",
     "format:check": "prettier --check app server.ts vite.config.ts test scripts"
@@ -42,6 +43,7 @@
     "openapi-typescript": "7.13.0",
     "oxlint": "1.86.0",
     "prettier": "3.6.2",
+    "react-doctor": "0.9.17",
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
     "vite": "8.3.1"
