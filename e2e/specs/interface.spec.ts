@@ -15,6 +15,7 @@ test('sign-in returns to the chosen workout and native validation preserves cust
   await duration.fill('')
   await duration.pressSequentially('72')
   await expect(duration).toHaveValue('72')
+  await expect(duration).toBeFocused()
   await expect(page).toHaveURL(/minutes=72/)
   await duration.fill('7')
   await page.getByRole('button', { name: 'Generate my workout', exact: true }).click()
@@ -76,6 +77,11 @@ test('mobile layout, theme, keyboard navigation, and unsaved preferences stay us
   await expect(page.getByRole('link', { name: 'Skip to content' })).toHaveCSS('clip-path', 'none')
   await page.keyboard.press('Enter')
   await page.getByRole('combobox', { name: 'Color theme' }).selectOption('dark')
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute(
+    'content',
+    'rgb(21, 24, 25)',
+  )
   await page.reload()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(21, 24, 25)')
@@ -101,6 +107,31 @@ test('mobile layout, theme, keyboard navigation, and unsaved preferences stay us
   await expect(page).toHaveURL(/\/app$/)
   await page.goto('/app/new')
   await expect(page.getByRole('radio', { name: 'Level 2: Steady' })).toBeChecked()
+})
+
+test('theme controls and browser color follow system and other-tab changes', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' })
+  await page.goto('/')
+  const control = page.getByRole('combobox', { name: 'Color theme' }).first()
+  const color = page.locator('meta[name="theme-color"]')
+  await control.selectOption('system')
+  await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(242, 243, 243)')
+  await expect(color).toHaveAttribute('content', 'rgb(242, 243, 243)')
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await expect(color).toHaveAttribute('content', 'rgb(21, 24, 25)')
+
+  const other = await page.context().newPage()
+  try {
+    await other.goto('/')
+    await other.getByRole('combobox', { name: 'Color theme' }).first().selectOption('light')
+    await expect(control).toHaveValue('light')
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+    await expect(color).toHaveAttribute('content', 'rgb(242, 243, 243)')
+    await page.setViewportSize({ width: 768, height: 1024 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  } finally {
+    await other.close()
+  }
 })
 
 test('shared action links show hover and pressed feedback', async ({ page }, info) => {

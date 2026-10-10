@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useReducer } from 'react'
 import { ArrowLeft, ArrowUpRight, Check } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Brand } from './brand'
@@ -11,12 +11,34 @@ import { SkipLink } from './ui/skip-link'
 
 const colors = ['background', 'surface', 'ink', 'muted', 'line', 'accent', 'focus', 'error']
 
+const initialPreview = { duration: 45, query: '', level: '2', error: true, step: 1 }
+type PreviewAction =
+  | { type: 'duration'; value: number }
+  | { type: 'query'; value: string }
+  | { type: 'level'; value: string }
+  | { type: 'next' | 'reset-step' | 'toggle-error' }
+function previewReducer(state: typeof initialPreview, action: PreviewAction) {
+  switch (action.type) {
+    case 'duration':
+      return { ...state, duration: action.value }
+    case 'query':
+      return { ...state, query: action.value }
+    case 'level':
+      return { ...state, level: action.value }
+    case 'next':
+      return { ...state, step: state.step + 1 }
+    case 'reset-step':
+      return { ...state, step: 1 }
+    case 'toggle-error':
+      return { ...state, error: !state.error }
+  }
+}
+
 function ComponentPreview({ theme }: { theme: 'light' | 'dark' }) {
-  const [duration, setDuration] = useState(45)
-  const [query, setQuery] = useState('')
-  const [level, setLevel] = useState('2')
-  const [error, setError] = useState(true)
-  const [step, setStep] = useState(1)
+  const [{ duration, query, level, error, step }, dispatch] = useReducer(
+    previewReducer,
+    initialPreview,
+  )
   const id = (name: string) => `${theme}-${name}`
   return (
     <section
@@ -49,11 +71,11 @@ function ComponentPreview({ theme }: { theme: 'light' | 'dark' }) {
           One clear primary action. A visible focus ring. Room to tap.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Button variant="primary" onClick={() => setStep((current) => current + 1)}>
+          <Button variant="primary" onClick={() => dispatch({ type: 'next' })}>
             Next move <ArrowUpRight size={18} aria-hidden="true" />
           </Button>
-          <Button onClick={() => setStep(1)}>Reset preview</Button>
-          <Button variant="ghost" onClick={() => setQuery('')}>
+          <Button onClick={() => dispatch({ type: 'reset-step' })}>Reset preview</Button>
+          <Button variant="ghost" onClick={() => dispatch({ type: 'query', value: '' })}>
             Clear search
           </Button>
           <Button disabled>Unavailable</Button>
@@ -76,14 +98,16 @@ function ComponentPreview({ theme }: { theme: 'light' | 'dark' }) {
               min={30}
               max={120}
               value={duration}
-              onChange={(event) => setDuration(event.target.valueAsNumber || 30)}
+              onChange={(event) =>
+                dispatch({ type: 'duration', value: event.target.valueAsNumber || 30 })
+              }
             />
           </Field>
           <Field label="Your level" htmlFor={id('level')}>
             <Select
               id={id('level')}
               value={level}
-              onChange={(event) => setLevel(event.target.value)}
+              onChange={(event) => dispatch({ type: 'level', value: event.target.value })}
             >
               {[1, 2, 3, 4, 5].map((value) => (
                 <option key={value} value={value}>
@@ -97,7 +121,7 @@ function ComponentPreview({ theme }: { theme: 'light' | 'dark' }) {
               id={id('search')}
               placeholder="Exercise or body area"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => dispatch({ type: 'query', value: event.target.value })}
             />
           </Field>
           <Field
@@ -124,7 +148,7 @@ function ComponentPreview({ theme }: { theme: 'light' | 'dark' }) {
                 key={minutes}
                 value={minutes}
                 checked={duration === minutes}
-                onChange={() => setDuration(minutes)}
+                onChange={() => dispatch({ type: 'duration', value: minutes })}
               >
                 <span className="inline-flex items-center gap-2 text-sm font-semibold max-[600px]:gap-1">
                   {minutes} min{' '}
@@ -147,7 +171,7 @@ function ComponentPreview({ theme }: { theme: 'light' | 'dark' }) {
         <Feedback
           tone={error ? 'error' : 'info'}
           title={error ? 'We couldn’t save your workout.' : 'Ready to try again.'}
-          retry={() => setError((value) => !value)}
+          retry={() => dispatch({ type: 'toggle-error' })}
           retryLabel={error ? 'Try again' : 'Show error state'}
         >
           {error ? 'Your current plan is unchanged.' : 'Your previous plan is still available.'}
@@ -157,7 +181,7 @@ function ComponentPreview({ theme }: { theme: 'light' | 'dark' }) {
           className="mt-4"
           title="A fresh start."
           action={
-            <Button variant="primary" onClick={() => setStep((current) => current + 1)}>
+            <Button variant="primary" onClick={() => dispatch({ type: 'next' })}>
               Build a workout <ArrowUpRight size={18} aria-hidden="true" />
             </Button>
           }

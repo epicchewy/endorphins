@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useReducer } from 'react'
 import { createFileRoute, Navigate } from '@tanstack/react-router'
 import { ArrowRight, Check, House } from 'lucide-react'
 import { useAccount, useUpdateAccount } from '~/hooks/use-account'
@@ -18,13 +18,28 @@ export const Route = createFileRoute('/_authenticated/app_/onboarding')({
   }),
   component: Onboarding,
 })
+
+type OnboardingAction =
+  | { type: 'choose-level'; level: number }
+  | { type: 'back' }
+  | { type: 'select-level'; level: number }
+function onboardingReducer(state: { step: number; level: number }, action: OnboardingAction) {
+  switch (action.type) {
+    case 'choose-level':
+      return { step: 1, level: action.level }
+    case 'back':
+      return { ...state, step: 0 }
+    case 'select-level':
+      return { ...state, level: action.level }
+  }
+}
+
 function Onboarding() {
   const account = useAccount()
   const update = useUpdateAccount()
   const { next = '/app' } = Route.useSearch()
   const destination = next === '/app' ? '/app/new' : next
-  const [step, setStep] = useState(0)
-  const [level, setLevel] = useState(1)
+  const [{ step, level }, dispatch] = useReducer(onboardingReducer, { step: 0, level: 1 })
   const heading = useRef<HTMLHeadingElement>(null)
   return (
     <>
@@ -110,8 +125,7 @@ function Onboarding() {
                     variant="primary"
                     className="w-full justify-between"
                     onClick={() => {
-                      setLevel(account.data.defaultLevel)
-                      setStep(1)
+                      dispatch({ type: 'choose-level', level: account.data.defaultLevel })
                       requestAnimationFrame(() => heading.current?.focus())
                     }}
                   >
@@ -156,7 +170,7 @@ function Onboarding() {
                         value={item.number}
                         checked={level === item.number}
                         onChange={() => {
-                          setLevel(item.number)
+                          dispatch({ type: 'select-level', level: item.number })
                           update.reset()
                         }}
                         className="justify-start gap-4 px-5 py-4"
@@ -189,7 +203,7 @@ function Onboarding() {
                     variant="ghost"
                     disabled={update.isPending}
                     onClick={() => {
-                      setStep(0)
+                      dispatch({ type: 'back' })
                       requestAnimationFrame(() => heading.current?.focus())
                     }}
                   >

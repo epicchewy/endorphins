@@ -1,6 +1,7 @@
 # Frontend
 
 - Routes own URL state and guards. Pages compose the UI. Hooks own Query behavior; services own transport and pure policies. Private keys come from `services/query-keys.ts` and include session identity.
+- Use reducers for local transitions, Query for remote state, and refs for retry keys. Use subscriptions or callback refs with cleanup for browser lifecycles. Lint rejects `useState` and `useEffect` across application code, scripts, and test adapters. Do not replace them with layout effects or global UI stores.
 - Merge URL edits with functional navigation updates; controls send changed fields only. Transient invalid input drafts stay local until valid.
 - Capture the specific Clerk session for each request. Guard late mutation results against the live session. Clear/remount on session changes; never retain account exports in the cache.
 - Use `components/ui` for buttons, labelled fields, feedback, loading/empty states and transitions. These primitives cannot import application services/hooks/routes. Only `ui/presence.tsx` imports Motion.

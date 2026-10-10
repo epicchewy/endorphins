@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useRef, useReducer, type ReactNode } from 'react'
 import { Presence } from '~/components/ui/presence'
 import { Button } from '~/components/ui/button'
 import { EmptyState } from '~/components/ui/feedback'
@@ -6,6 +6,14 @@ import { ArrowLeft, ArrowRight, Sunrise } from 'lucide-react'
 import type { Workout } from '~/services/workouts'
 import { workoutSteps } from '~/services/workout-insights'
 import { Prescription } from './prescription'
+
+function moveStep(
+  state: { index: number; direction: -1 | 1 },
+  { next, count }: { next: number; count: number },
+) {
+  const index = Math.max(0, Math.min(count - 1, next))
+  return { index, direction: index > state.index ? (1 as const) : (-1 as const) }
+}
 
 export function WorkoutFocus({
   workout,
@@ -16,14 +24,12 @@ export function WorkoutFocus({
   onExit: () => void
   children: ReactNode
 }) {
-  const [index, setIndex] = useState(0)
-  const [direction, setDirection] = useState<-1 | 1>(1)
+  const [{ index, direction }, move] = useReducer(moveStep, { index: 0, direction: 1 })
   const focusRef = useRef<HTMLDivElement>(null)
   const steps = workoutSteps(workout)
   const step = steps[index]
   const go = (next: number) => {
-    setDirection(next > index ? 1 : -1)
-    setIndex(Math.max(0, Math.min(steps.length - 1, next)))
+    move({ next, count: steps.length })
     focusRef.current?.focus({ preventScroll: true })
   }
   if (!step) return <EmptyState title="No exercises in this plan." />

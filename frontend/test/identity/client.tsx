@@ -1,6 +1,13 @@
 // External identity fixture, included only by `vite build --mode e2e`.
 // Application requests still carry signed JWTs to the real Go verifier.
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useSyncExternalStore,
+  useTransition,
+  type ReactNode,
+} from 'react'
 
 const cookieName = 'endorphins_test_session'
 type Session = { id: string; user: { id: string }; getToken: () => Promise<string> }
@@ -9,11 +16,15 @@ const Identity = createContext<{ session: Session | null; isLoaded: boolean }>({
   isLoaded: false,
 })
 
-function readSession(): Session | null {
+function readToken() {
   const cookie = document.cookie.split('; ').find((part) => part.startsWith(`${cookieName}=`))
-  if (!cookie) return null
-  const token = decodeURIComponent(cookie.slice(cookieName.length + 1))
+  return cookie ? cookie.slice(cookieName.length + 1) : ''
+}
+
+function parseSession(encodedToken: string): Session | null {
+  if (!encodedToken) return null
   try {
+    const token = decodeURIComponent(encodedToken)
     const claims = JSON.parse(atob(token.split('.')[1]!.replace(/-/g, '+').replace(/_/g, '/')))
     if (typeof claims.sub !== 'string' || typeof claims.sid !== 'string') return null
     return { id: claims.sid, user: { id: claims.sub }, getToken: async () => token }
@@ -22,17 +33,20 @@ function readSession(): Session | null {
   }
 }
 
+function subscribe(listener: () => void) {
+  window.addEventListener('endorphins:test-session', listener)
+  return () => window.removeEventListener('endorphins:test-session', listener)
+}
+
 export function ClerkProvider({ children }: { children: ReactNode }) {
-  const [identity, setIdentity] = useState<{ session: Session | null; isLoaded: boolean }>({
-    session: null,
-    isLoaded: false,
-  })
-  useEffect(() => {
-    const refresh = () => setIdentity({ session: readSession(), isLoaded: true })
-    refresh()
-    window.addEventListener('endorphins:test-session', refresh)
-    return () => window.removeEventListener('endorphins:test-session', refresh)
-  }, [])
+  const token = useSyncExternalStore(subscribe, readToken, () => undefined)
+  const identity = useMemo(
+    () => ({
+      session: token ? parseSession(token) : null,
+      isLoaded: token !== undefined,
+    }),
+    [token],
+  )
   return <Identity.Provider value={identity}>{children}</Identity.Provider>
 }
 
@@ -53,7 +67,7 @@ export function useAuth() {
 export function useClerk() {
   return {
     get session() {
-      return readSession()
+      return parseSession(readToken())
     },
     redirectToSignIn: ({ redirectUrl }: { redirectUrl: string }) => {
       window.location.assign(`/sign-in?returnTo=${encodeURIComponent(redirectUrl)}`)
@@ -84,9 +98,8 @@ export function SignIn({
   fallbackRedirectUrl?: string
   forceRedirectUrl?: string
 }) {
-  const [pending, setPending] = useState(false)
+  const [pending, startTransition] = useTransition()
   const signIn = async () => {
-    setPending(true)
     const response = await fetch(`/api/__fixture/token?subject=browser_${crypto.randomUUID()}`)
     if (!response.ok) throw new Error('Test identity service unavailable')
     const { token } = await response.json()
@@ -105,7 +118,7 @@ export function SignIn({
       type="button"
       className="button primary"
       disabled={pending}
-      onClick={() => void signIn()}
+      onClick={() => startTransition(signIn)}
     >
       Continue with test identity
     </button>

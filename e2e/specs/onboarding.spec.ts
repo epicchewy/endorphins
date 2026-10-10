@@ -107,6 +107,34 @@ test('late completion results cannot appear in another account', async ({
   await expect(page.getByTestId('completed-total')).toHaveText('1')
 })
 
+test('a lost Undo response keeps confirmation visible and can be retried', async ({
+  signedInPage: page,
+}) => {
+  await page.goto('/app/new')
+  await page.getByRole('button', { name: 'Generate my workout', exact: true }).click()
+  await page.getByRole('link', { name: 'I finished', exact: true }).click()
+  await page.getByRole('button', { name: 'Mark workout complete' }).click()
+  await expect(page.getByRole('heading', { name: 'Workout complete.' })).toBeVisible()
+
+  let loseResponse = true
+  await page.route('**/api/v1/completions/*', async (route) => {
+    if (!loseResponse) return route.fallback()
+    loseResponse = false
+    const response = await route.fetch()
+    expect(response.status()).toBe(200)
+    await route.abort('failed')
+  })
+  await page.getByRole('button', { name: 'Undo completion' }).click()
+  await expect(page.getByRole('alert')).toContainText('connection')
+  await expect(page.getByRole('heading', { name: 'Workout complete.' })).toBeVisible()
+  await page.getByRole('button', { name: 'Undo completion' }).click()
+  await expect(page.getByText('Completion removed. Your plan is still saved.')).toBeVisible()
+  await page.getByRole('button', { name: 'Mark workout complete' }).click()
+  await expect(page.getByRole('heading', { name: 'Workout complete.' })).toBeVisible()
+  await page.getByRole('link', { name: 'Back to dashboard' }).click()
+  await expect(page.getByTestId('completed-total')).toHaveText('1')
+})
+
 test('an account load error shows recovery instead of restarting onboarding', async ({
   signedInPage: page,
 }) => {

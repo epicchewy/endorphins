@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useRef, useReducer, type ReactNode } from 'react'
 import { ChevronDown, Clock3, Printer, RefreshCw, Sunrise, List, Play } from 'lucide-react'
 import { usePrintDetails } from '~/hooks/use-print-details'
 import type { Workout } from '~/services/workouts'
@@ -29,7 +29,10 @@ export function WorkoutSheet({
   children: ReactNode
 }) {
   const printRef = usePrintDetails()
-  const [view, setView] = useState<'plan' | 'focus'>('plan')
+  const [view, setView] = useReducer(
+    (_view: 'plan' | 'focus', next: 'plan' | 'focus') => next,
+    'plan',
+  )
   const overviewButton = useRef<HTMLButtonElement>(null)
   const count = workout.blocks.reduce((sum, block) => sum + block.exercises.length, 0)
   const stats = [

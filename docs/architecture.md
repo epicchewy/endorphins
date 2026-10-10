@@ -1,6 +1,6 @@
 # Endorphins architecture
 
-Updated October 5, 2026. This describes the current application. Earlier changes are recorded in the [Temper comparison](temper-architecture-comparison.md).
+Updated October 9, 2026. This describes the current application. Earlier changes are recorded in the [Temper comparison](temper-architecture-comparison.md).
 
 ## Product
 
@@ -123,6 +123,8 @@ Repetition-based estimates retain the original easy/medium/hard values of 1/2/5 
 Random choices are local to each calculation and use concurrency-safe randomness in production. Deterministic tests supply an integer generator. Shared catalogue slices are not mutated. Startup validates every catalogue file, so missing or invalid data prevents readiness.
 
 ## Frontend ownership
+
+Reducers own local UI transitions. Query mutations own confirmation and Undo results. Refs hold retry keys and generation attempts. Theme and test identity use `useSyncExternalStore` with stable browser snapshots and fixed server snapshots. Print listeners use a callback ref with cleanup when the plan element leaves the page. A keyed session boundary clears private caches on unmount. The app route records its requested return URL in route context before rendering an onboarding redirect with `Navigate`. Frontend lint rejects `useState` and `useEffect`, including aliases and property access; it checks application code, scripts, and test adapters.
 
 Validated URL search owns builder minutes/level and library query/level/sort. The custom-duration input keeps an editing draft so intermediate values can be typed; only valid integers update route state. Library search typing replaces the current history entry, while deliberate filter/sort navigation can be revisited with back/forward. The default 45-minute duration is omitted from the URL. An explicit level remains so links do not depend on another account's saved preference. Changing filters selects a new query key and starts a fresh page.
 

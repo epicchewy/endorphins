@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useBlocker } from '@tanstack/react-router'
 import { ArrowLeft, Download } from 'lucide-react'
-import { useState } from 'react'
+import { useReducer } from 'react'
 import { Field, Select } from '~/components/ui/field'
 import { workoutLevels } from '~/services/workout-levels'
 import { useAccount, useUpdateAccount } from '~/hooks/use-account'
@@ -16,7 +16,10 @@ export const Route = createFileRoute('/_authenticated/app/account')({
 function Account() {
   const account = useAccount()
   const update = useUpdateAccount()
-  const [level, setLevel] = useState<number | undefined>()
+  const [level, selectLevel] = useReducer(
+    (_level: number | undefined, selected: number) => selected,
+    undefined,
+  )
   const download = useAccountExport()
   const unsaved = level !== undefined && level !== account.data?.defaultLevel
   useBlocker({
@@ -98,7 +101,7 @@ function Account() {
                   value={level ?? account.data.defaultLevel}
                   disabled={update.isPending}
                   onChange={(event) => {
-                    setLevel(Number(event.target.value))
+                    selectLevel(Number(event.target.value))
                     update.reset()
                   }}
                 >

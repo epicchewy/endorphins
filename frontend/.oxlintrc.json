@@ -1,1 +1,31 @@
-{"plugins":["react","typescript","jsx-a11y"],"categories":{"correctness":"error"},"ignorePatterns":["app/routeTree.gen.ts","app/types/api.gen.ts"]}
+{
+  "plugins": ["react", "typescript", "jsx-a11y"],
+  "categories": { "correctness": "error" },
+  "ignorePatterns": ["app/routeTree.gen.ts", "app/types/api.gen.ts"],
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "react",
+            "importNames": ["useState", "useEffect", "default"],
+            "allowTypeImports": true,
+            "message": "Use named React imports. Use reducers for local transitions, Query for remote state, refs for mutable values, and subscriptions or callback refs for browser lifecycles."
+          }
+        ]
+      }
+    ],
+    "no-restricted-properties": [
+      "error",
+      {
+        "property": "useState",
+        "message": "Use a reducer, URL state, Query state, or a native control."
+      },
+      {
+        "property": "useEffect",
+        "message": "Use event handlers, subscriptions, callback refs, or declarative navigation."
+      }
+    ]
+  }
+}
