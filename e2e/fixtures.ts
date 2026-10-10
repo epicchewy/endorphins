@@ -4,12 +4,20 @@ import { test as base, expect, type Page } from '@playwright/test'
 type Fixtures = {
   subject: string
   signedInPage: Page
+  savedWorkoutPage: Page
+  authorization: Record<string, string>
   signIn: (subject: string) => Promise<void>
   seedLibrary: () => Promise<{ ids: string[] }>
 }
 
 export const test = base.extend<Fixtures>({
   subject: async ({}, use) => use(`browser_${randomUUID()}`),
+  authorization: async ({ request, subject }, use) => {
+    const response = await request.get(`/api/__fixture/token?subject=${subject}`)
+    expect(response.status()).toBe(200)
+    const { token } = await response.json()
+    await use({ Authorization: `Bearer ${token}` })
+  },
   page: async ({ page, baseURL }, use) => {
     // All browser dependencies must be served by this run's local stack.
     await page.route('**/*', (route) => {
@@ -44,6 +52,12 @@ export const test = base.extend<Fixtures>({
   },
   signedInPage: async ({ page, subject, signIn }, use) => {
     await signIn(subject)
+    await use(page)
+  },
+  savedWorkoutPage: async ({ signedInPage: page }, use) => {
+    await page.goto('/app/new')
+    await page.getByRole('button', { name: 'Generate my workout', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Full-body workout' })).toBeVisible()
     await use(page)
   },
   seedLibrary: async ({ request, subject }, use) => {

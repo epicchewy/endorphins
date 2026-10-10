@@ -106,7 +106,6 @@ func (s *Users) Export(ctx context.Context, userID string) (domains.AccountExpor
 		return result, fmt.Errorf("export workouts: %w", err)
 	}
 	result.Workouts, err = collectWorkouts(rows)
-	rows.Close()
 	if err != nil {
 		return result, err
 	}
@@ -115,7 +114,6 @@ func (s *Users) Export(ctx context.Context, userID string) (domains.AccountExpor
 		return result, fmt.Errorf("export completions: %w", err)
 	}
 	result.Completions, err = collectCompletions(completionRows)
-	completionRows.Close()
 	if err != nil {
 		return result, err
 	}

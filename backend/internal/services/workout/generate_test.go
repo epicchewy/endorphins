@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
-	"reflect"
 	"testing"
 
 	"github.com/epicchewy/endorphins/backend/internal/domains"
+	"github.com/stretchr/testify/require"
 )
 
 type catalogueStub struct {
@@ -42,25 +42,19 @@ func TestServiceGenerate(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := New(catalogueStub{data: sampleCatalogue()}).Generate(t.Context(), tt.input)
-			if !errors.Is(err, ErrInvalidInput) {
-				t.Fatalf("error = %v; want invalid input", err)
-			}
+			require.ErrorIs(t, err, ErrInvalidInput)
 		})
 	}
 	t.Run("cancelled request", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		_, err := New(catalogueStub{data: sampleCatalogue()}).Generate(ctx, GenerateInput{45, 2})
-		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("error = %v; want cancellation", err)
-		}
+		require.ErrorIs(t, err, context.Canceled)
 	})
 	t.Run("repository failure", func(t *testing.T) {
 		cause := errors.New("storage unavailable")
 		_, err := New(catalogueStub{err: cause}).Generate(t.Context(), GenerateInput{45, 2})
-		if !errors.Is(err, cause) {
-			t.Fatalf("cause lost: %v", err)
-		}
+		require.ErrorIs(t, err, cause)
 	})
 }
 
@@ -81,21 +75,14 @@ func TestGenerateBudgetAndVariety(t *testing.T) {
 					if duration >= 45 {
 						wantWarmup = 5
 					}
-					if result.WarmupMinutes != wantWarmup {
-						t.Fatalf("warm-up = %d; want %d", result.WarmupMinutes, wantWarmup)
-					}
-					if len(result.Blocks) != 3 {
-						t.Fatal("missing body area")
-					}
+					require.Equal(t, wantWarmup, result.WarmupMinutes)
+					require.Len(t, result.Blocks, 3)
 					for _, b := range result.Blocks {
 						seen := make(map[string]bool)
-						if b.Sets < 1 || len(b.Exercises) < 1 {
-							t.Fatal("empty block")
-						}
+						require.Positive(t, b.Sets)
+						require.NotEmpty(t, b.Exercises)
 						for _, e := range b.Exercises {
-							if seen[e.Name] {
-								t.Fatal("duplicate exercise")
-							}
+							require.NotContains(t, seen, e.Name)
 							seen[e.Name] = true
 						}
 					}
@@ -103,7 +90,5 @@ func TestGenerateBudgetAndVariety(t *testing.T) {
 			}
 		})
 	}
-	if !reflect.DeepEqual(catalogue, original) {
-		t.Fatal("generation mutated the shared catalogue")
-	}
+	require.Equal(t, original, catalogue)
 }

@@ -52,15 +52,7 @@ func encodeSnapshot(w domains.WorkoutPlan) ([]byte, error) {
 			Exercises:        make([]exerciseV1, 0, len(b.Exercises)),
 		}
 		for _, e := range b.Exercises {
-			block.Exercises = append(block.Exercises, exerciseV1{
-				Name:        e.Name,
-				Description: e.Description,
-				Difficulty:  e.Difficulty,
-				Reps:        e.Reps,
-				Duration:    e.Duration,
-				Rest:        e.Rest,
-				Rounds:      e.Rounds,
-			})
+			block.Exercises = append(block.Exercises, exerciseV1(e))
 		}
 		result.Blocks = append(result.Blocks, block)
 	}
@@ -91,15 +83,7 @@ func decodeSnapshot(version int, data []byte) (domains.WorkoutPlan, error) {
 			Exercises:        make([]domains.Exercise, 0, len(b.Exercises)),
 		}
 		for _, e := range b.Exercises {
-			block.Exercises = append(block.Exercises, domains.Exercise{
-				Name:        e.Name,
-				Description: e.Description,
-				Difficulty:  e.Difficulty,
-				Reps:        e.Reps,
-				Duration:    e.Duration,
-				Rest:        e.Rest,
-				Rounds:      e.Rounds,
-			})
+			block.Exercises = append(block.Exercises, domains.Exercise(e))
 		}
 		result.Blocks = append(result.Blocks, block)
 	}

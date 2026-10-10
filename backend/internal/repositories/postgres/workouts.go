@@ -100,7 +100,6 @@ func (s *Workouts) List(ctx context.Context, userID string, filter domains.Worko
 	if err != nil {
 		return nil, fmt.Errorf("list workouts: %w", err)
 	}
-	defer rows.Close()
 	return collectWorkouts(rows)
 }
 func (s *Workouts) Summary(ctx context.Context, userID string, filter domains.WorkoutFilter) (domains.WorkoutSummary, error) {
@@ -135,15 +134,10 @@ func (s *Workouts) Summary(ctx context.Context, userID string, filter domains.Wo
 	return result, nil
 }
 func collectWorkouts(rows pgx.Rows) ([]domains.SavedWorkout, error) {
-	result := []domains.SavedWorkout{}
-	for rows.Next() {
-		item, err := scanWorkout(rows)
-		if err != nil {
-			return nil, fmt.Errorf("read workout: %w", err)
-		}
-		result = append(result, item)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (domains.SavedWorkout, error) {
+		return scanWorkout(row)
+	})
+	if err != nil {
 		return nil, fmt.Errorf("read workouts: %w", err)
 	}
 	return result, nil

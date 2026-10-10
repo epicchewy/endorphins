@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { test, expect } from '../fixtures'
 
 test('finds an older plan beyond the loaded page and preserves filters through navigation', async ({
@@ -41,6 +42,19 @@ test('shortest-first orders the whole account and empty search can be reset', as
   await page.getByRole('searchbox').fill('This exercise does not exist')
   await expect(page.getByRole('heading', { name: 'No matching plans.' })).toBeVisible()
   await page.getByRole('button', { name: 'Clear filters' }).click()
+  await expect(page).toHaveURL(/\/app\/workouts$/)
   await expect(page.getByRole('searchbox')).toHaveValue('')
   await expect(page.getByRole('link', { name: /View plan/ })).toHaveCount(20)
+})
+
+test('downloads the account data as JSON', async ({ signedInPage: page, seedLibrary }) => {
+  await seedLibrary()
+  await page.goto('/app/account')
+  const downloading = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Download my data', exact: true }).click()
+  const download = await downloading
+  expect(download.suggestedFilename()).toMatch(/^endorphins-data-\d{4}-\d{2}-\d{2}\.json$/)
+  const data = JSON.parse(await readFile((await download.path())!, 'utf8'))
+  expect(data.workouts).toHaveLength(26)
+  await expect(page.getByRole('status').filter({ hasText: 'download' })).toBeVisible()
 })

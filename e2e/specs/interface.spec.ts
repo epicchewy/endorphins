@@ -1,8 +1,4 @@
-import { mkdir } from 'node:fs/promises'
-import { resolve } from 'node:path'
 import { test, expect } from '../fixtures'
-
-const artifacts = resolve(import.meta.dirname, '../../output/playwright/temper-improvements')
 
 test('sign-in returns to the chosen workout and native validation preserves custom drafts', async ({
   page,
@@ -36,7 +32,7 @@ test('sign-in returns to the chosen workout and native validation preserves cust
 
 test('component gallery shares accessible light/dark controls and reduced-motion behavior', async ({
   page,
-}, info) => {
+}) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/design-system')
   const light = page.getByRole('region', { name: 'light component preview' })
@@ -62,31 +58,15 @@ test('component gallery shares accessible light/dark controls and reduced-motion
     .getByText('Step 2. Make it count.')
     .evaluate((node) => getComputedStyle(node.parentElement!).transform)
   expect(transform).toBe('none')
-  await page.evaluate(() => document.fonts.ready)
-  await mkdir(artifacts, { recursive: true })
-  await page.screenshot({
-    path: resolve(artifacts, `after-primitives-${info.project.name}.png`),
-    fullPage: true,
-    scale: 'css',
-    animations: 'disabled',
-  })
   await page.setViewportSize({ width: 320, height: 844 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 
 test('mobile layout, theme, keyboard navigation, and unsaved preferences stay usable', async ({
   signedInPage: page,
-}, info) => {
+}) => {
   await page.goto('/')
   await expect(page.getByRole('link', { name: 'Open my dashboard' })).toBeVisible()
-  await page.evaluate(() => document.fonts.ready)
-  await mkdir(artifacts, { recursive: true })
-  await page.screenshot({
-    path: resolve(artifacts, `after-landing-${info.project.name}.png`),
-    fullPage: true,
-    scale: 'css',
-    animations: 'disabled',
-  })
   await expect(page.getByRole('link', { name: 'Skip to content' })).toHaveCSS(
     'clip-path',
     'inset(50%)',
@@ -103,14 +83,6 @@ test('mobile layout, theme, keyboard navigation, and unsaved preferences stay us
     'content',
     'rgb(21, 24, 25)',
   )
-  const redesign = resolve(artifacts, '../redesign')
-  await mkdir(redesign, { recursive: true })
-  await page.screenshot({
-    path: resolve(redesign, `landing-dark-${info.project.name}.png`),
-    fullPage: true,
-    scale: 'css',
-    animations: 'disabled',
-  })
   await page.setViewportSize({ width: 320, height: 844 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.goto('/app/new')
@@ -118,12 +90,6 @@ test('mobile layout, theme, keyboard navigation, and unsaved preferences stay us
   await page.getByRole('radio', { name: '30min', exact: true }).focus()
   await page.keyboard.press('ArrowRight')
   await expect(page.getByRole('radio', { name: '45min', exact: true })).toBeChecked()
-  await page.screenshot({
-    path: resolve(redesign, `setup-dark-320-${info.project.name}.png`),
-    fullPage: true,
-    scale: 'css',
-    animations: 'disabled',
-  })
   await page.getByRole('link', { name: 'Account', exact: true }).click()
   await page.getByRole('combobox', { name: 'Default level' }).selectOption('5')
   page.once('dialog', (dialog) => void dialog.dismiss())
@@ -151,12 +117,9 @@ test('shared action links show hover and pressed feedback', async ({ page }, inf
 })
 
 test('printing includes closed exercise notes and restores interactive disclosure state', async ({
-  signedInPage: page,
+  savedWorkoutPage: page,
 }, info) => {
   test.skip(info.project.name !== 'desktop', 'PDF output requires desktop Chromium')
-  await page.goto('/app/new')
-  await page.getByRole('button', { name: 'Generate my workout', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Full-body workout' })).toBeVisible()
   const details = page.getByRole('article').locator('details')
   await details.first().locator('summary').click()
   const before = await details.evaluateAll((nodes: HTMLDetailsElement[]) =>
@@ -171,9 +134,8 @@ test('printing includes closed exercise notes and restores interactive disclosur
   expect(
     await details.evaluateAll((nodes: HTMLDetailsElement[]) => nodes.every((node) => node.open)),
   ).toBe(true)
-  await mkdir(artifacts, { recursive: true })
   const pdf = await page.pdf({
-    path: resolve(artifacts, 'workout-print.pdf'),
+    path: info.outputPath('workout-print.pdf'),
     format: 'A4',
     printBackground: true,
   })

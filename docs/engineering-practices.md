@@ -53,3 +53,5 @@ Review the final diff, run relevant checks, and report only checks actually comp
 ## Test ownership
 
 Browser tests own generation, retry/offline behavior, URL persistence, account switching, library search, export, keyboard/mobile interactions and print output. The production-proxy contract checks live in the same Playwright harness. Focused tests retain algorithm budgets, JWT rejection cases, immutable snapshot compatibility, concurrent SQL/idempotency/deletion invariants and session-cache policy. Retire a duplicated test only after its replacement has passed; do not replace hard-to-reach database failures with browser mocks.
+
+Reuse browser fixtures for identity and saved-plan setup. Use Playwright's one-shot routes and JSON responses instead of custom flags and serialization. Keep failure artifacts and the print PDF; keep review recordings and pauses out of the test suite.

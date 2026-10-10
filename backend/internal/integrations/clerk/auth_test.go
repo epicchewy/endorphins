@@ -14,17 +14,15 @@ import (
 	"github.com/epicchewy/endorphins/backend/internal/domains"
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSessionVerification(t *testing.T) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	wrongKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	const issuer = "https://test-session.clerk.accounts.dev"
 	const origin = "http://127.0.0.1:3100"
 	kid := "test-key-" + rand.Text()
@@ -34,16 +32,12 @@ func TestSessionVerification(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{{Key: &key.PublicKey, KeyID: kid, Algorithm: "RS256", Use: "sig"}}}); err != nil {
-			t.Error(err)
-		}
+		assert.NoError(t, json.NewEncoder(w).Encode(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{{Key: &key.PublicKey, KeyID: kid, Algorithm: "RS256", Use: "sig"}}}))
 	}))
 	defer keys.Close()
 	client := jwks.NewClient(&clerkSDK.ClientConfig{BackendConfig: clerkSDK.BackendConfig{URL: clerkSDK.String(keys.URL), Key: clerkSDK.String("test"), HTTPClient: keys.Client()}})
 	verified := New(client, issuer, []string{origin})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if domains.Subject(r.Context()) != "user_alice" {
-			t.Error("verified identity missing")
-		}
+		assert.Equal(t, "user_alice", domains.Subject(r.Context()))
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	for _, tt := range []struct {
@@ -83,13 +77,9 @@ func TestSessionVerification(t *testing.T) {
 				signingKey = wrongKey
 			}
 			signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: signingKey}, (&jose.SignerOptions{}).WithHeader("kid", kid))
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			token, err := jwt.Signed(signer).Claims(claims).CompactSerialize()
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			header := "Bearer " + token
 			if tt.header != "" {
 				header = tt.header
@@ -103,11 +93,10 @@ func TestSessionVerification(t *testing.T) {
 			req.AddCookie(&http.Cookie{Name: "__session", Value: token})
 			res := httptest.NewRecorder()
 			verified.ServeHTTP(res, req)
-			if res.Code != tt.status {
-				t.Fatalf("status=%d body=%s", res.Code, res.Body)
-			}
-			if tt.status == 401 && (res.Header().Get("Cache-Control") != "no-store" || res.Header().Get("WWW-Authenticate") != "Bearer") {
-				t.Fatal("unauthorized response must be uncacheable and advertise bearer authentication")
+			assert.Equal(t, tt.status, res.Code)
+			if tt.status == 401 {
+				assert.Equal(t, "no-store", res.Header().Get("Cache-Control"))
+				assert.Equal(t, "Bearer", res.Header().Get("WWW-Authenticate"))
 			}
 		})
 	}

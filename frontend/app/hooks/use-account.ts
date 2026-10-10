@@ -5,12 +5,12 @@ import { APIError } from '~/services/http'
 import { queryKeys } from '~/services/query-keys'
 
 export function useAccountSession() {
-  const { session, isLoaded } = useSession()
+  const { session } = useSession()
   const clerk = useClerk()
   // Capture this resource: a pending request must never obtain another account's token.
   const getToken = async () => (session ? session.getToken() : null)
   const isCurrentSession = () => Boolean(session && clerk.session?.id === session.id)
-  return { userId: session?.user.id, sessionId: session?.id, isLoaded, getToken, isCurrentSession }
+  return { userId: session?.user.id, sessionId: session?.id, getToken, isCurrentSession }
 }
 
 export function retryAccountQuery(count: number, error: Error) {

@@ -15,7 +15,7 @@ type CompletionResponse struct {
 }
 
 func NewCompletionResponse(c domains.Completion) CompletionResponse {
-	return CompletionResponse{ID: c.ID, WorkoutID: c.WorkoutID, CompletedAt: c.CompletedAt, UndoneAt: c.UndoneAt, Level: c.Level, Focus: c.Focus}
+	return CompletionResponse(c)
 }
 func newCompletionResponses(items []domains.Completion) []CompletionResponse {
 	result := make([]CompletionResponse, 0, len(items))
@@ -39,7 +39,7 @@ type ActivityResponse struct {
 func NewActivityResponse(a domains.Activity) ActivityResponse {
 	weeks := make([]ActivityWeekResponse, 0, len(a.Weeks))
 	for _, week := range a.Weeks {
-		weeks = append(weeks, ActivityWeekResponse{Start: week.Start, Count: week.Count})
+		weeks = append(weeks, ActivityWeekResponse(week))
 	}
 	return ActivityResponse{CompletedCount: a.CompletedCount, ActiveDaysThisWeek: a.ActiveDaysThisWeek, Weeks: weeks, Recent: newCompletionResponses(a.Recent)}
 }

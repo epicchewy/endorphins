@@ -26,11 +26,9 @@ function History() {
         title="Saved workouts"
         description="Keep a plan for another day, or create a new one."
         actions={
-          <>
-            <Link to="/app/new" className={buttonClassName({ variant: 'primary' })}>
-              <Plus size={18} aria-hidden="true" /> New workout
-            </Link>
-          </>
+          <Link to="/app/new" className={buttonClassName({ variant: 'primary' })}>
+            <Plus size={18} aria-hidden="true" /> New workout
+          </Link>
         }
       />
       <WorkoutLibrary

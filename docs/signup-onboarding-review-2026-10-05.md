@@ -60,7 +60,7 @@ Desktop (1440 × 1000) and mobile (390 × 844) videos show signup through comple
 - [Dark landing](../output/playwright/redesign/landing-dark-desktop.png)
 - [Dark setup at 320px](../output/playwright/redesign/setup-dark-320-mobile.png)
 
-Record again with `make e2e`. Add `E2E_AUDIT=1` to include Lighthouse. The video and screenshot artifacts are ignored by Git. Playwright keeps WebM originals; MP4 copies are included in this local handoff.
+These captures record the October 5 review. The October 9 cleanup removed review recording and optional Lighthouse scripts. `make e2e` keeps screenshots, traces, and videos for failed tests.
 
 ## Lighthouse results
 

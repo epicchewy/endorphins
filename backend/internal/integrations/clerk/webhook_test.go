@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	svix "github.com/svix/svix-webhooks/go"
 )
 
@@ -22,9 +24,7 @@ func TestVerifiedDeletionWebhook(t *testing.T) {
 	t.Parallel()
 	const secret = "whsec_dGVzdC13ZWJob29rLXNpZ25pbmctc2VjcmV0"
 	signer, err := svix.NewWebhook(secret)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	for _, tt := range []struct {
 		name, body            string
 		offset                time.Duration
@@ -46,22 +46,16 @@ func TestVerifiedDeletionWebhook(t *testing.T) {
 			called := 0
 			handler, err := NewWebhook(secret, eraserFunc(func(_ context.Context, subject string) error {
 				called++
-				if subject != "user_delete" {
-					t.Fatalf("unexpected subject %s", subject)
-				}
+				assert.Equal(t, "user_delete", subject)
 				if tt.fail {
 					return errors.New("secret database detail")
 				}
 				return nil
 			}), slog.New(slog.NewTextHandler(io.Discard, nil)))
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			timestamp := time.Now().Add(tt.offset)
 			signature, err := signer.Sign("msg_test", timestamp, []byte(tt.body))
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			body := tt.body
 			if tt.tamper {
 				body += " "
@@ -75,15 +69,14 @@ func TestVerifiedDeletionWebhook(t *testing.T) {
 			res := httptest.NewRecorder()
 			res.Header().Set("X-Request-ID", "test-request")
 			handler.ServeHTTP(res, req)
-			if res.Code != tt.status || called != tt.calls || strings.Contains(res.Body.String(), "secret database") {
-				t.Fatalf("response %d calls %d body %s", res.Code, called, res.Body)
-			}
-			if res.Code >= 400 && !strings.Contains(res.Body.String(), `"requestId":"test-request"`) {
-				t.Fatal("missing error envelope")
+			assert.Equal(t, tt.status, res.Code)
+			assert.Equal(t, tt.calls, called)
+			assert.NotContains(t, res.Body.String(), "secret database")
+			if res.Code >= 400 {
+				assert.Contains(t, res.Body.String(), `"requestId":"test-request"`)
 			}
 		})
 	}
-	if _, err := NewWebhook("", nil, nil); err == nil {
-		t.Fatal("empty webhook secret accepted")
-	}
+	_, err = NewWebhook("", nil, nil)
+	require.Error(t, err)
 }

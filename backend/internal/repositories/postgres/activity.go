@@ -20,15 +20,10 @@ func scanCompletion(row pgx.Row) (domains.Completion, error) {
 	return result, err
 }
 func collectCompletions(rows pgx.Rows) ([]domains.Completion, error) {
-	result := make([]domains.Completion, 0)
-	for rows.Next() {
-		item, err := scanCompletion(rows)
-		if err != nil {
-			return nil, fmt.Errorf("read completion: %w", err)
-		}
-		result = append(result, item)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (domains.Completion, error) {
+		return scanCompletion(row)
+	})
+	if err != nil {
 		return nil, fmt.Errorf("read completions: %w", err)
 	}
 	return result, nil
@@ -136,7 +131,6 @@ func (s *Workouts) Activity(ctx context.Context, userID, zone string) (domains.A
 		return result, fmt.Errorf("list recent activity: %w", err)
 	}
 	result.Recent, err = collectCompletions(rows)
-	rows.Close()
 	if err != nil {
 		return result, err
 	}
