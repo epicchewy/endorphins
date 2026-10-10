@@ -53,9 +53,11 @@ Deployment sequence:
 4. Start the Bun frontend/proxy and route traffic only after the Go readiness probe succeeds.
 5. Check a signed-in generation, saved detail/reload, library filters, and account export through the public origin. Check the configured Clerk lifecycle flow separately.
 
-The current API accepts clean schema version 4 only. A dirty migration, old version, future version, or missing migration table prevents startup/readiness. Inspect and repair failed migrations before advancing the version; do not clear dirty state by resetting the database.
+The current API accepts clean schema version 5 only. A dirty migration, old version, future version, or missing migration table prevents startup/readiness. Inspect and repair failed migrations before advancing the version; do not clear dirty state by resetting the database.
 
 Migration 4 removes legacy foreign keys. Stop the old API before applying it, then start the matching API with explicit account cleanup and owner-row locks. Older binaries that depend on cascading deletes cannot safely run against this schema. Rollback migrations never restore foreign keys.
+
+Migration 5 adds and backfills workout query fields and search terms. Stop the version-4 API before migration, then start the version-5 API. The matching binary writes the projections in the save transaction and removes them during account erasure. The down migration removes only derived query data; stored plans, completions, retry keys, and tombstones remain. Stop the version-5 API before any rollback.
 
 ## Liveness, readiness, and request diagnosis
 

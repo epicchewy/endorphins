@@ -24,9 +24,20 @@ type workoutRow struct {
 	Plan             []byte    `gorm:"type:jsonb"`
 	IdempotencyKey   *string
 	InputFingerprint *string
+	Level            int
+	EstimatedMinutes int
 }
 
 func (workoutRow) TableName() string { return "workouts" }
+
+type workoutSearchTerm struct {
+	UserID    string `gorm:"primaryKey;type:uuid"`
+	WorkoutID string `gorm:"primaryKey"`
+	Position  int    `gorm:"primaryKey;autoIncrement:false"`
+	Name      string
+}
+
+func (workoutSearchTerm) TableName() string { return "workout_search_terms" }
 
 func (row workoutRow) domain() (domains.SavedWorkout, error) {
 	plan, err := decodeSnapshot(row.SnapshotVersion, row.Plan)
@@ -41,7 +52,8 @@ func (s *Workouts) Create(ctx context.Context, userID string, workout domains.Sa
 	if err != nil {
 		return domains.SavedWorkout{}, fmt.Errorf("encode workout: %w", err)
 	}
-	row := workoutRow{ID: workout.ID, UserID: userID, Plan: plan}
+	row := workoutRow{ID: workout.ID, UserID: userID, Plan: plan,
+		Level: workout.Level, EstimatedMinutes: workout.EstimatedMinutes}
 	if key != "" {
 		row.IdempotencyKey = &key
 	}
@@ -69,8 +81,28 @@ func (s *Workouts) Create(ctx context.Context, userID string, workout domains.Sa
 			return domains.ErrIdempotencyConflict
 		}
 		item, err := row.domain()
+		if err != nil {
+			return err
+		}
+		// Build terms from the returned immutable plan, including on a retry.
+		names := []string{item.Focus}
+		for _, block := range item.Blocks {
+			names = append(names, block.Name)
+		}
+		for _, block := range item.Blocks {
+			for _, exercise := range block.Exercises {
+				names = append(names, exercise.Name)
+			}
+		}
+		terms := make([]workoutSearchTerm, 0, len(names))
+		for i, name := range names {
+			terms = append(terms, workoutSearchTerm{UserID: userID, WorkoutID: item.ID, Position: i + 1, Name: strings.ToLower(name)})
+		}
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&terms).Error; err != nil {
+			return fmt.Errorf("save workout search terms: %w", err)
+		}
 		result = item
-		return err
+		return nil
 	})
 	if err != nil {
 		return domains.SavedWorkout{}, fmt.Errorf("save workout: %w", err)
@@ -105,15 +137,21 @@ func (s *Workouts) Get(ctx context.Context, userID, id string) (domains.SavedWor
 
 // Both list and summary use the same owner and search scope.
 func filterWorkouts(db *gorm.DB, userID string, filter domains.WorkoutFilter) *gorm.DB {
-	query := db.Model(&workoutRow{}).Where(map[string]any{"user_id": userID})
+	query := db.Model(&workoutRow{}).Where(map[string]any{"workouts.user_id": userID})
 	if filter.Level != 0 {
-		query = query.Where(clause.Eq{
-			Column: clause.Column{Name: strings.TrimSpace(workoutLevelSQL), Raw: true},
-			Value:  filter.Level,
-		})
+		query = query.Where(map[string]any{"level": filter.Level})
 	}
 	if filter.Query != "" {
-		query = query.Where(gorm.Expr(workoutSearchSQL, filter.Query, filter.Query, filter.Query))
+		pattern := "%" + strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(strings.ToLower(filter.Query)) + "%"
+		query = query.Clauses(clause.From{Joins: []clause.Join{{
+			Type:  clause.InnerJoin,
+			Table: clause.Table{Name: "workout_search_terms", Alias: "terms"},
+			ON: clause.Where{Exprs: []clause.Expression{
+				clause.Eq{Column: clause.Column{Table: "terms", Name: "user_id"}, Value: clause.Column{Table: clause.CurrentTable, Name: "user_id"}},
+				clause.Eq{Column: clause.Column{Table: "terms", Name: "workout_id"}, Value: clause.Column{Table: clause.CurrentTable, Name: "id"}},
+				clause.Like{Column: clause.Column{Table: "terms", Name: "name"}, Value: pattern},
+			}},
+		}}}).Distinct()
 	}
 	return query
 }
@@ -123,7 +161,7 @@ func (s *Workouts) List(ctx context.Context, userID string, filter domains.Worko
 		return nil, fmt.Errorf("workout list limit must be 1–51")
 	}
 	query := filterWorkouts(s.db.WithContext(ctx), userID, filter)
-	minutes := clause.Column{Name: strings.TrimSpace(workoutMinutesSQL), Raw: true}
+	minutes := clause.Column{Name: "estimated_minutes"}
 	if before != nil {
 		position := clause.Or(
 			clause.Lt{Column: "created_at", Value: before.CreatedAt},
@@ -158,11 +196,12 @@ func (s *Workouts) Summary(ctx context.Context, userID string, filter domains.Wo
 	for i := range result.Levels {
 		result.Levels[i].Level = i + 1
 	}
-	var rows []struct{ Level, Count, Minutes int }
+	var rows []struct {
+		ID                      string
+		Level, EstimatedMinutes int
+	}
 	err := filterWorkouts(s.db.WithContext(ctx), userID, filter).
-		Select(workoutSummaryFieldsSQL).
-		Clauses(clause.GroupBy{Columns: []clause.Column{{Name: strings.TrimSpace(workoutLevelSQL), Raw: true}}}).
-		Scan(&rows).Error
+		Select("id", "level", "estimated_minutes").Find(&rows).Error
 	if err != nil {
 		return result, fmt.Errorf("summarize workouts: %w", err)
 	}
@@ -170,9 +209,9 @@ func (s *Workouts) Summary(ctx context.Context, userID string, filter domains.Wo
 		if row.Level < 1 || row.Level > 5 {
 			return result, fmt.Errorf("invalid stored workout level")
 		}
-		result.Levels[row.Level-1].Count = row.Count
-		result.Count += row.Count
-		result.PlannedMinutes += row.Minutes
+		result.Levels[row.Level-1].Count++
+		result.Count++
+		result.PlannedMinutes += row.EstimatedMinutes
 	}
 	if result.Count > 0 {
 		result.AverageMinutes = float64(result.PlannedMinutes) / float64(result.Count)

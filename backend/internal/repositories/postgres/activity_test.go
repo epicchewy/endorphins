@@ -13,6 +13,7 @@ import (
 	"github.com/epicchewy/endorphins/backend/internal/services/library"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestOnboardingCompletionRetryUndoAndErasure(t *testing.T) {
@@ -138,6 +139,36 @@ func TestActivityUsesLocalDaysAndMondayWeeksAcrossAllLogs(t *testing.T) {
 	assert.Equal(t, []domains.ActivityWeek{{Start: monday.AddDate(0, 0, -21).Format("2006-01-02"), Count: 1}, {Start: monday.AddDate(0, 0, -14).Format("2006-01-02"), Count: 1}, {Start: monday.AddDate(0, 0, -7).Format("2006-01-02"), Count: 2}, {Start: monday.Format("2006-01-02"), Count: 3}}, activity.Weeks)
 	assert.Len(t, activity.Recent, 5)
 	assert.Equal(t, monday.AddDate(0, 0, 1).UTC(), activity.Recent[0].CompletedAt.UTC())
+}
+
+func TestActivityCountsCompletionsWhenLocalMidnightIsSkipped(t *testing.T) {
+	for _, tt := range []struct {
+		zone, confirmation, monday string
+	}{
+		{"America/Santiago", "2026-09-06T12:00:00-03:00", "2026-08-31"},
+		{"America/Havana", "2026-03-08T12:00:00-04:00", "2026-03-02"},
+		{"Asia/Tehran", "2010-03-21T23:30:00+03:30", "2010-03-15"},
+	} {
+		t.Run(tt.zone, func(t *testing.T) {
+			db := setupRepositoryTest(t)
+			now, err := time.Parse(time.RFC3339, tt.confirmation)
+			require.NoError(t, err)
+			repo := store.NewWorkouts(db.Session(&gorm.Session{NowFunc: func() time.Time { return now }}))
+			user, err := store.NewUsers(db).Ensure(t.Context(), "midnight-gap")
+			require.NoError(t, err)
+			_, err = repo.Create(t.Context(), user.ID, workoutSnapshot("plan"), "", "")
+			require.NoError(t, err)
+			item, err := repo.Complete(t.Context(), user.ID, "plan", "confirmation")
+			require.NoError(t, err)
+			require.NoError(t, db.WithContext(t.Context()).Table("workout_completions").
+				Where(map[string]any{"id": item.ID}).Update("completed_at", now).Error)
+			activity, err := repo.Activity(t.Context(), user.ID, tt.zone)
+			require.NoError(t, err)
+			assert.Equal(t, 1, activity.CompletedCount)
+			assert.Equal(t, 1, activity.ActiveDaysThisWeek)
+			assert.Equal(t, domains.ActivityWeek{Start: tt.monday, Count: 1}, activity.Weeks[3])
+		})
+	}
 }
 
 func TestCompletionConcurrentDifferentPlansWithOneKeyKeepOneWinner(t *testing.T) {

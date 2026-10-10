@@ -26,10 +26,10 @@ func TestCheckReadyRequiresCleanSupportedSchema(t *testing.T) {
 		version int
 		dirty   bool
 	}{
-		{"dirty migration", 4, true},
+		{"dirty migration", store.SchemaVersion, true},
 		{"first migration only", 1, false},
-		{"previous schema", 3, false},
-		{"future schema", 5, false},
+		{"previous schema", store.SchemaVersion - 1, false},
+		{"future schema", store.SchemaVersion + 1, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			err := db.WithContext(t.Context()).Session(&gorm.Session{AllowGlobalUpdate: true}).Table("schema_migrations").Updates(map[string]any{"version": tt.version, "dirty": tt.dirty}).Error

@@ -151,10 +151,12 @@ func TestUsersEraseFailureRollsBackTombstoneAndData(t *testing.T) {
 	require.NoError(t, err)
 	_, err = store.NewWorkouts(db).Complete(t.Context(), user.ID, "retained-plan", "retained-completion")
 	require.NoError(t, err)
-	// Fail the final delete, after explicit child cleanup, to prove all data and
-	// the tombstone roll back together without relying on database relationships.
-	err = db.WithContext(t.Context()).Exec(testRejectAccountErasureSQL).Error
-	require.NoError(t, err)
+	// Fail the final delete after child cleanup to check the transaction rollback.
+	require.NoError(t, db.Callback().Delete().Before("gorm:delete").Register("test:reject_account_delete", func(tx *gorm.DB) {
+		if tx.Statement.Table == "users" {
+			_ = tx.AddError(errors.New("injected erasure failure"))
+		}
+	}))
 
 	require.Error(t, repo.Erase(t.Context(), "retained-user"))
 	resolved, err := repo.Ensure(t.Context(), "retained-user")
@@ -164,9 +166,11 @@ func TestUsersEraseFailureRollsBackTombstoneAndData(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"retained-plan"}, workoutIDs(exported.Workouts))
 	assert.Len(t, exported.Completions, 1)
-
-	err = db.WithContext(t.Context()).Exec(testAllowAccountErasureSQL).Error
+	search, err := store.NewWorkouts(db).List(t.Context(), user.ID, domains.WorkoutFilter{Query: "squat"}, nil, 20)
 	require.NoError(t, err)
+	assert.Equal(t, []string{"retained-plan"}, workoutIDs(search))
+
+	require.NoError(t, db.Callback().Delete().Remove("test:reject_account_delete"))
 	require.NoError(t, repo.Erase(t.Context(), "retained-user"))
 	_, err = repo.Ensure(t.Context(), "retained-user")
 	assert.ErrorIs(t, err, domains.ErrAccountDeleted)
@@ -210,7 +214,7 @@ func TestUsersEraseRacingWorkoutAndCompletionWritesLeavesNoOrphans(t *testing.T)
 				require.NoError(t, err)
 			}
 		}
-		for _, table := range []string{"users", "workouts", "workout_completions"} {
+		for _, table := range []string{"users", "workouts", "workout_completions", "workout_search_terms"} {
 			column := "user_id"
 			if table == "users" {
 				column = "id"

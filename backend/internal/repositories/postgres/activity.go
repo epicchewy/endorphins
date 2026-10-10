@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/epicchewy/endorphins/backend/internal/domains"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -38,7 +38,7 @@ func (row completionRow) domain() (domains.Completion, error) {
 }
 
 func completionQuery(db *gorm.DB, userID string) *gorm.DB {
-	return db.Model(&completionRow{}).InnerJoins("Workout").
+	return db.Model(&completionRow{}).InnerJoins("Workout", db.Select("ID", "UserID", "Plan")).
 		Where(map[string]any{"workout_completions.user_id": userID}).
 		Order(clause.OrderByColumn{Column: clause.Column{Table: clause.CurrentTable, Name: "completed_at"}, Desc: true}).
 		Order(clause.OrderByColumn{Column: clause.Column{Table: clause.CurrentTable, Name: "id"}, Desc: true})
@@ -94,16 +94,25 @@ func (s *Workouts) Complete(ctx context.Context, userID, workoutID, key string) 
 }
 
 func (s *Workouts) Undo(ctx context.Context, userID, id string) error {
-	// Keep the first undo time and retry key. A delayed retry cannot restore it.
-	result := s.db.WithContext(ctx).Model(&completionRow{}).
-		Where(map[string]any{"user_id": userID}).
-		Where(clause.Eq{Column: clause.Column{Name: strings.TrimSpace(completionIDSQL), Raw: true}, Value: id}).
-		UpdateColumn("undone_at", gorm.Expr(undoTimestampSQL))
-	if result.Error != nil {
-		return fmt.Errorf("undo completion: %w", result.Error)
-	}
-	if result.RowsAffected == 0 {
+	parsed, err := uuid.Parse(id)
+	if err != nil || parsed.String() != id {
 		return domains.ErrNotFound
+	}
+	// Keep the first undo time and retry key. A delayed retry cannot restore it.
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var row completionRow
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where(map[string]any{"user_id": userID, "id": id}).Take(&row).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domains.ErrNotFound
+		}
+		if err != nil || row.UndoneAt != nil {
+			return err
+		}
+		return tx.Model(&row).Where(map[string]any{"user_id": userID}).UpdateColumn("undone_at", time.Now().UTC()).Error
+	})
+	if err != nil {
+		return fmt.Errorf("undo completion: %w", err)
 	}
 	return nil
 }
@@ -114,34 +123,47 @@ func (s *Workouts) Activity(ctx context.Context, userID, zone string) (domains.A
 	if err != nil {
 		return result, fmt.Errorf("load activity time zone: %w", err)
 	}
-	now := time.Now().In(location)
-	week := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location).AddDate(0, 0, -(int(now.Weekday())+6)%7)
+	now := s.db.NowFunc().In(location)
+	// UTC here represents calendar dates, so a skipped local midnight cannot
+	// move a week label into the previous day.
+	week := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -(int(now.Weekday())+6)%7)
 	for i := range result.Weeks {
 		result.Weeks[i].Start = week.AddDate(0, 0, -7*(3-i)).Format("2006-01-02")
 	}
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var counts struct{ CompletedCount, ActiveDaysThisWeek int }
+		var count int64
 		err := tx.Model(&completionRow{}).Where(map[string]any{"user_id": userID, "undone_at": nil}).
-			Select(activityCountsSQL, zone, week, week.AddDate(0, 0, 7)).Scan(&counts).Error
+			Count(&count).Error
 		if err != nil {
 			return fmt.Errorf("summarize activity: %w", err)
 		}
-		result.CompletedCount, result.ActiveDaysThisWeek = counts.CompletedCount, counts.ActiveDaysThisWeek
-		var weeks []domains.ActivityWeek
+		result.CompletedCount = int(count)
+		var dates []time.Time
+		// Pad the UTC window by one day at each end to include every local date,
+		// even when a zone skips midnight. Only the four week labels count below.
+		from, until := week.AddDate(0, 0, -22), week.AddDate(0, 0, 8)
 		err = tx.Model(&completionRow{}).Where(map[string]any{"user_id": userID, "undone_at": nil}).
-			Where(clause.Gte{Column: "completed_at", Value: week.AddDate(0, 0, -21)}).
-			Where(clause.Lt{Column: "completed_at", Value: week.AddDate(0, 0, 7)}).
-			Select(activityWeeksSQL, zone).Group("start").Scan(&weeks).Error
+			Where(clause.Gte{Column: "completed_at", Value: from}).
+			Where(clause.Lt{Column: "completed_at", Value: until}).
+			Pluck("completed_at", &dates).Error
 		if err != nil {
 			return fmt.Errorf("summarize activity weeks: %w", err)
 		}
-		for _, row := range weeks {
+		activeDays := make(map[string]struct{})
+		for _, date := range dates {
+			local := date.In(location)
+			start := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, time.UTC).
+				AddDate(0, 0, -(int(local.Weekday())+6)%7).Format("2006-01-02")
 			for i := range result.Weeks {
-				if result.Weeks[i].Start == row.Start {
-					result.Weeks[i].Count = row.Count
+				if result.Weeks[i].Start == start {
+					result.Weeks[i].Count++
 				}
 			}
+			if start == result.Weeks[3].Start {
+				activeDays[local.Format("2006-01-02")] = struct{}{}
+			}
 		}
+		result.ActiveDaysThisWeek = len(activeDays)
 		var recent []completionRow
 		if err := completionQuery(tx, userID).Where(map[string]any{"workout_completions.undone_at": nil}).Limit(5).Find(&recent).Error; err != nil {
 			return fmt.Errorf("list recent activity: %w", err)

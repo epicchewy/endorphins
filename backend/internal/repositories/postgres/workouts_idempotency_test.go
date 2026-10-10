@@ -30,6 +30,7 @@ func TestWorkoutsCreateConcurrentRetriesReturnOneSavedSnapshot(t *testing.T) {
 			<-start
 			plan := workoutSnapshot(fmt.Sprintf("attempt-%02d", i))
 			plan.EstimatedMinutes = 20 + i
+			plan.Focus = fmt.Sprintf("focus-%02d", i)
 			saved, err := repo.Create(t.Context(), user.ID, plan, "same-action", strings.Repeat("a", 64))
 			results <- result{saved, err}
 		}()
@@ -46,6 +47,16 @@ func TestWorkoutsCreateConcurrentRetriesReturnOneSavedSnapshot(t *testing.T) {
 	summary, err := repo.Summary(t.Context(), user.ID, domains.WorkoutFilter{})
 	require.NoError(t, err)
 	assert.Equal(t, 1, summary.Count)
+	for i := range 20 {
+		query := fmt.Sprintf("focus-%02d", i)
+		items, err := repo.List(t.Context(), user.ID, domains.WorkoutFilter{Query: query}, nil, 20)
+		require.NoError(t, err)
+		if query == received[0].workout.Focus {
+			assert.Equal(t, []domains.SavedWorkout{received[0].workout}, items)
+		} else {
+			assert.Empty(t, items, "a losing retry must not add search terms")
+		}
+	}
 
 	replay, err := repo.Create(t.Context(), user.ID, workoutSnapshot("later-attempt"), "same-action", strings.Repeat("a", 64))
 	require.NoError(t, err)
@@ -78,9 +89,8 @@ func TestWorkoutsCreateFailureDoesNotReserveIdempotencyKey(t *testing.T) {
 	repo := store.NewWorkouts(db)
 	user, err := store.NewUsers(db).Ensure(t.Context(), "user_alice")
 	require.NoError(t, err)
-	err = db.WithContext(t.Context()).Exec(testRejectWorkoutWriteSQL).Error
-	require.NoError(t, err)
-	_, err = repo.Create(t.Context(), user.ID, workoutSnapshot("rejected"), "retry-key", strings.Repeat("a", 64))
+	// The existing fingerprint constraint rejects this write.
+	_, err = repo.Create(t.Context(), user.ID, workoutSnapshot("rejected"), "retry-key", "short")
 	var rejected *pgconn.PgError
 	require.ErrorAs(t, err, &rejected)
 	assert.Equal(t, "23514", rejected.Code)

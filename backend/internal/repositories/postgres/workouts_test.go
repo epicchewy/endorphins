@@ -104,6 +104,7 @@ func TestWorkoutsListSearchesFullLibraryAndTreatsQueryLiterally(t *testing.T) {
 		{"literal SQL wildcards", domains.WorkoutFilter{Query: "%_"}, []string{"query-01"}},
 		{"SQL injection is data", domains.WorkoutFilter{Query: "' OR 1=1 --"}, []string{}},
 		{"query and level intersect", domains.WorkoutFilter{Query: "squat", Level: 1}, []string{"query-25", "query-20", "query-15", "query-10", "query-05"}},
+		{"case insensitive", domains.WorkoutFilter{Query: "SQUAT", Level: 1}, []string{"query-25", "query-20", "query-15", "query-10", "query-05"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			items, err := repo.List(t.Context(), userID, tt.filter, nil, 20)
@@ -164,6 +165,7 @@ func TestWorkoutsSummaryCoversAllMatchingRecords(t *testing.T) {
 		expected domains.WorkoutSummary
 	}{
 		{"entire library", domains.WorkoutFilter{}, domains.WorkoutSummary{Count: 26, PlannedMinutes: 805, AverageMinutes: 805.0 / 26, Levels: []domains.LevelCount{{Level: 1, Count: 6}, {Level: 2, Count: 5}, {Level: 3, Count: 5}, {Level: 4, Count: 5}, {Level: 5, Count: 5}}}},
+		{"duplicate matching names", domains.WorkoutFilter{Query: "legs"}, domains.WorkoutSummary{Count: 26, PlannedMinutes: 805, AverageMinutes: 805.0 / 26, Levels: []domains.LevelCount{{Level: 1, Count: 6}, {Level: 2, Count: 5}, {Level: 3, Count: 5}, {Level: 4, Count: 5}, {Level: 5, Count: 5}}}},
 		{"level filter", domains.WorkoutFilter{Level: 1}, domains.WorkoutSummary{Count: 6, PlannedMinutes: 186, AverageMinutes: 31, Levels: []domains.LevelCount{{Level: 1, Count: 6}, {Level: 2}, {Level: 3}, {Level: 4}, {Level: 5}}}},
 		{"exercise query", domains.WorkoutFilter{Query: "rare shoulder"}, domains.WorkoutSummary{Count: 1, PlannedMinutes: 30, AverageMinutes: 30, Levels: []domains.LevelCount{{Level: 1, Count: 1}, {Level: 2}, {Level: 3}, {Level: 4}, {Level: 5}}}},
 		{"no matches", domains.WorkoutFilter{Query: "missing"}, domains.WorkoutSummary{Levels: []domains.LevelCount{{Level: 1}, {Level: 2}, {Level: 3}, {Level: 4}, {Level: 5}}}},
@@ -185,8 +187,9 @@ func TestWorkoutsReadsRejectUnsupportedSnapshotVersion(t *testing.T) {
 	repo := store.NewWorkouts(db)
 	_, err = repo.Create(t.Context(), user.ID, workoutSnapshot("future-snapshot"), "", "")
 	require.NoError(t, err)
-	err = db.WithContext(t.Context()).Exec(testUnsupportedSnapshotSQL).Error
-	require.NoError(t, err)
+	require.NoError(t, db.WithContext(t.Context()).Migrator().DropConstraint("workouts", "workouts_snapshot_version_check"))
+	require.NoError(t, db.WithContext(t.Context()).Session(&gorm.Session{AllowGlobalUpdate: true}).
+		Table("workouts").Update("snapshot_version", 2).Error)
 	_, err = repo.Get(t.Context(), user.ID, "future-snapshot")
 	assert.ErrorContains(t, err, "unsupported snapshot version 2")
 	_, err = repo.List(t.Context(), user.ID, domains.WorkoutFilter{}, nil, 20)

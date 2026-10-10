@@ -5,21 +5,22 @@ package postgres_test
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"testing"
 	"time"
 
 	store "github.com/epicchewy/endorphins/backend/internal/repositories/postgres"
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"gorm.io/gorm"
 )
 
 var (
-	repositoryTestDB  *gorm.DB
-	repositoryTestURL string
+	repositoryTestDB        *gorm.DB
+	repositoryTestURL       string
+	repositoryTestContainer *tcpostgres.PostgresContainer
 )
 
 func TestMain(m *testing.M) {
@@ -34,6 +35,7 @@ func runRepositoryTests(m *testing.M) (code int) {
 		tcpostgres.WithUsername("test"), tcpostgres.WithPassword("test"),
 		tcpostgres.BasicWaitStrategies(),
 	)
+	repositoryTestContainer = container
 	if container != nil {
 		defer func() {
 			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -75,8 +77,11 @@ func runRepositoryTests(m *testing.M) (code int) {
 // retaining the schema migrated once by TestMain.
 func setupRepositoryTest(t *testing.T) *gorm.DB {
 	t.Helper()
-	err := repositoryTestDB.WithContext(t.Context()).Exec(testResetTablesSQL).Error
-	require.NoError(t, err)
+	for _, table := range []string{"workout_completions", "workout_search_terms", "workouts", "users", "deleted_accounts"} {
+		err := repositoryTestDB.WithContext(t.Context()).Session(&gorm.Session{AllowGlobalUpdate: true}).
+			Table(table).Delete(&struct{}{}).Error
+		require.NoError(t, err)
+	}
 	return repositoryTestDB
 }
 
@@ -85,16 +90,11 @@ func setupRepositoryTest(t *testing.T) *gorm.DB {
 func isolatedRepositoryDatabase(t *testing.T) (*gorm.DB, string) {
 	t.Helper()
 	name := fmt.Sprintf("isolated_%d", time.Now().UnixNano())
-	// Database names cannot use value parameters. Escape this generated identifier
-	// before inserting it into the embedded DDL templates.
-	identifier := pgx.Identifier{name}.Sanitize()
-	err := repositoryTestDB.WithContext(t.Context()).Exec(fmt.Sprintf(testCreateDatabaseSQL, identifier)).Error
-	require.NoError(t, err)
+	runPostgresCommand(t, t.Context(), "createdb", "--username=test", "--maintenance-db=endorphins_repositories_test", name)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		err := repositoryTestDB.WithContext(ctx).Exec(fmt.Sprintf(testDropDatabaseSQL, identifier)).Error
-		require.NoError(t, err)
+		runPostgresCommand(t, ctx, "dropdb", "--username=test", "--force", "--maintenance-db=endorphins_repositories_test", name)
 	})
 	parsed, err := url.Parse(repositoryTestURL)
 	require.NoError(t, err)
@@ -104,6 +104,15 @@ func isolatedRepositoryDatabase(t *testing.T) (*gorm.DB, string) {
 	require.NoError(t, err)
 	cleanupRepositoryDatabase(t, pool)
 	return pool, databaseURL
+}
+
+func runPostgresCommand(t *testing.T, ctx context.Context, command ...string) {
+	t.Helper()
+	code, output, err := repositoryTestContainer.Exec(ctx, command)
+	require.NoError(t, err)
+	message, err := io.ReadAll(output)
+	require.NoError(t, err)
+	require.Zero(t, code, "%s: %s", command[0], message)
 }
 
 func cleanupRepositoryDatabase(t *testing.T, db *gorm.DB) {

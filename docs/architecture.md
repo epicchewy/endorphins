@@ -90,9 +90,7 @@ backend/
     domains/                # Application values and pure workout rules
     repositories/catalogue/ # Concrete filesystem store
     repositories/postgres/  # Stores, versioned snapshots, and query tests
-      queries/              # Embedded Postgres-specific expressions and advisory lock
       migrations/           # Embedded versioned schema migrations
-      testdata/queries/     # SQL fixtures embedded only in integration tests
     testfixtures/           # e2e-tag-only Clerk signing and workout seed helpers
 exercises/                  # Original catalogue, shared with Python
 scripts/                    # Development lifecycle and backend layer checks
@@ -159,9 +157,11 @@ Only the external Clerk adapters change in `e2e` builds. `internal/testfixtures`
 
 Postgres tests use one migrated container per package, created by `TestMain` in `repositories_test.go`. Serial resource tests reset rows before each case. Schema and migration tests use temporary databases within that same container. These tests call repositories directly and cover SQL behavior; browser tests own full HTTP journeys.
 
-Repositories use GORM for reads, writes, joins, filters, cursor ordering, row locks, and conditional upserts. Persistence rows stay inside the Postgres package; domains and services have no ORM dependency. List and summary share one owner/search filter. Completion joins include both owner and workout IDs. Database defaults still generate account/completion UUIDs and timestamps. GORM runs explicit transactions for account lifecycle operations, child writes, exports, and activity snapshots.
+Repositories use GORM for reads, writes, joins, filters, cursor ordering, row locks, and conditional upserts. Persistence rows stay inside the Postgres package; domains and services have no ORM dependency. List and summary share one owner/search filter. Completion joins include both owner and workout IDs. Database defaults generate account/completion UUIDs and creation/confirmation timestamps. The API supplies UTC timestamps for the first onboarding and Undo operations under row locks. GORM runs explicit transactions for account lifecycle operations, child writes, exports, and activity snapshots.
 
-`queries.go` embeds the Postgres-specific advisory lock, JSON search and projection expressions, and local-time aggregates. GORM composes these expressions and binds their values; Go has no inline SQL statements or expressions. Integration tests use GORM for routine setup and assertions. `queries_integration_test.go` embeds schema and failure fixtures plus historical migrations. These test fixtures stay out of release binaries. GORM uses pgx through its Postgres driver. Schema changes still use versioned golang-migrate files; startup does not call `AutoMigrate`.
+Migration 5 backfills workout level, estimated minutes, and an owned search-term table from immutable snapshots. Saves write these fields and lowercased focus, block, and exercise names in the same transaction. Retries retain the original plan and its search terms. GORM filters and orders these columns, and joins search terms on both owner and workout ID. Distinct results prevent duplicate matches. Summary reads only matching IDs, levels, and minutes and folds totals in Go. Activity counts all active completions in Postgres, then groups timestamps into four local calendar weeks in Go. Its timestamp query spans 30 UTC days to cover all zone offsets; only dates in those four weeks count.
+
+The unique deletion-digest key serializes account resolution and erasure. Resolution inserts a transient guard and removes it before commit. Erasure keeps the tombstone and deletes owned search terms with the other child records. Application and test queries contain no SQL statements or expressions. Integration fixtures use GORM, callbacks for failure injection, and the real historical migration files. Temporary databases use Postgres `createdb` and `dropdb` inside the test container. Only versioned migrations remain as `.sql` files. GORM uses pgx through its Postgres driver; startup never calls `AutoMigrate`.
 
 ## Signup, onboarding, and activity
 

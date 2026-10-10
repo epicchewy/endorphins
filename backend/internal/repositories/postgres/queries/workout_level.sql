@@ -1,1 +1,0 @@
-(plan->>'level')::int

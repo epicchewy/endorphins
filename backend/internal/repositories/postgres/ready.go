@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const SchemaVersion = 4
+const SchemaVersion = 5
 
 // CheckReady checks connectivity and the exact migration version this binary
 // supports. Future migrations require an explicit compatibility decision.

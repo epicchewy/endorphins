@@ -1,6 +1,6 @@
 # Go backend
 
-- `internal/app` owns constructor wiring and shutdown. Handlers depend on local service interfaces. Services consume small interfaces; repositories own GORM models, queries, and transactions. Use embedded SQL only for Postgres-specific expressions and schema/test DDL.
+- `internal/app` owns constructor wiring and shutdown. Handlers depend on local service interfaces. Services consume small interfaces; repositories own GORM models, queries, and transactions. Use GORM builders for application queries and test fixtures. SQL files belong only in versioned migrations; do not use raw SQL statements or expressions in Go.
 - Domains stay free of transport concerns. Resource DTOs and their `ToInput` / `New…Response` conversions live together in `internal/api/v1`; persistent JSON mappings belong in the versioned Postgres snapshot codec. Never serialize domain structs directly into historical records.
 - Owner IDs come from verified sessions resolved to internal user UUIDs. Every workout read/write is owner-scoped. Preserve idempotency and deletion/provision transaction invariants.
 - Accept context first for I/O, propagate cancellation, bound deadlines, wrap errors once, and classify expected failures centrally. Log internal causes with request IDs; return only safe API errors.

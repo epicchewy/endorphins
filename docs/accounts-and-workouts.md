@@ -8,6 +8,8 @@ erDiagram
   USERS ||--o{ WORKOUTS : owns
   USERS ||--o{ WORKOUT_COMPLETIONS : records
   WORKOUTS ||--o{ WORKOUT_COMPLETIONS : uses
+  USERS ||--o{ WORKOUT_SEARCH_TERMS : owns
+  WORKOUTS ||--o{ WORKOUT_SEARCH_TERMS : projects
   USERS {
     uuid id PK
     text clerk_user_id UK
@@ -21,6 +23,8 @@ erDiagram
     timestamptz created_at
     smallint snapshot_version
     jsonb plan
+    integer level
+    integer estimated_minutes
     text idempotency_key
     text input_fingerprint
   }
@@ -31,6 +35,12 @@ erDiagram
     timestamptz completed_at
     timestamptz undone_at
     text idempotency_key
+  }
+  WORKOUT_SEARCH_TERMS {
+    uuid user_id PK
+    text workout_id PK
+    integer position PK
+    text name
   }
   DELETED_ACCOUNTS {
     text subject_hash PK
@@ -54,7 +64,7 @@ Private routes use a server auth check when entering the private route tree and 
 
 ## Application users
 
-The first authenticated API request resolves `sub` to `users.clerk_user_id`. Resolution and erasure acquire the same per-subject transaction lock. Resolution checks the deletion digest, returns an existing user without rewriting it, or inserts a user. Simultaneous first requests return the same internal UUID; a first request racing a deletion cannot recreate the account after erasure commits.
+The first authenticated API request resolves `sub` to `users.clerk_user_id`. Resolution and erasure serialize through the unique deletion-digest key. Resolution inserts a transient guard, returns an existing user or inserts a user, then removes the guard before commit. An existing tombstone rejects resolution. Erasure keeps its tombstone. Simultaneous first requests return the same internal UUID; a first request racing a deletion cannot recreate the account after erasure commits.
 
 `users.id` is the stable key for application relationships. Completion logs and preferences use it. Future favorites and other account records should also reference it. Never use email, display name, or a browser-provided owner ID as the relationship key. Clerk remains the source for email and profile details; the app stores no profile copy.
 
@@ -64,7 +74,7 @@ The first authenticated API request resolves `sub` to `users.clerk_user_id`. Res
 
 `POST /api/v1/workouts` generates a plan and inserts it for the authenticated internal user. It returns `201 Created` with `Location` only after persistence succeeds. A successful new generate or shuffle action creates a separate saved workout.
 
-The optional `Idempotency-Key` header binds one save attempt to its owner and generation input. Keys contain 1–128 visible ASCII characters. Replaying the same owner/key/duration/level returns the exact original saved workout and the same resource location, also with `201`. Reusing that key with different input returns `409` and `idempotency_conflict`. A unique owner/key constraint and a single conditional SQL upsert enforce this under concurrent requests; failed inserts do not reserve a key. Keys remain with their workout until account erasure.
+The optional `Idempotency-Key` header binds one save attempt to its owner and generation input. Keys contain 1–128 visible ASCII characters. Replaying the same owner/key/duration/level returns the exact original saved workout and the same resource location, also with `201`. Reusing that key with different input returns `409` and `idempotency_conflict`. A unique owner/key constraint and a conditional GORM upsert enforce this under concurrent requests; failed transactions do not reserve a key. Keys remain with their workout until account erasure.
 
 The frontend retains the key across a manual retry of a failed attempt with unchanged preferences. Success, resetting the attempt, or changing preferences starts a new action. The key is local to the mounted view; reloading the page starts a new attempt. Mutations are not automatically retried. The backend also accepts requests without a key, which create an independent plan each time.
 
@@ -86,17 +96,19 @@ Storage has an explicit version-1 encoder/decoder with its own structs. Every re
 | `limit`   | 1–50 records, default 20.                                                                                                                                       |
 | `cursor`  | Opaque continuation position for the same owner, normalized filters, and ordering.                                                                              |
 
-Newest ordering uses `(created_at DESC, id DESC)`. Shortest ordering uses estimated minutes ascending, then the same timestamp/ID tie-breakers. Cursors carry the relevant position and a scope digest; changing owner, filters, or order requires starting a new first page. An empty `nextCursor` means the final page. Cursors are positions, not credentials: SQL still checks the authenticated owner on every request.
+Migration 5 projects level and estimated minutes into workout columns. An owned `workout_search_terms` table stores lowercased focus, block names, and exercise names. Saves write these projections with the immutable plan; retries retain the original fields. Search joins include both owner and workout ID and return each plan once.
+
+Newest ordering uses `(created_at DESC, id DESC)`. Shortest ordering uses estimated minutes ascending, then the same timestamp/ID tie-breakers. Cursors carry the relevant position and a scope digest; changing owner, filters, or order requires starting a new first page. An empty `nextCursor` means the final page. Cursors are positions, not credentials: GORM queries still check the authenticated owner on every request.
 
 `GET /api/v1/workouts/summary` applies the same `q` and `level` filters to the complete library. It returns matching `count`, total estimated `plannedMinutes`, `averageMinutes` (zero for an empty result), and five `{ level, count }` entries including zero counts. These totals describe generated plans. Completion records supply activity totals. Library filters and sorting live in validated route search, so refresh and browser navigation restore the view.
 
-`GET /api/v1/workouts/{id}` applies both owner and workout ID in SQL. Missing and other-account IDs both return `404`. There is no unscoped repository read method, public share link, or workout-edit endpoint.
+`GET /api/v1/workouts/{id}` applies both owner and workout ID in its GORM query. Missing and other-account IDs both return `404`. There is no unscoped repository read method, public share link, or workout-edit endpoint.
 
 ## Export and account erasure
 
 `GET /api/v1/me/export` returns a versioned JSON download containing the application user, all owned workout snapshots, completion logs (including undone records), and an export timestamp. Version 2 adds the completion array and account preferences. A read-only, repeatable-read transaction gives the export a consistent database view. It does not export Clerk-held credentials or profile information. The account screen fetches it with the captured session's bearer token, verifies the returned application owner, downloads a Blob, and discards the payload. Switching sessions suppresses a late download from the previous account.
 
-`POST /api/webhooks/clerk` verifies the signature and timestamp over the raw, size-bounded body before decoding. It needs no browser session. A `user.deleted` event records the subject digest and deletes completion logs, plans, and the user in one transaction. Duplicate deletions are harmless. A deletion received before initial provisioning still records a tombstone. Other verified event types are acknowledged without changing application data.
+`POST /api/webhooks/clerk` verifies the signature and timestamp over the raw, size-bounded body before decoding. It needs no browser session. A `user.deleted` event records the subject digest and deletes completion logs, search terms, plans, and the user in one transaction. Duplicate deletions are harmless. A deletion received before initial provisioning still records a tombstone. Other verified event types are acknowledged without changing application data.
 
 The receiver is implemented, but its external Clerk endpoint subscription and signing secret still need deployment configuration. Delivery is asynchronous; erasure occurs when a valid deletion event is processed. Erasure failures return an error so the provider can retry. There is no separate application-only deletion button: account deletion is managed through Clerk and synchronized by the verified event.
 
@@ -106,7 +118,7 @@ Tombstones currently have no automatic expiry. They retain only the subject dige
 
 `cmd/migrate` applies embedded SQL with golang-migrate’s version table, lock, and dirty-state handling. API startup never applies migrations. See [architecture](architecture.md) for module ownership.
 
-The current API requires clean schema version 4, both at startup and in its database-aware `/readyz` probe. `/healthz` reports process liveness separately. Run migrations before deploying a matching API binary. Future schema changes add migrations. The user's removal of legacy foreign keys is the authorized exception to preserving applied SQL. Never silently reset a database to clear a dirty state.
+The current API requires clean schema version 5, both at startup and in its database-aware `/readyz` probe. `/healthz` reports process liveness separately. Run migrations before deploying a matching API binary. Future schema changes add migrations. The user's removal of legacy foreign keys is the authorized exception to preserving applied SQL. Never silently reset a database to clear a dirty state.
 
 ## Preferences and completion records
 
