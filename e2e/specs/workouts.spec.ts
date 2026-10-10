@@ -68,7 +68,7 @@ test('failed shuffle retains the saved plan and supports a retry', async ({
   await expect(page.getByRole('heading', { name: 'Full-body workout' })).toBeVisible()
 })
 
-test('a lost save response retries the same plan and a later shuffle creates a new one', async ({
+test('a lost save response retries the same plan, and a late shuffle leaves the reader in the library', async ({
   signedInPage: page,
 }) => {
   await page.goto('/app/new')
@@ -85,9 +85,28 @@ test('a lost save response retries the same plan and a later shuffle creates a n
   await expect(page.getByRole('alert')).toContainText('connection')
   await page.getByRole('button', { name: 'Generate my workout', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Full-body workout' })).toBeVisible()
+  // The shuffle saves while the library code is still loading, so the plan route is still mounted.
+  const leaving = Promise.withResolvers<void>()
+  const libraryCode = Promise.withResolvers<void>()
+  await page.route(
+    '**/api/v1/workouts',
+    async (route) => {
+      const response = await route.fetch()
+      await leaving.promise
+      await route.fulfill({ response })
+    },
+    { times: 1 },
+  )
+  await page.route('**/assets/*.js', async (route) => {
+    await libraryCode.promise
+    await route.fallback()
+  })
   await page.getByRole('button', { name: 'Shuffle', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Shuffle', exact: true })).toBeEnabled()
   await page.getByRole('link', { name: 'Saved workouts', exact: true }).last().click()
+  leaving.resolve()
+  await expect(page.getByText(/^Your workout is ready\./)).toBeAttached()
+  libraryCode.resolve()
+  await expect(page).toHaveURL(/\/app\/workouts(\?.*)?$/)
   await expect(page.getByRole('link', { name: /View plan/ })).toHaveCount(2)
 })
 

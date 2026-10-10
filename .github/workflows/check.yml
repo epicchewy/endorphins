@@ -16,7 +16,7 @@ jobs:
           cache-dependency-path: backend/go.sum
       - uses: actions/setup-node@v4
         with:
-          node-version: '26.10.0'
+          node-version-file: .nvmrc
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.2'

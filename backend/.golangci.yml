@@ -16,6 +16,17 @@ linters:
     - noctx
     - bidichk
     - nolintlint
+    - forbidigo
+  settings:
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^gorm\.(DB\.)?(Raw|Exec|Expr)$
+          pkg: ^gorm\.io/gorm$
+          msg: Use GORM builders and clause types; raw SQL is not allowed.
+        - pattern: ^clause\.(Expr|NamedExpr)$
+          pkg: ^gorm\.io/gorm/clause$
+          msg: Use GORM builders and clause types; raw SQL is not allowed.
 formatters:
   enable:
     - gofmt

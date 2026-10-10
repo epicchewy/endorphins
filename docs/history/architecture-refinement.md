@@ -51,6 +51,6 @@ Environment variable names are unchanged. CLI options override environment value
 
 Authored frontend application code changed from 5,399 to 3,204 lines across TS, TSX, and CSS under `frontend/app`, excluding generated files. CSS alone changed from 2,856 to 175 lines. These source counts do not measure bundle size or performance.
 
-Inspect the current primitives in the development-only `/design-system` gallery. Their contracts are documented in [the design system](design-system.md).
+Inspect the current primitives in the development-only `/design-system` gallery. Their contracts are documented in [the design system](../design-system.md).
 
 The Tailwind setup follows the official [theme variable guidance](https://tailwindcss.com/docs/theme). Shared primitive overrides use [tailwind-merge](https://github.com/dcastil/tailwind-merge).

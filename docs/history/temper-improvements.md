@@ -13,15 +13,15 @@ This records the October 4, 2026 changes from the approved [comparison](temper-a
 
 The initial CSS split was replaced by the [Tailwind refinement](architecture-refinement.md). The initial browser fixture was replaced by the [test architecture refinement](test-architecture-refinement.md). Both application Dockerfiles now serve production and E2E builds.
 
-Inspect `/design-system` in development for the implemented primitives. The [design system](design-system.md) documents their contracts; the [Paper library](https://app.paper.design/file/01M3TVV9XXTXF2N7ZD43K3WH3V/p-3-0) holds the design studies.
+Inspect `/design-system` in development for the implemented primitives. The [design system](../design-system.md) documents their contracts; the [Paper library](https://app.paper.design/file/01M3TVV9XXTXF2N7ZD43K3WH3V/p-3-0) holds the design studies.
 
 Useful entry points:
 
-- [Frontend session/cache tests](../frontend/test/session-cache.test.ts)
-- [Workout query tests](../backend/internal/repositories/postgres/workouts_test.go)
-- [Account lifecycle tests](../backend/internal/repositories/postgres/users_test.go)
-- [HTTP contract journeys](../e2e/specs/contracts.spec.ts)
-- [Browser harness](../e2e/README.md)
-- [Deployment runbook](deployment.md)
+- [Frontend session/cache tests](../../frontend/test/session-cache.test.ts)
+- [Workout query tests](../../backend/internal/repositories/postgres/workouts_test.go)
+- [Account lifecycle tests](../../backend/internal/repositories/postgres/users_test.go)
+- [HTTP contract journeys](../../e2e/specs/contracts.spec.ts)
+- [Browser harness](../../e2e/README.md)
+- [Deployment runbook](../deployment.md)
 
 Billing, cloud media storage, and timers are deferred. Hosted Clerk signup and external webhook delivery need separate provider checks.

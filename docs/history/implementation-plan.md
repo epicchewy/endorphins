@@ -1,11 +1,11 @@
 # First-pass implementation status
 
-This records the first pass on October 1, 2026: a mobile workout generator based on the Python script, followed by Clerk accounts and Postgres history. See [architecture](architecture.md) for the current app and [the October 5 review](signup-onboarding-review-2026-10-05.md) for the signup redesign.
+This records the first pass on October 1, 2026: a mobile workout generator based on the Python script, followed by Clerk accounts and Postgres history. See [architecture](../architecture.md) for the current app and [the October 5 review](signup-onboarding-review-2026-10-05.md) for the signup redesign.
 
 ## Delivered
 
 - TanStack Start/Router/Query frontend using Postmaker migration conventions.
-- Initial visual system: Instrument Serif, Manrope, plaster, ink, and sage. Later design work replaced it with Sharp Serif/Inter and orange; see [the design system](design-system.md).
+- Initial visual system: Instrument Serif, Manrope, plaster, ink, and sage. Later design work replaced it with Sharp Serif/Inter and orange; see [the design system](../design-system.md).
 - Mobbin references reviewed; design tokens, foundations, desktop builder, and mobile builder saved and iterated in Paper.
 - Responsive duration/level controls, actual generated plan, shuffle, notes, loading/error states, and print styling.
 - Go 1.27.1 / Echo v5 API with explicit startup wiring and conventional layers.
@@ -14,7 +14,7 @@ This records the first pass on October 1, 2026: a mobile workout generator based
 - OpenAPI contract and generated frontend types.
 - Development entry point, production server, layer checks, lint, race tests, render/client tests, and CI workflow.
 - Clerk CLI setup, Start middleware/provider, sign-in/sign-up, and account controls.
-- Postgres users and immutable, owner-scoped workout snapshots. Schema setup now follows Temper's GORM `AutoMigrate` command; see [current architecture](architecture.md).
+- Postgres users and immutable, owner-scoped workout snapshots. Schema setup now follows Temper's GORM `AutoMigrate` command; see [current architecture](../architecture.md).
 - Workout journal and saved-plan detail pages, session-scoped caches, and account data documentation.
 - Real-query Testcontainers tests and signed-JWT authentication tests.
 

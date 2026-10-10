@@ -1,6 +1,6 @@
 # Endorphins architecture
 
-Updated October 9, 2026. This describes the current application. Earlier changes are recorded in the [Temper comparison](temper-architecture-comparison.md).
+Updated October 9, 2026. This describes the current application. Earlier changes are recorded in the [Temper comparison](history/temper-architecture-comparison.md).
 
 ## Product
 
@@ -41,7 +41,7 @@ Start renders pages; the browser calls Go through TanStack Query. Each router ha
 | Contract       | OpenAPI 3.0.3, generated TypeScript with openapi-typescript 7.13.0                            |
 | Checks         | strict TypeScript, Oxlint, React Doctor 0.9.17, Prettier, Go race tests, golangci-lint 2.14.0 |
 
-The frontend versions follow the inspected Postmaker migration in `/Users/lchui/.codex/worktrees/1825/postmaker`, HEAD `ec8e694224e8f1db3e26b2b8133fe6e129bf94ad`. Shared primitives use native controls. The app does not need TanStack Form, Base UI, or Zustand.
+The frontend versions follow the Postmaker migration at commit `ec8e694`. Shared primitives use native controls. The app does not need TanStack Form, Base UI, or Zustand.
 
 Go 1.27.1 was verified against [official downloads](https://go.dev/dl/) and downloaded successfully during implementation. Echo’s [v5 quickstart](https://echo.labstack.com/docs/quick-start) was checked before setup. Lockfiles pin the resolved application dependencies.
 
@@ -132,7 +132,7 @@ Validated URL search owns builder minutes/level and library query/level/sort. Th
 
 Hooks own fetching, pagination, retries, and mutations. `services/http.ts` owns authenticated transport, cancellation/deadlines, and safe error parsing; account and workout transport are separate modules. One key factory scopes every private query and mutation to the Clerk session. Generating a workout seeds its detail cache and invalidates all list/summary variants only if the originating session remains current.
 
-Setup owns generation input. The saved-plan route owns the displayed plan and local exercise/disclosure state. Postgres owns history. A failed shuffle keeps the previous plan; a successful shuffle saves a new plan with the same preferences. Writes are not retried automatically. Manual retries keep one idempotency key until success, reset, or changed preferences. The completion hook owns confirmation, Undo, and key rotation. It shows a saved completion before refreshing analytics.
+Setup owns generation input. The saved-plan route owns the displayed plan and local exercise/disclosure state. Postgres owns history. A failed shuffle keeps the previous plan; a successful shuffle saves a new plan with the same preferences. A generation or shuffle opens the new plan only if the reader is still on the page that started it; the router keeps that page mounted while the next route loads. Writes are not retried automatically. Manual retries keep one idempotency key until success, reset, or changed preferences. The completion hook owns confirmation, Undo, and key rotation. It shows a saved completion before refreshing analytics.
 
 The library fetches filtered, ordered records and a count across all matching saved plans. Loaded pages only determine which cards are currently displayed. Summary counts and estimated minutes never imply completed activity. The `/app/account` screen shows application account details and downloads a consistent owner-scoped export; late downloads are suppressed after a session switch.
 

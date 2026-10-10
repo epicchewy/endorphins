@@ -52,13 +52,13 @@ The recordings use real Postgres, Go API/JWT verification, and the Bun frontend/
 
 Desktop (1440 × 1000) and mobile (390 × 844) videos show signup through completion, repeat use, and Undo in about 30 seconds. Still captures include every flow state and dark layouts. MP4 frames were inspected.
 
-- [Desktop walkthrough](../output/playwright/redesign/e2e-desktop.mp4)
-- [Mobile walkthrough](../output/playwright/redesign/e2e-mobile.mp4)
-- [Desktop landing](../output/playwright/redesign/landing-desktop.png)
-- [Mobile welcome](../output/playwright/redesign/welcome-mobile.png)
-- [Returning dashboard](../output/playwright/redesign/dashboard-returning-desktop.png)
-- [Dark landing](../output/playwright/redesign/landing-dark-desktop.png)
-- [Dark setup at 320px](../output/playwright/redesign/setup-dark-320-mobile.png)
+- [Desktop walkthrough](../../output/playwright/redesign/e2e-desktop.mp4)
+- [Mobile walkthrough](../../output/playwright/redesign/e2e-mobile.mp4)
+- [Desktop landing](../../output/playwright/redesign/landing-desktop.png)
+- [Mobile welcome](../../output/playwright/redesign/welcome-mobile.png)
+- [Returning dashboard](../../output/playwright/redesign/dashboard-returning-desktop.png)
+- [Dark landing](../../output/playwright/redesign/landing-dark-desktop.png)
+- [Dark setup at 320px](../../output/playwright/redesign/setup-dark-320-mobile.png)
 
 These captures record the October 5 review. The October 9 cleanup removed review recording and optional Lighthouse scripts. `make e2e` keeps screenshots, traces, and videos for failed tests.
 
@@ -73,9 +73,9 @@ Lighthouse 13.5.0 ran against the local stack on October 5. Both audits use its 
 
 The first landing audit scored 75 with a 5.8 s LCP. Correct font preloads and responsive WebP delivery reduced that to 3.4 s. The final audits report no image-delivery or cache-lifetime failures and no run warnings. Remaining lab findings include unused framework JavaScript and render-blocking CSS. Cold LCP remains above the 2.5 s target. The existing display-font preview also has a load cost; replacing it needs the licensed source font package. These local lab results do not establish public production performance or real Clerk load cost.
 
-- [Landing audit](../output/playwright/redesign/lighthouse-landing.report.html)
-- [Dashboard audit](../output/playwright/redesign/lighthouse-dashboard.report.html)
-- [Landing audit before image/font fixes](../output/playwright/redesign/lighthouse-landing-before.report.html)
+- [Landing audit](../../output/playwright/redesign/lighthouse-landing.report.html)
+- [Dashboard audit](../../output/playwright/redesign/lighthouse-dashboard.report.html)
+- [Landing audit before image/font fixes](../../output/playwright/redesign/lighthouse-landing-before.report.html)
 
 ## Generated photo assets
 

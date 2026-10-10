@@ -94,7 +94,7 @@ Use native semantics before adding ARIA. Every input has a label, radio groups r
 
 Verify at 390px and 1,440px in light/dark modes. Inspect keyboard focus, form errors, loading/empty states, long workout names, and reduced motion. Confirm no horizontal overflow and no clipped controls. Print a workout while exercise view is active: the complete plan and expanded notes must remain available, with screen-only controls hidden.
 
-The [refinement report](architecture-refinement.md) records the change from 14 CSS files to one Tailwind theme, plus config and DTO changes. Its before/after captures are in `output/playwright/temper-improvements`; the baseline predates primitive extraction. The [Paper UI library](https://app.paper.design/file/01M3TVV9XXTXF2N7ZD43K3WH3V/p-3-0) keeps those studies and the light/dark control contracts. Gallery labels use the same 12px minimum as product metadata.
+The [refinement report](history/architecture-refinement.md) records the change from 14 CSS files to one Tailwind theme, plus config and DTO changes. Its before/after captures are in `output/playwright/temper-improvements`; the baseline predates primitive extraction. The [Paper UI library](https://app.paper.design/file/01M3TVV9XXTXF2N7ZD43K3WH3V/p-3-0) keeps those studies and the light/dark control contracts. Gallery labels use the same 12px minimum as product metadata.
 
 ## App flow references
 
@@ -104,7 +104,7 @@ Mobbin references informed the state structure: [Hevy's weekly activity](https:/
 
 ## Home workout refinement
 
-The landing page uses an asymmetric photo and text layout, followed by a compact explanation of the workout journey. New photos show a casual stretch in a living room and clear floor space beside a wall. They replace gym cues and are locally served WebP files with responsive sizes and fingerprinted URLs. The built-in image generation tool created the assets; prompts are in the [October 5 review](signup-onboarding-review-2026-10-05.md). The landing design dials are variance 6, motion 3, and density 3.
+The landing page uses an asymmetric photo and text layout, followed by a compact explanation of the workout journey. New photos show a casual stretch in a living room and clear floor space beside a wall. They replace gym cues and are locally served WebP files with responsive sizes and fingerprinted URLs. The built-in image generation tool created the assets; prompts are in the [October 5 review](history/signup-onboarding-review-2026-10-05.md). The landing design dials are variance 6, motion 3, and density 3.
 
 Onboarding introduces the app before the level choice. Desktop uses a photo beside four short feature descriptions; mobile keeps the descriptions and next action together. The dashboard gives completed workouts the strongest numerical emphasis, then active days and milestones. The four-week chart uses recorded counts; zero counts have no filled track. Reached milestones have explicit screen-reader text.
 

@@ -1,6 +1,6 @@
 # Endorphins engineering practices
 
-Read [architecture](architecture.md) for module ownership and [Jukebox notes](jukebox-backend-notes.md) for the reference code.
+Read [architecture](architecture.md) for module ownership. Dated reviews and decision records live in [history](history/); they describe past states, not current rules.
 
 ## Working commands
 
@@ -16,6 +16,8 @@ CI runs `make check` and `make e2e`, rejects generated route/API drift, checks r
 
 ## Go structure and discipline
 
+[Backend instructions](../backend/AGENTS.md) hold the persistence, migration, and test-placement rules; lint, the layer check, and migration tests enforce them.
+
 1. Keep one Go module under `backend/`. Use Go 1.27.1 and run the pinned linter with that compiler. Commit `go.sum` and `frontend/bun.lock`.
 2. Keep domain rules pure. Services run use cases; repositories own external data; handlers translate HTTP. Respect the transitive import checks.
 3. Give each service area a package with `Service`, `New`, and small consumed ports. Split files by use case. Do not create a root `services` package, global container, `BaseService`, or generic utility layer.
@@ -27,11 +29,11 @@ CI runs `make check` and `make e2e`, rejects generated route/API drift, checks r
 9. Prefer concrete values, ordinary loops, early returns, small APIs, and straightforward code. Add an interface when it hides useful implementation detail or provides a needed test seam.
 10. Use `gofmt` and the checked-in golangci-lint configuration. Suppress a linter only for a specific, explained exception.
 
-Tests constrain time budgets, warm-up preservation, valid levels, catalogue isolation, real catalogue generation, race safety, and HTTP validation. Real-file and real-Postgres Testcontainers tests use the `integration` build tag. Repository tests follow Temper: one migrated container per package in `repositories_test.go`, serial tests with a data reset, and resource-named test files. DDL and migration cases use separate databases in that container. Never add `main_test.go` or command-entrypoint tests. Docker is required; tests must not silently skip when it is unavailable. Keep queries owner-scoped and propagate contexts. Schema changes update repository model tags and use repeatable GORM data fixes when needed. Never add foreign keys. Repository transactions enforce parent existence, ownership, and explicit account cleanup. Unit tests use deterministic random sources rather than expecting a particular production shuffle.
+Tests constrain time budgets, warm-up preservation, valid levels, catalogue isolation, real catalogue generation, race safety, and HTTP validation. Real-file and real-Postgres Testcontainers tests use the `integration` build tag. Repository tests follow Temper: one migrated container per package in `repositories_test.go`, serial tests with a data reset, and resource-named test files. DDL and migration cases use separate databases in that container. Docker is required; tests must not silently skip when it is unavailable. Keep queries owner-scoped and propagate contexts. Schema changes update repository model tags and use repeatable GORM data fixes when needed. Unit tests use deterministic random sources rather than expecting a particular production shuffle.
 
 Use GORM for application queries and integration fixtures. Keep persistence rows and transactions in `repositories/postgres`; domain and service code must not import GORM. Use explicit owner predicates, map updates for zero values, conditional upserts with `RETURNING`, and transaction row locks. Go hooks generate UUIDs and GORM supplies creation/confirmation timestamps in UTC. Normalize stored timestamps to UTC in repository mappings. Supply first onboarding and Undo timestamps in UTC under row locks. Use `WithContext` for each request and read-only repeatable-read transactions for exports and activity.
 
-Do not use SQL statements or expressions in Go, including `Raw`, `Exec`, or `gorm.Expr`. Do not add `.sql` files or SQL expressions in model tags. Project searchable and sortable snapshot fields into owned columns and rows in the save transaction. Use GORM clauses for predicates and joins; bind search text as data. Fold summary metadata and local activity dates in Go. Test fixtures use GORM's migrator for isolated schema changes and verify upgrades preserve existing application data. Use `createdb` and `dropdb` inside the test container for temporary databases. Follow Temper: the separate migration command runs `AutoMigrate` over repository models and disables foreign key creation. Do not migrate at API startup. Go validates values before persistence; database keys and nullability enforce structural constraints. Schema and data fixes share one transaction. Run one migration process before starting the matching API. There is no version table or automatic down migration.
+Project searchable and sortable snapshot fields into owned columns and rows in the save transaction. Use GORM clauses for predicates and joins; bind search text as data. Fold summary metadata and local activity dates in Go. Test fixtures use GORM's migrator for isolated schema changes and verify upgrades preserve existing application data. Use `createdb` and `dropdb` inside the test container for temporary databases. Follow Temper: the separate migration command runs `AutoMigrate` over repository models and disables foreign key creation. Do not migrate at API startup. Go validates values before persistence; database keys and nullability enforce structural constraints. Schema and data fixes share one transaction. Run one migration process before starting the matching API. There is no version table or automatic down migration.
 
 ## Frontend discipline
 

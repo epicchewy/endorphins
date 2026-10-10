@@ -2,7 +2,7 @@
 
 Inspected October 1, 2026 in `/Users/lchui/Desktop/code/jukebox`, branch `codex/project-foundation`, commit `13a4b3c6ffc84efae1ae41a4e1b39397ade647bf`. The checkout was clean when inspected. I read repository instructions and selected implementation/test paths. I did not run Jukebox tests or audit the whole app.
 
-The application calls itself Lukebox in its documentation; the repository is named Jukebox. Endorphins' resulting decisions live in [architecture](architecture.md) and [engineering practices](engineering-practices.md). Source links point to the inspected local checkout. Endorphins does not depend on that checkout.
+The application calls itself Lukebox in its documentation; the repository is named Jukebox. Endorphins' resulting decisions live in [architecture](../architecture.md) and [engineering practices](../engineering-practices.md). Source links point to the inspected local checkout. Endorphins does not depend on that checkout.
 
 ## Practices to carry forward
 
@@ -36,7 +36,7 @@ Use Jukebox's direct control flow as a starting point: validate inputs, return e
 - **Interface ownership:** Jukebox collects persistence contracts in `internal/stores`. Endorphins declares the small interface where the service consumes it. Implementations satisfy it structurally through domain/standard types; adding a central stores layer is unnecessary for this plan.
 - **Identity consistency:** Jukebox's database guide records Clerk IDs as link owners and internal user IDs for other records. Endorphins consistently uses internal account IDs after resolving Clerk identity.
 - **Not-found behavior:** Some Jukebox repositories return `(nil, nil)`. Endorphins returns a shared domain error and tests that contract. Handlers should never infer not-found from a dereference failure.
-- **Migration implementation:** Jukebox has an Atlas-compatible custom runner with directory and per-file checksums and batch transaction semantics. The initial proposal named Goose. Endorphins now follows Temper's separate GORM `AutoMigrate` command with repeatable data fixes; see [migrations](accounts-and-workouts.md#migrations). It does not copy Jukebox’s custom runner or claim equivalent checksum behavior.
+- **Migration implementation:** Jukebox has an Atlas-compatible custom runner with directory and per-file checksums and batch transaction semantics. The initial proposal named Goose. Endorphins now follows Temper's separate GORM `AutoMigrate` command with repeatable data fixes; see [migrations](../accounts-and-workouts.md#migrations). It does not copy Jukebox’s custom runner or claim equivalent checksum behavior.
 - **Test isolation:** Some Jukebox service tests use SQLite AutoMigrate fixtures; its PostgreSQL integration tests are separately tagged. Endorphins uses dependency fakes for isolated service tests and real PostgreSQL for persistence guarantees. The mandatory backend CI gate includes database tests even if a separate fast local command is offered.
 - **Dependencies and helpers:** Jukebox uses Redis for OAuth attempts and QR images, plus broad utility packages. Endorphins adds dependencies and shared helpers for its own demonstrated needs. Pure helpers remain close to their owning domain or service.
 
