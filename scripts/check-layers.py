@@ -21,9 +21,6 @@ rules = {
 }
 violations = [f"{path.relative_to(root)}: command entrypoint tests are not allowed"
               for path in (root / "backend").rglob("main_test.go")]
-sql_files = subprocess.check_output(
-    ["git", "ls-files", "--cached", "--others", "--exclude-standard", "*.sql"], cwd=root, text=True)
-violations += [f"{name}: SQL files are not allowed; use GORM models and AutoMigrate" for name in sql_files.split()]
 for name in packages:
     if name.startswith(prefix + "testfixtures") or name.startswith(prefix + "testhelpers"):
         violations.append(f"test fixture imported by release packages: {name}")

@@ -8,4 +8,5 @@ Before editing, read `docs/architecture.md` for ownership, `docs/engineering-pra
 - Test behavior in the owning packages and full-stack journeys.
 - Put behavior in the module that owns it. Do not add wrappers, generic repositories, global service locators or duplicate UI test suites.
 - Never edit generated route/API types; update inputs and run `cd frontend && bun run typegen`.
+- Use GORM for application queries and fixtures. Raw SQL is a breakglass for what GORM cannot express. Before you add any raw SQL (a SQL string, `Raw`, `Exec`, `gorm.Expr` or `clause.Expr`, SQL in a model tag, or a `.sql` file), stop and flag it to the user with the reason.
 - Update the relevant docs when architecture changes. `docs/history/` records past states; it is not current guidance.

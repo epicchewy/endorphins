@@ -16,7 +16,7 @@ CI runs `make check` and `make e2e`, rejects generated route/API drift, checks r
 
 ## Go structure and discipline
 
-[Backend instructions](../backend/AGENTS.md) hold the persistence, migration, and test-placement rules; lint, the layer check, and migration tests enforce them.
+[Backend instructions](../backend/AGENTS.md) hold the persistence, migration, and test-placement rules. Raw SQL is a breakglass: agents flag it before adding it (see [AGENTS.md](../AGENTS.md)).
 
 1. Keep one Go module under `backend/`. Use Go 1.27.1 and run the pinned linter with that compiler. Commit `go.sum` and `frontend/bun.lock`.
 2. Keep domain rules pure. Services run use cases; repositories own external data; handlers translate HTTP. Respect the transitive import checks.
