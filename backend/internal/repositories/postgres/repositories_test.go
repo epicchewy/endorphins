@@ -70,7 +70,7 @@ func runRepositoryTests(m *testing.M) (code int) {
 // retaining the schema migrated once by TestMain.
 func setupRepositoryTest(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	_, err := repositoryTestDB.Exec(t.Context(), `TRUNCATE workouts, users, deleted_accounts RESTART IDENTITY CASCADE`)
+	_, err := repositoryTestDB.Exec(t.Context(), `TRUNCATE workout_completions, workouts, users, deleted_accounts RESTART IDENTITY`)
 	require.NoError(t, err)
 	return repositoryTestDB
 }

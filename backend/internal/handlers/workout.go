@@ -2,10 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"io"
-	"mime"
 	"net/http"
 	"strconv"
 
@@ -21,25 +17,18 @@ type workoutService interface {
 	Get(context.Context, string, string) (domains.SavedWorkout, error)
 	List(context.Context, string, library.ListInput) (domains.WorkoutPage, error)
 	Summary(context.Context, string, domains.WorkoutFilter) (domains.WorkoutSummary, error)
+	Complete(context.Context, string, string, string) (domains.Completion, error)
+	Undo(context.Context, string, string) error
+	Activity(context.Context, string, string) (domains.Activity, error)
 }
 type Workout struct{ service workoutService }
 
 func NewWorkout(service workoutService) *Workout { return &Workout{service: service} }
 
 func (h *Workout) Create(c *echo.Context) error {
-	mediaType, _, err := mime.ParseMediaType(c.Request().Header.Get("Content-Type"))
-	if err != nil || mediaType != "application/json" {
-		return echo.NewHTTPError(http.StatusUnsupportedMediaType, "Send this request as JSON.")
-	}
-	c.Request().Body = http.MaxBytesReader(c.Response(), c.Request().Body, 8192)
-	decoder := json.NewDecoder(c.Request().Body)
-	decoder.DisallowUnknownFields()
 	var input v1.CreateWorkoutRequest
-	if err := decoder.Decode(&input); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Enter a valid duration and level.")
-	}
-	if err := decoder.Decode(new(any)); !errors.Is(err, io.EOF) {
-		return echo.NewHTTPError(http.StatusBadRequest, "Send one workout request at a time.")
+	if err := decodeJSON(c, &input); err != nil {
+		return err
 	}
 	result, err := h.service.Create(c.Request().Context(), currentUser(c).ID, input.ToInput(), c.Request().Header.Get("Idempotency-Key"))
 	if err != nil {
@@ -102,4 +91,25 @@ func workoutFilterRequest(c *echo.Context) (v1.WorkoutFilterRequest, error) {
 		filter.Level = level
 	}
 	return filter, nil
+}
+
+func (h *Workout) Complete(c *echo.Context) error {
+	result, err := h.service.Complete(c.Request().Context(), currentUser(c).ID, c.Param("id"), c.Request().Header.Get("Idempotency-Key"))
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusCreated, v1.NewCompletionResponse(result))
+}
+func (h *Workout) Undo(c *echo.Context) error {
+	if err := h.service.Undo(c.Request().Context(), currentUser(c).ID, c.Param("id")); err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, map[string]bool{"undone": true})
+}
+func (h *Workout) Activity(c *echo.Context) error {
+	result, err := h.service.Activity(c.Request().Context(), currentUser(c).ID, c.QueryParam("timezone"))
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, v1.NewActivityResponse(result))
 }

@@ -7,6 +7,7 @@ import (
 
 	v1 "github.com/epicchewy/endorphins/backend/internal/api/v1"
 	"github.com/epicchewy/endorphins/backend/internal/domains"
+	"github.com/epicchewy/endorphins/backend/internal/services/account"
 	"github.com/epicchewy/endorphins/backend/internal/services/library"
 	"github.com/epicchewy/endorphins/backend/internal/services/workout"
 	"github.com/labstack/echo/v5"
@@ -33,12 +34,18 @@ func errorHandler(logger *slog.Logger) echo.HTTPErrorHandler {
 }
 func publicError(err error) (int, string, string) {
 	switch {
+	case errors.Is(err, account.ErrInvalidLevel):
+		return 422, "invalid_level", "Choose a default level from 1 to 5."
+	case errors.Is(err, library.ErrInvalidTimezone):
+		return 400, "invalid_timezone", "Use a valid time zone."
+	case errors.Is(err, library.ErrCompletionUndone):
+		return 409, "completion_undone", "This completion was undone. Start a new confirmation."
 	case errors.Is(err, domains.ErrAccountDeleted):
 		return 401, "account_deleted", "This account has been deleted."
 	case errors.Is(err, domains.ErrNotFound):
 		return 404, "not_found", "Workout not found."
 	case errors.Is(err, domains.ErrIdempotencyConflict):
-		return 409, "idempotency_conflict", "This request key was already used for different workout preferences."
+		return 409, "idempotency_conflict", "This request key was already used for another workout or different preferences."
 	case errors.Is(err, library.ErrInvalidKey):
 		return 400, "invalid_request", "Use a request key with 1–128 visible ASCII characters."
 	case errors.Is(err, library.ErrInvalidPage):

@@ -17,15 +17,17 @@ export function BrandMark({ className = '' }: { className?: string }) {
 export function Brand({
   className,
   markClassName,
-}: { className?: string; markClassName?: string } = {}) {
+  app = false,
+}: { className?: string; markClassName?: string; app?: boolean } = {}) {
   return (
     <Link
-      to="/"
+      to={app ? '/app' : '/'}
       className={cn(
         'inline-flex min-h-11 items-center gap-[9px] text-[25px] leading-none font-extrabold tracking-[-1.2px] whitespace-nowrap max-[600px]:gap-1.5 max-[600px]:text-[23px] max-[360px]:text-xl',
         className,
       )}
       aria-label="Endorphins home"
+      translate="no"
     >
       <BrandMark
         className={cn(

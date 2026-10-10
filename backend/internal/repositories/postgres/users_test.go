@@ -63,7 +63,7 @@ func TestUsersEnsureConcurrentFirstRequestsCreateOneAccount(t *testing.T) {
 	assert.Equal(t, 1, count)
 }
 
-func TestUsersEraseCascadesOnlyOwnedWorkoutsAndRejectsStaleSessions(t *testing.T) {
+func TestUsersEraseRemovesOnlyOwnedWorkoutsAndRejectsStaleSessions(t *testing.T) {
 	db := setupRepositoryTest(t)
 	repo := store.NewUsers(db)
 	workouts := store.NewWorkouts(db)
@@ -148,9 +148,13 @@ func TestUsersEraseFailureRollsBackTombstoneAndData(t *testing.T) {
 	require.NoError(t, err)
 	_, err = store.NewWorkouts(db).Create(t.Context(), user.ID, workoutSnapshot("retained-plan"), "", "")
 	require.NoError(t, err)
-	_, err = db.Exec(t.Context(), `CREATE TABLE retained_fixture (user_id uuid REFERENCES users(id))`)
+	_, err = store.NewWorkouts(db).Complete(t.Context(), user.ID, "retained-plan", "retained-completion")
 	require.NoError(t, err)
-	_, err = db.Exec(t.Context(), `INSERT INTO retained_fixture VALUES ($1)`, user.ID)
+	// Fail the final delete, after explicit child cleanup, to prove all data and
+	// the tombstone roll back together without relying on database relationships.
+	_, err = db.Exec(t.Context(), `CREATE FUNCTION reject_account_delete() RETURNS trigger LANGUAGE plpgsql AS $$
+ BEGIN RAISE EXCEPTION 'injected erasure failure'; END $$;
+ CREATE TRIGGER reject_account_delete BEFORE DELETE ON users FOR EACH ROW EXECUTE FUNCTION reject_account_delete()`)
 	require.NoError(t, err)
 
 	require.Error(t, repo.Erase(t.Context(), "retained-user"))
@@ -160,12 +164,62 @@ func TestUsersEraseFailureRollsBackTombstoneAndData(t *testing.T) {
 	exported, err := repo.Export(t.Context(), user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"retained-plan"}, workoutIDs(exported.Workouts))
+	assert.Len(t, exported.Completions, 1)
 
-	_, err = db.Exec(t.Context(), `DROP TABLE retained_fixture`)
+	_, err = db.Exec(t.Context(), `DROP TRIGGER reject_account_delete ON users; DROP FUNCTION reject_account_delete()`)
 	require.NoError(t, err)
 	require.NoError(t, repo.Erase(t.Context(), "retained-user"))
 	_, err = repo.Ensure(t.Context(), "retained-user")
 	assert.ErrorIs(t, err, domains.ErrAccountDeleted)
+}
+
+func TestUsersEraseRacingWorkoutAndCompletionWritesLeavesNoOrphans(t *testing.T) {
+	db := setupRepositoryTest(t)
+	users, workouts := store.NewUsers(db), store.NewWorkouts(db)
+	for attempt := range 10 {
+		subject := fmt.Sprintf("racing-writes-%d", attempt)
+		user, err := users.Ensure(t.Context(), subject)
+		require.NoError(t, err)
+		planID := fmt.Sprintf("existing-%d", attempt)
+		_, err = workouts.Create(t.Context(), user.ID, workoutSnapshot(planID), "", "")
+		require.NoError(t, err)
+		start := make(chan struct{})
+		results := make(chan error, 12)
+		for i := range 6 {
+			go func() {
+				<-start
+				_, err := workouts.Create(t.Context(), user.ID, workoutSnapshot(fmt.Sprintf("new-%d-%d", attempt, i)), "", "")
+				results <- err
+			}()
+			go func() {
+				<-start
+				_, err := workouts.Complete(t.Context(), user.ID, planID, fmt.Sprintf("intent-%d", i))
+				results <- err
+			}()
+		}
+		erased := make(chan error, 1)
+		go func() { <-start; erased <- users.Erase(t.Context(), subject) }()
+		close(start)
+		var writeErrors []error
+		for range 12 {
+			writeErrors = append(writeErrors, <-results)
+		}
+		eraseErr := <-erased
+		require.NoError(t, eraseErr)
+		for _, err := range writeErrors {
+			if !errors.Is(err, domains.ErrNotFound) {
+				require.NoError(t, err)
+			}
+		}
+		var remaining int
+		require.NoError(t, db.QueryRow(t.Context(), `SELECT
+ (SELECT count(*) FROM users WHERE id=$1) +
+ (SELECT count(*) FROM workouts WHERE user_id=$1) +
+ (SELECT count(*) FROM workout_completions WHERE user_id=$1)`, user.ID).Scan(&remaining))
+		assert.Zero(t, remaining)
+		_, err = users.Ensure(t.Context(), subject)
+		assert.ErrorIs(t, err, domains.ErrAccountDeleted)
+	}
 }
 
 func TestUsersExportIncludesOnlyOwnedWorkoutsInStableOrder(t *testing.T) {

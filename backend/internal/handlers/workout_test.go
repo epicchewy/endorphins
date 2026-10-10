@@ -149,3 +149,17 @@ func (s failedAccount) Resolve(context.Context, string) (domains.User, error) {
 func (failedAccount) Export(context.Context, string) (domains.AccountExport, error) {
 	panic("unexpected Export call")
 }
+
+func (testAccount) Update(context.Context, string, int, bool) (domains.User, error) {
+	panic("unexpected Update call")
+}
+func (failedAccount) Update(context.Context, string, int, bool) (domains.User, error) {
+	panic("unexpected Update call")
+}
+func (testWorkouts) Complete(context.Context, string, string, string) (domains.Completion, error) {
+	panic("unexpected Complete call")
+}
+func (testWorkouts) Undo(context.Context, string, string) error { panic("unexpected Undo call") }
+func (testWorkouts) Activity(context.Context, string, string) (domains.Activity, error) {
+	panic("unexpected Activity call")
+}

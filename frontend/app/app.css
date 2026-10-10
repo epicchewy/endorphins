@@ -43,7 +43,7 @@
 [data-theme] {
   --background: light-dark(#f2f3f3, #151819);
   --surface: light-dark(#fafafa, #1d2123);
-  --surface-raised: light-dark(#fff, #252b2e);
+  --surface-raised: light-dark(#fefefe, #252b2e);
   --ink: light-dark(#181a1b, #f2f3f3);
   --muted: light-dark(#5b6265, #adb5b9);
   --line: light-dark(#d5d9da, #3b4448);
@@ -99,6 +99,16 @@
   body {
     margin: 0;
     min-width: 320px;
+    padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
   }
   button,
   a,
@@ -106,6 +116,7 @@
   select,
   summary {
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
   button,
   input,

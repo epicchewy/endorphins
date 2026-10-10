@@ -4,17 +4,17 @@ Research date: September 30, 2026. Public-web discovery, direct source reads, ap
 
 ## Decision
 
-There is credible demand for help deciding what to do, fitting workouts into real schedules, and following a clear routine. There is also an established market for inexpensive bodyweight workout utilities. This research does not establish an unmet market, Endorphins' conversion rate, or what its customers will pay.
+People ask for help choosing workouts, fitting them into their schedules, and following a routine. Inexpensive bodyweight workout apps already serve this market. This research does not establish an unmet market, Endorphins' conversion rate, or what its customers will pay.
 
 For a first consumer release, the best fit with the existing script is a simple product for adults fitting exercise around work, children, or travel: short sessions, accurate timing, honest equipment requirements, exercise demonstrations, easy substitutions, and saved preferences. A one-time purchase with optional program packs deserves a test alongside a paid four-week program.
 
-An ongoing subscription would need continuing value, such as a structured training plan, feedback, and progression. A class-planning tool for coaches is a separate promising experiment. Demand for a paid friend-group product is less substantiated in this sample.
+A subscription needs value that continues, such as a training plan, feedback, or progression. A class-planning tool for coaches is a separate promising experiment. Demand for a paid friend-group product is less substantiated in this sample.
 
 These recommendations are inferences from the evidence below.
 
 ## What counts as evidence
 
-The strongest signals here are self-reported spending or continued paid use, specific customer requests, and concrete switching behavior. None is independently verified transaction data.
+I gave more weight to reports of spending, continued paid use, specific requests, and switching products. Transactions were not independently verified.
 
 A product's listed price shows its offer. Ratings show public activity around it. Neither reveals revenue, paid conversion, retention, or the addressable market for Endorphins.
 
@@ -28,9 +28,9 @@ Recent discussions were prioritized, with older sources retained to examine pers
 
 ### 1. People pay to avoid planning
 
-An App Store reviewer reports nine years of Fitbod use, more than 1,800 logged workouts, and says avoiding early-morning planning justifies the annual price. Another recent review values variety and reports improved consistency. These are customer statements rather than verified usage records. [Fitbod App Store reviews](https://apps.apple.com/us/app/fitbod-gym-fitness-planner/id1041517543?platform=ipad)
+An App Store reviewer reports nine years of Fitbod use, more than 1,800 logged workouts, and says avoiding early-morning planning justifies the annual price. Another recent review values variety and reports improved consistency. The reported use was not verified. [Fitbod App Store reviews](https://apps.apple.com/us/app/fitbod-gym-fitness-planner/id1041517543?platform=ipad)
 
-In a June 2023 Reddit discussion, the original poster had nearly 1,000 workouts logged in Strong, was tired of creating plans, explicitly welcomed paid options, and subsequently chose to try Alpha Progression. That is stated willingness to pay and product selection, not proof of a completed purchase. [Automated workout app request](https://www.reddit.com/r/bodyweightfitness/comments/14g1zcj/whats_the_best_automated_workout_app/)
+In a June 2023 Reddit discussion, the original poster had nearly 1,000 workouts logged in Strong, was tired of creating plans, explicitly welcomed paid options, and subsequently chose to try Alpha Progression. The post reports willingness to pay and a product choice. It does not confirm a purchase. [Automated workout app request](https://www.reddit.com/r/bodyweightfitness/comments/14g1zcj/whats_the_best_automated_workout_app/)
 
 Implication: the useful promise is a session ready to follow, with enough guidance to begin immediately. Generation alone leaves the person to interpret the plan and run the workout.
 
@@ -42,9 +42,9 @@ A March 2025 calisthenics discussion asks specifically for a program without a p
 
 A traveler describes difficulty implementing a routine in hotel rooms; a commenter reports years of Freeletics use and values its session adaptations. [Travel workout discussion](https://www.reddit.com/r/bodyweightfitness/comments/15xyh3b/)
 
-These needs are already served to a degree. Freeletics currently documents adaptations for time, equipment, space, and quiet training. A quiet-mode toggle or hotel preset by itself is therefore a weak competitive advantage. [Freeletics adaptations](https://www.freeletics.com/en/blog/posts/quick-adapt/)
+These needs are already served to a degree. Freeletics documented adaptations at the research date for time, equipment, space, and quiet training. A quiet-mode toggle or hotel preset by itself is therefore a weak competitive advantage. [Freeletics adaptations](https://www.freeletics.com/en/blog/posts/quick-adapt/)
 
-Implication: target a recognizable situation and make execution especially easy. Accurately honoring constraints is a product requirement, not a defensible business on its own.
+Implication: choose a clear use case and make the workout easy to follow. Meeting time, space, and equipment limits is required, but may not be enough to win customers.
 
 ### 3. Users distinguish useful variety from arbitrary training
 
@@ -82,13 +82,13 @@ A home-fitness poster asks for a small accountability group. Replies describe Wh
 
 The Cortex discussion also contains a user who finds Hevy's existing network of friends motivating. That supports social value while highlighting the challenge of persuading an entire group to adopt a new product. [Social motivation comment](https://www.reddit.com/r/Cortex/comments/1ueso2m/moving_on_from_fitbod/)
 
-Implication: shared links and optional small groups could improve the consumer experience. A group subscription should remain an experiment.
+Implication: shared links and optional small groups could improve the consumer experience. Test payment for group features before building a subscription.
 
 ## Less obvious product clues
 
 A Freeletics user says seeing a demanding future workout creates a mental barrier and asks to see the duration first, then discover the session as it begins. This is a single May 2026 request, so it is a design hypothesis to test, not a market segment. It suggests testing whether a calm start screen and a clear next action help people begin. [Workout disclosure request](https://forum.freeletics.com/t/progressive-exercise-disclosure-in-a-coach-session/24054)
 
-An older Freeletics request reports sessions taking longer than estimated and wants an available-time setting at planning time. A separate earlier thread asks for 20–30 minute sessions. Both are historical; current Freeletics documentation confirms duration adaptation exists. They identify persistent user priorities rather than an established current feature gap. [Timing request](https://forum.freeletics.com/t/customising-time-for-coach-workouts/6162), [Short-session request](https://forum.freeletics.com/t/how-to-set-workout-time-to-20-30-minutes/4966)
+An older Freeletics request reports sessions taking longer than estimated and wants an available-time setting at planning time. A separate earlier thread asks for 20–30 minute sessions. Both are historical; Freeletics documentation at the research date confirmed duration adaptation. They identify persistent user priorities rather than an established current feature gap. [Timing request](https://forum.freeletics.com/t/customising-time-for-coach-workouts/6162), [Short-session request](https://forum.freeletics.com/t/how-to-set-workout-time-to-20-30-minutes/4966)
 
 A Fitbod bodyweight discussion reports repeated manual overrides of recommendations. A company representative replies that bodyweight reasoning exists and could improve. The user's theory that the algorithm ignores bodyweight is not established. The useful commercial signal is frustration with recommendations that do not feel appropriate. [Bodyweight recommendation discussion](https://www.reddit.com/r/fitbod/comments/1ppl91p/the_blindspot_that_is_killing_fitbods_algorithm/)
 
@@ -120,7 +120,7 @@ X coverage is consequently limited. The absence of accessible customer posts is 
 
 ## Opportunity comparison
 
-These are qualitative judgments about the sampled evidence and the current script, not numerical market scores.
+These judgments use the sampled evidence and the September 30 script. They are not numerical market scores.
 
 | Opportunity | Observed need | Payment evidence | Fit with existing script | Key uncertainty |
 | --- | --- | --- | --- | --- |
@@ -154,5 +154,3 @@ Customer interviews should establish the last real occasion the problem occurred
 This is qualitative discovery from a selected public-web sample. Reddit overrepresents enthusiasts and cost-conscious users; app reviews may emphasize unusually positive or negative experiences; cached and indexed text can be incomplete; marketing can look like organic discussion.
 
 No revenue estimates, market-size estimates, search-volume data, representative survey, cohort retention data, acquisition costs, or verified customer transactions were obtained. Specialized clinical, rehabilitation, or medical markets were not evaluated.
-
-The evidence supports testing a focused product. It does not support building every feature, assuming recurring revenue, or declaring an underserved market.

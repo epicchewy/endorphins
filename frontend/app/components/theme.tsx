@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useState,
   useSyncExternalStore,
   type ReactNode,
 } from 'react'
@@ -16,6 +17,8 @@ const ThemeContext = createContext<{ theme: Theme; setTheme: (theme: Theme) => v
   setTheme: () => {},
 })
 let memoryTheme: Theme = 'system'
+// Apply the saved theme before first paint. This script contains no user data.
+export const themeScript = `(()=>{try{const t=localStorage.getItem('endorphins-theme');document.documentElement.dataset.theme=t==='dark'||t==='light'?t:'system'}catch{}})()`
 function readTheme(): Theme {
   try {
     const saved = localStorage.getItem('endorphins-theme')
@@ -43,10 +46,23 @@ function setTheme(next: Theme) {
 }
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const theme = useSyncExternalStore(subscribe, readTheme, () => 'system' as const)
+  const [themeColor, setThemeColor] = useState<string>()
   useEffect(() => {
-    document.documentElement.dataset.theme = theme
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const apply = () => {
+      document.documentElement.dataset.theme = readTheme()
+      setThemeColor(getComputedStyle(document.documentElement).backgroundColor)
+    }
+    apply()
+    media.addEventListener('change', apply)
+    return () => media.removeEventListener('change', apply)
   }, [theme])
-  return <ThemeContext value={{ theme, setTheme }}>{children}</ThemeContext>
+  return (
+    <ThemeContext value={{ theme, setTheme }}>
+      {themeColor && <meta name="theme-color" content={themeColor} />}
+      {children}
+    </ThemeContext>
+  )
 }
 export function ThemeControl({
   compact = true,
@@ -73,6 +89,7 @@ export function ThemeControl({
             'max-[1150px]:absolute max-[1150px]:inset-0 max-[1150px]:w-11 max-[1150px]:opacity-0',
         )}
         id={id}
+        name="theme"
         value={theme}
         onChange={(event) => {
           const value = event.target.value

@@ -19,9 +19,17 @@ func (s *Workouts) Create(ctx context.Context, userID string, workout domains.Sa
 	if err != nil {
 		return domains.SavedWorkout{}, fmt.Errorf("encode workout: %w", err)
 	}
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return domains.SavedWorkout{}, fmt.Errorf("begin workout save: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockWorkoutOwner(ctx, tx, userID); err != nil {
+		return domains.SavedWorkout{}, err
+	}
 	// The unique owner/key constraint serializes concurrent retries. PostgreSQL
 	// returns the original immutable snapshot; a different input cannot overwrite it.
-	result, err := scanWorkout(s.db.QueryRow(ctx, `INSERT INTO workouts (id,user_id,plan,idempotency_key,input_fingerprint)
+	result, err := scanWorkout(tx.QueryRow(ctx, `INSERT INTO workouts (id,user_id,plan,idempotency_key,input_fingerprint)
  VALUES ($1,$2,$3,NULLIF($4,''),NULLIF($5,''))
  ON CONFLICT (user_id,idempotency_key) DO UPDATE SET idempotency_key=EXCLUDED.idempotency_key
  WHERE workouts.input_fingerprint=EXCLUDED.input_fingerprint
@@ -32,7 +40,22 @@ func (s *Workouts) Create(ctx context.Context, userID string, workout domains.Sa
 	if err != nil {
 		return domains.SavedWorkout{}, fmt.Errorf("save workout: %w", err)
 	}
+	if err := tx.Commit(ctx); err != nil {
+		return domains.SavedWorkout{}, fmt.Errorf("commit workout save: %w", err)
+	}
 	return result, nil
+}
+
+func lockWorkoutOwner(ctx context.Context, tx pgx.Tx, userID string) error {
+	var id string
+	err := tx.QueryRow(ctx, `SELECT id::text FROM users WHERE id=$1 FOR KEY SHARE`, userID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domains.ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("lock workout owner: %w", err)
+	}
+	return nil
 }
 func (s *Workouts) Get(ctx context.Context, userID, id string) (domains.SavedWorkout, error) {
 	result, err := scanWorkout(s.db.QueryRow(ctx, `SELECT id,created_at,snapshot_version,plan FROM workouts WHERE user_id=$1 AND id=$2`, userID, id))

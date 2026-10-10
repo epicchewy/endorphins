@@ -4,12 +4,12 @@ import { libraryFilters, type LibrarySearch } from '~/services/library-search'
 import { queryKeys } from '~/services/query-keys'
 import { retryAccountQuery, useAccountSession } from './use-account'
 
-export function useWorkouts(search: LibrarySearch) {
+export function useWorkouts(search: LibrarySearch, limit = 20) {
   const { userId, sessionId, getToken } = useAccountSession()
   const filters = libraryFilters(search)
   return useInfiniteQuery({
-    queryKey: queryKeys.workoutList(sessionId, filters),
-    queryFn: ({ pageParam, signal }) => listWorkouts(filters, pageParam, getToken, signal),
+    queryKey: queryKeys.workoutList(sessionId, filters, limit),
+    queryFn: ({ pageParam, signal }) => listWorkouts(filters, pageParam, getToken, signal, limit),
     initialPageParam: '',
     getNextPageParam: (page) => page.nextCursor || undefined,
     enabled: Boolean(userId),

@@ -48,6 +48,7 @@ test('creation seeds immutable detail and refreshes every affected list and summ
   const filtered = libraryFilters({ q: 'squat', level: 2, sort: 'shortest' })
   const affected = [
     queryKeys.workoutList('active', filters),
+    queryKeys.workoutList('active', filters, 1),
     queryKeys.workoutList('active', filtered),
     queryKeys.workoutSummary('active', filters),
     queryKeys.workoutSummary('active', filtered),

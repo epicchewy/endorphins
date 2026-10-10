@@ -6,29 +6,19 @@ import { Feedback } from '~/components/ui/feedback'
 import { Presence } from '~/components/ui/presence'
 import type { GenerateInput } from '~/services/workouts'
 
-const levels = [
-  { number: 1, title: 'Starting your rhythm', detail: 'Lower reps and foundational variations.' },
-  { number: 2, title: 'Finding your rhythm', detail: 'A little more volume. A steady challenge.' },
-  { number: 3, title: 'Building momentum', detail: 'More reps and demanding variations.' },
-  { number: 4, title: 'Going a little further', detail: 'Higher volume for experienced movers.' },
-  { number: 5, title: 'Meeting the challenge', detail: 'The most demanding exercise variations.' },
-]
+import { workoutLevels as levels } from '~/services/workout-levels'
 export function WorkoutBuilder({
   value,
   onChange,
   onGenerate,
   pending,
   error,
-  hasWorkout,
-  signedIn = true,
 }: {
   value: GenerateInput
   onChange: (input: Partial<GenerateInput>) => void
   onGenerate: () => void
   pending: boolean
   error: string | undefined
-  hasWorkout: boolean
-  signedIn?: boolean
 }) {
   const [customTimeExpanded, setCustomTime] = useState(false)
   const customTime = customTimeExpanded || ![30, 45, 60].includes(value.durationMinutes)
@@ -42,7 +32,7 @@ export function WorkoutBuilder({
   const currentLevel = levels.find((level) => level.number === value.level) ?? levels[1]
   return (
     <form
-      className="rounded-panel border border-line bg-surface p-7 max-[1150px]:p-6 max-[900px]:grid max-[900px]:grid-cols-2 max-[900px]:gap-x-8 max-[600px]:block max-[360px]:p-5"
+      className="rounded-panel border border-line bg-surface p-7 max-[1150px]:p-6 max-[360px]:p-5"
       aria-label="Workout preferences"
       onSubmit={(event) => {
         event.preventDefault()
@@ -50,16 +40,16 @@ export function WorkoutBuilder({
       }}
     >
       <div className="col-span-full">
-        <h3 className="text-2xl font-extrabold tracking-[-0.7px] max-[600px]:text-[23px]">
-          Make it yours.
-        </h3>
-        <p className="mt-2 text-sm text-muted max-[900px]:mt-1">Two choices. One fresh plan.</p>
+        <h2 className="text-2xl font-extrabold tracking-[-0.7px] max-[600px]:text-[23px]">
+          Choose your workout
+        </h2>
+        <p className="mt-2 text-sm text-muted max-[900px]:mt-1">Set your time and level.</p>
       </div>
       <fieldset
         disabled={pending}
         className="mt-7.5 min-w-0 border-0 p-0 max-[900px]:mt-6 max-[600px]:mt-7"
       >
-        <legend className="mb-3.5 p-0 text-sm font-bold">Your time</legend>
+        <legend className="mb-3.5 p-0 text-sm font-bold">Duration</legend>
         <div className="grid grid-cols-3 gap-2">
           {[30, 45, 60].map((minutes) => (
             <RadioOption
@@ -92,7 +82,7 @@ export function WorkoutBuilder({
             setCustomTime(!customTime)
           }}
         >
-          {customTime ? 'Use a preset duration' : 'Have a different amount of time?'}
+          {customTime ? 'Use a preset duration' : 'Custom duration'}
           <span className="text-lg" aria-hidden="true">
             {customTime ? '−' : '+'}
           </span>
@@ -102,10 +92,12 @@ export function WorkoutBuilder({
             className="mt-2 grid-cols-[1fr_90px] items-center [&>p]:col-span-full"
             label="Duration"
             htmlFor="custom-duration"
-            hint="30–120 minutes"
+            hint="30-120 minutes"
           >
             <Input
               id="custom-duration"
+              name="duration"
+              autoComplete="off"
               aria-describedby="custom-duration-hint"
               type="number"
               min="30"
@@ -129,7 +121,7 @@ export function WorkoutBuilder({
         disabled={pending}
         className="mt-7.5 min-w-0 border-0 p-0 max-[900px]:mt-6 max-[600px]:mt-7"
       >
-        <legend className="mb-3.5 p-0 text-sm font-bold">Your level</legend>
+        <legend className="mb-3.5 p-0 text-sm font-bold">Level</legend>
         <div className="grid grid-cols-5 gap-2">
           {levels.map((level) => (
             <RadioOption
@@ -163,22 +155,12 @@ export function WorkoutBuilder({
         type="submit"
         pending={pending}
       >
-        <span>
-          {pending
-            ? 'Building your workout…'
-            : !signedIn
-              ? 'Sign in to build my workout'
-              : hasWorkout
-                ? 'Generate a new workout'
-                : 'Generate my workout'}
-        </span>
+        <span>{pending ? 'Building your workout…' : 'Generate my workout'}</span>
         {!pending && <ArrowUpRight size={20} aria-hidden="true" />}
       </Button>
       <p className="col-span-full mt-4 flex items-center justify-center gap-1.5 text-xs text-muted">
         <Check size={14} aria-hidden="true" />
-        {signedIn
-          ? 'Every workout, saved to your account.'
-          : 'Create an account to save every workout.'}
+        Your plan saves when it is ready.
       </p>
     </form>
   )

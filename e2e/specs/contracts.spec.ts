@@ -138,3 +138,83 @@ test('verified account deletion crosses the production proxy and rejects stale s
   expect(stale.status()).toBe(401)
   expect((await stale.json()).code).toBe('account_deleted')
 })
+
+test('preferences and completion contracts separate plans, repeats, retries and undo', async ({
+  request,
+  subject,
+}, info) => {
+  test.skip(info.project.name !== 'desktop', 'HTTP contract is independent of viewport')
+  const { token } = await (await request.get(`/api/__fixture/token?subject=${subject}`)).json()
+  const authorization = { Authorization: `Bearer ${token}` }
+  const updated = await request.patch('/api/v1/me', {
+    headers: authorization,
+    data: { defaultLevel: 4, completeOnboarding: true },
+  })
+  expect(updated.status()).toBe(200)
+  const user = await updated.json()
+  matches('User', user)
+  expect(user.defaultLevel).toBe(4)
+  expect(user.onboardingCompletedAt).not.toBeNull()
+  for (const data of [
+    { defaultLevel: 0 },
+    { defaultLevel: 6 },
+    { defaultLevel: 2, userId: 'someone-else' },
+  ]) {
+    const invalid = await request.patch('/api/v1/me', { headers: authorization, data })
+    expect([400, 422]).toContain(invalid.status())
+    matches('Error', await invalid.json())
+  }
+  const saved = await (
+    await request.post('/api/v1/workouts', {
+      headers: authorization,
+      data: { durationMinutes: 30, level: 1 },
+    })
+  ).json()
+  const headers = { ...authorization, 'Idempotency-Key': 'first-completion' }
+  const url = `/api/v1/workouts/${saved.id}/completions`
+  const completed = await request.post(url, { headers })
+  expect(completed.status()).toBe(201)
+  const first = await completed.json()
+  matches('Completion', first)
+  expect(await (await request.post(url, { headers })).json()).toEqual(first)
+  const other = (await (await request.get(`/api/__fixture/token?subject=other_${subject}`)).json())
+    .token
+  expect(
+    (
+      await request.post(url, {
+        headers: { Authorization: `Bearer ${other}`, 'Idempotency-Key': 'denied' },
+      })
+    ).status(),
+  ).toBe(404)
+  expect(
+    (
+      await request.delete(`/api/v1/completions/${first.id}`, {
+        headers: { Authorization: `Bearer ${other}` },
+      })
+    ).status(),
+  ).toBe(404)
+  const repeated = await request.post(url, {
+    headers: { ...authorization, 'Idempotency-Key': 'second-completion' },
+  })
+  expect(repeated.status()).toBe(201)
+  const activity = await request.get('/api/v1/activity?timezone=America%2FNew_York', {
+    headers: authorization,
+  })
+  const totals = await activity.json()
+  matches('Activity', totals)
+  expect(totals.completedCount).toBe(2)
+  expect(totals.activeDaysThisWeek).toBe(1)
+  const undone = await request.delete(`/api/v1/completions/${first.id}`, { headers: authorization })
+  matches('UndoCompletion', await undone.json())
+  expect((await request.post(url, { headers })).status()).toBe(409)
+  const latest = await request.get('/api/v1/activity?timezone=UTC', { headers: authorization })
+  expect((await latest.json()).completedCount).toBe(1)
+  expect(
+    (await request.get('/api/v1/activity?timezone=invalid', { headers: authorization })).status(),
+  ).toBe(400)
+  const exported = await request.get('/api/v1/me/export', { headers: authorization })
+  const data = await exported.json()
+  matches('AccountExport', data)
+  expect(data.workouts).toHaveLength(1)
+  expect(data.completions).toHaveLength(2)
+})

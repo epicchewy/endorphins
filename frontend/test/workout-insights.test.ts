@@ -1,10 +1,6 @@
 import { expect, test } from 'bun:test'
 import { workoutSteps } from '../app/services/workout-insights'
-import {
-  preferencesFromSearch,
-  workoutReturnPath,
-  workoutSearch,
-} from '../app/services/workout-preferences'
+import { preferencesFromSearch, workoutSearch } from '../app/services/workout-preferences'
 import type { Workout } from '../app/services/workouts'
 
 const plan: Workout = {
@@ -65,11 +61,8 @@ test('return-to-builder URLs validate numeric settings and never accept a redire
   for (const minutes of [29, 121, 45.5, '', true, ['60'], {}, 'Infinity', '<script>']) {
     expect(preferencesFromSearch(workoutSearch({ minutes, level: 99 }))).toEqual({
       durationMinutes: 45,
-      level: 2,
+      level: 1,
     })
   }
-  expect(workoutReturnPath({ durationMinutes: 75, level: 4 })).toBe('/?minutes=75&level=4#builder')
-  expect(workoutReturnPath({ durationMinutes: NaN, level: Infinity })).toBe(
-    '/?minutes=45&level=2#builder',
-  )
+  expect(preferencesFromSearch({}, 4)).toEqual({ durationMinutes: 45, level: 4 })
 })

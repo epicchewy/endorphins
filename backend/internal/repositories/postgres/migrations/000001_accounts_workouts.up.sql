@@ -6,7 +6,7 @@ CREATE TABLE users (
 
 CREATE TABLE workouts (
     id text PRIMARY KEY CHECK (length(id) BETWEEN 1 AND 128),
-    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id uuid NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     snapshot_version smallint NOT NULL DEFAULT 1 CHECK (snapshot_version = 1),
     plan jsonb NOT NULL CHECK (jsonb_typeof(plan) = 'object')

@@ -1,13 +1,21 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { Presence } from '~/components/ui/presence'
 import { Button } from '~/components/ui/button'
 import { EmptyState } from '~/components/ui/feedback'
-import { ArrowLeft, ArrowRight, Check, Sunrise } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Sunrise } from 'lucide-react'
 import type { Workout } from '~/services/workouts'
 import { workoutSteps } from '~/services/workout-insights'
 import { Prescription } from './prescription'
 
-export function WorkoutFocus({ workout, onExit }: { workout: Workout; onExit: () => void }) {
+export function WorkoutFocus({
+  workout,
+  onExit,
+  children,
+}: {
+  workout: Workout
+  onExit: () => void
+  children: ReactNode
+}) {
   const [index, setIndex] = useState(0)
   const [direction, setDirection] = useState<-1 | 1>(1)
   const focusRef = useRef<HTMLDivElement>(null)
@@ -31,7 +39,7 @@ export function WorkoutFocus({ workout, onExit }: { workout: Workout; onExit: ()
         </span>
       </div>
       <progress
-        className="mt-4 block h-1 w-full appearance-none border-0 bg-line text-accent [&::-webkit-progress-bar]:bg-line [&::-webkit-progress-value]:bg-accent [&::-webkit-progress-value]:transition-[width] [&::-webkit-progress-value]:duration-200 [&::-moz-progress-bar]:bg-accent"
+        className="mt-4 block h-1 w-full appearance-none border-0 bg-line text-accent [&::-webkit-progress-bar]:bg-line [&::-webkit-progress-value]:bg-accent [&::-moz-progress-bar]:bg-accent"
         value={index + 1}
         max={steps.length}
         aria-label="Position in your workout plan"
@@ -46,20 +54,18 @@ export function WorkoutFocus({ workout, onExit }: { workout: Workout; onExit: ()
           {step.kind === 'warmup' ? (
             <>
               <span className="flex items-center gap-2.5 text-xs font-bold text-muted capitalize">
-                <Sunrise size={19} /> Before you begin
+                <Sunrise size={19} aria-hidden="true" /> Before you begin
               </span>
-              <h3 className="mt-5 font-display text-[clamp(34px,3.4vw,50px)] leading-[1.16] font-normal tracking-tight [overflow-wrap:anywhere] max-[600px]:text-[clamp(30px,8.7vw,42px)]">
-                WARM UP.
-                <br />
-                EASE IN.
-              </h3>
+              <h2 className="mt-5 font-display text-[clamp(34px,3.4vw,50px)] leading-[1.16] font-normal tracking-tight [overflow-wrap:anywhere] max-[600px]:text-[clamp(30px,8.7vw,42px)]">
+                Warm up
+              </h2>
               <div className="mt-6 text-4xl font-extrabold tracking-[-1px]">
                 {step.minutes}
                 <span className="ml-1.5 text-sm font-medium tracking-normal">minutes</span>
               </div>
               <p className="mt-5 max-w-[540px] text-sm leading-[1.85] text-muted max-[600px]:text-[13px]">
-                Ease into movement before your first block. Review the plan and gather any weights
-                you’ll need.
+                Ease into movement before your first block. Review the exercise notes before you
+                begin.
               </p>
             </>
           ) : (
@@ -67,9 +73,9 @@ export function WorkoutFocus({ workout, onExit }: { workout: Workout; onExit: ()
               <span className="flex items-center gap-2.5 text-xs font-bold text-muted capitalize">
                 {step.blockName} <span>·</span> Set {step.set} of {step.sets}
               </span>
-              <h3 className="mt-5 font-display text-[clamp(34px,3.4vw,50px)] leading-[1.16] font-normal tracking-tight [overflow-wrap:anywhere] max-[600px]:text-[clamp(30px,8.7vw,42px)]">
+              <h2 className="mt-5 font-display text-[clamp(34px,3.4vw,50px)] leading-[1.16] font-normal tracking-tight [overflow-wrap:anywhere] max-[600px]:text-[clamp(30px,8.7vw,42px)]">
                 {step.exercise.name}
-              </h3>
+              </h2>
               <Prescription exercise={step.exercise} size="focus" />
               <p className="mt-5 max-w-[540px] text-sm leading-[1.85] text-muted max-[600px]:text-[13px]">
                 {step.exercise.description ||
@@ -89,7 +95,7 @@ export function WorkoutFocus({ workout, onExit }: { workout: Workout; onExit: ()
           disabled={index === 0}
           onClick={() => go(index - 1)}
         >
-          <ArrowLeft size={18} /> Previous
+          <ArrowLeft size={18} aria-hidden="true" /> Previous
         </Button>
         {index < steps.length - 1 ? (
           <Button
@@ -97,21 +103,20 @@ export function WorkoutFocus({ workout, onExit }: { workout: Workout; onExit: ()
             variant="primary"
             onClick={() => go(index + 1)}
           >
-            Next <ArrowRight size={18} />
+            Next <ArrowRight size={18} aria-hidden="true" />
           </Button>
         ) : (
-          <Button
-            className="min-w-[130px] max-[600px]:min-w-0 max-[600px]:flex-1 max-[600px]:p-3 max-[600px]:text-xs"
-            variant="primary"
-            onClick={onExit}
-          >
-            Back to plan <Check size={18} />
-          </Button>
+          <div className="min-w-[130px] max-[600px]:min-w-0 max-[600px]:flex-1 [&>a]:w-full">
+            {children}
+          </div>
         )}
       </div>
+      <Button variant="ghost" className="mt-4" onClick={onExit}>
+        Back to plan
+      </Button>
       <p className="mt-6 text-xs leading-[1.8] text-muted">
-        Follow each set in order. Use Previous and Next at your pace. This view doesn’t record
-        completed workouts.
+        Follow each set in order. Use Previous and Next at your pace. Mark your workout complete
+        after you finish.
       </p>
       <output className="sr-only" aria-live="polite" aria-atomic="true">
         Step {index + 1} of {steps.length}:{' '}

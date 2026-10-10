@@ -25,6 +25,11 @@ export const test = base.extend<Fixtures>({
       const response = await request.get(`/api/__fixture/token?subject=${subject}`)
       expect(response.status()).toBe(200)
       const { token } = await response.json()
+      const account = await request.patch('/api/v1/me', {
+        headers: { Authorization: `Bearer ${token}` },
+        data: { defaultLevel: 2, completeOnboarding: true },
+      })
+      expect(account.status()).toBe(200)
       await page.context().addCookies([
         {
           name: 'endorphins_test_session',

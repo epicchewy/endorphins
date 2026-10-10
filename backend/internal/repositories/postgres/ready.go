@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const SchemaVersion = 2
+const SchemaVersion = 4
 
 // CheckReady checks connectivity and the exact migration version this binary
 // supports. Future migrations require an explicit compatibility decision.

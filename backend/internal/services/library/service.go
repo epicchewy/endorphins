@@ -19,6 +19,18 @@ import (
 var ErrInvalidPage = errors.New("invalid workout page")
 var ErrInvalidKey = errors.New("invalid idempotency key")
 
+func validIdempotencyKey(key string) bool {
+	if len(key) > 128 {
+		return false
+	}
+	for _, c := range key {
+		if c < 33 || c > 126 {
+			return false
+		}
+	}
+	return true
+}
+
 type Generator interface {
 	Generate(context.Context, workout.GenerateInput) (domains.Workout, error)
 }
@@ -27,6 +39,9 @@ type Workouts interface {
 	Get(context.Context, string, string) (domains.SavedWorkout, error)
 	List(context.Context, string, domains.WorkoutFilter, *domains.WorkoutCursor, int) ([]domains.SavedWorkout, error)
 	Summary(context.Context, string, domains.WorkoutFilter) (domains.WorkoutSummary, error)
+	Complete(context.Context, string, string, string) (domains.Completion, error)
+	Undo(context.Context, string, string) error
+	Activity(context.Context, string, string) (domains.Activity, error)
 }
 type Service struct {
 	generator Generator
@@ -41,13 +56,8 @@ func (s *Service) Create(ctx context.Context, userID string, input workout.Gener
 	if userID == "" {
 		return domains.SavedWorkout{}, fmt.Errorf("workout owner is required")
 	}
-	if len(key) > 128 {
+	if !validIdempotencyKey(key) {
 		return domains.SavedWorkout{}, ErrInvalidKey
-	}
-	for _, c := range key {
-		if c < 33 || c > 126 {
-			return domains.SavedWorkout{}, ErrInvalidKey
-		}
 	}
 	generated, err := s.generator.Generate(ctx, input)
 	if err != nil {

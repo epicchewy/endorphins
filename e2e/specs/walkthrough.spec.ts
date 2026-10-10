@@ -3,7 +3,6 @@ import { resolve } from 'node:path'
 import { test, expect } from '../fixtures'
 
 const artifacts = resolve(import.meta.dirname, '../../output/playwright/temper-improvements')
-test.use({ video: 'on' })
 
 test('walk through the saved library, workout views, and data export', async ({
   signedInPage: page,
@@ -11,7 +10,7 @@ test('walk through the saved library, workout views, and data export', async ({
 }, info) => {
   await seedLibrary()
   await mkdir(artifacts, { recursive: true })
-  await page.goto('/workouts')
+  await page.goto('/app/workouts')
   await expect(page.getByRole('link', { name: /View plan/ })).toHaveCount(20)
   await page.evaluate(() => document.fonts.ready)
   await page.screenshot({
@@ -29,7 +28,7 @@ test('walk through the saved library, workout views, and data export', async ({
     animations: 'disabled',
   })
   await page.getByRole('link', { name: /View plan/ }).click()
-  await expect(page.getByRole('heading', { name: 'Make this one count.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Full-body workout' })).toBeVisible()
   await page.getByRole('button', { name: 'Exercise view', exact: true }).click()
   await expect(page.getByRole('progressbar')).toBeVisible()
   await page.getByRole('button', { name: 'Next', exact: true }).click()
@@ -40,7 +39,7 @@ test('walk through the saved library, workout views, and data export', async ({
     scale: 'css',
     animations: 'disabled',
   })
-  await page.getByRole('link', { name: 'My workouts', exact: true }).last().click()
+  await page.getByRole('link', { name: 'Saved workouts', exact: true }).last().click()
   await page.getByRole('link', { name: 'Account', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Your account.', exact: true })).toBeVisible()
   const downloading = page.waitForEvent('download')
@@ -56,10 +55,10 @@ test('walk through the saved library, workout views, and data export', async ({
     scale: 'css',
     animations: 'disabled',
   })
-  await page.goto('/?minutes=60&level=3#builder')
+  await page.goto('/app/new?minutes=60&level=3')
   await page.getByRole('button', { name: 'Generate my workout', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Make this one count.' })).toBeVisible()
-  await page.getByRole('region', { name: 'Your time. Your pace.' }).screenshot({
+  await expect(page.getByRole('heading', { name: 'Full-body workout' })).toBeVisible()
+  await page.getByRole('article').screenshot({
     scale: 'css',
     animations: 'disabled',
     path: resolve(artifacts, `after-studio-${info.project.name}.png`),
