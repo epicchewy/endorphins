@@ -21,18 +21,15 @@ test('signing out removes the previous session without cancelling a new account'
   const client = new QueryClient()
   client.setQueryData(queryKeys.workoutList('old-session', filters), { private: 'old account' })
   client.setQueryData(queryKeys.workoutList('new-session', filters), { private: 'new account' })
-  let finish: (data: string) => void = () => {}
+  const result = Promise.withResolvers<string>()
   const pending = client.fetchQuery({
     queryKey: queryKeys.profile('old-session'),
-    queryFn: () =>
-      new Promise<string>((resolve) => {
-        finish = resolve
-      }),
+    queryFn: () => result.promise,
     retry: false,
   })
   const settled = pending.catch(() => undefined)
   clearSessionCache(client, 'old-session')
-  finish('late private result')
+  result.resolve('late private result')
   await settled
   expect(client.getQueriesData({ queryKey: queryKeys.account('old-session') })).toEqual([])
   expect(

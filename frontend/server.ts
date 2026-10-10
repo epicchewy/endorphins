@@ -31,16 +31,10 @@ const server = Bun.serve({
             'Content-Type': request.headers.get('content-type') ?? 'application/json',
             'X-Request-ID': requestId,
             ...Object.fromEntries(
-              ['svix-id', 'svix-timestamp', 'svix-signature']
+              ['svix-id', 'svix-timestamp', 'svix-signature', 'idempotency-key', 'authorization']
                 .filter((name) => request.headers.has(name))
                 .map((name) => [name, request.headers.get(name)!]),
             ),
-            ...(request.headers.has('idempotency-key')
-              ? { 'Idempotency-Key': request.headers.get('idempotency-key')! }
-              : {}),
-            ...(request.headers.has('authorization')
-              ? { Authorization: request.headers.get('authorization')! }
-              : {}),
           },
           body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
           redirect: 'manual',

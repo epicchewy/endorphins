@@ -19,14 +19,10 @@ function matches(name: string, value: unknown) {
 test('production proxy preserves API contracts, idempotency, errors and ownership', async ({
   request,
   subject,
+  authorization,
 }, info) => {
   test.skip(info.project.name !== 'desktop', 'HTTP contract is independent of viewport')
-  const identity = await request.get(`/api/__fixture/token?subject=${subject}`)
-  const { token } = await identity.json()
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    'Idempotency-Key': crypto.randomUUID(),
-  }
+  const headers = { ...authorization, 'Idempotency-Key': crypto.randomUUID() }
   const data = { durationMinutes: 45, level: 2 }
   const created = await request.post('/api/v1/workouts', { headers, data })
   expect(created.status()).toBe(201)
@@ -35,7 +31,26 @@ test('production proxy preserves API contracts, idempotency, errors and ownershi
   matches('Workout', saved)
   expect(saved.warmupMinutes).toBe(5)
   expect(saved.estimatedMinutes).toBeLessThanOrEqual(45)
+  expect(saved.blocks).toHaveLength(3)
   expect(created.headers()['location']).toBe(`/api/v1/workouts/${saved.id}`)
+  for (const [body, status, contentType = 'application/json'] of [
+    ['{"durationMinutes":10,"level":2}', 422],
+    ['{"durationMinutes":30,"level":6}', 422],
+    ['{"durationMinutes":30,"level":2,"admin":true}', 400],
+    ['{"durationMinutes":30,"level":2} {}', 400],
+    ['{', 400],
+    ['null', 422],
+    ['{"durationMinutes":30.5,"level":2}', 400],
+    ['{}', 415, 'text/plain'],
+    [JSON.stringify({ ...data, padding: 'x'.repeat(9000) }), 400],
+  ] as const) {
+    const invalid = await request.post('/api/v1/workouts', {
+      headers: { ...headers, 'Content-Type': contentType },
+      data: body,
+    })
+    expect(invalid.status(), body.slice(0, 80)).toBe(status)
+    matches('Error', await invalid.json())
+  }
   const replay = await request.post('/api/v1/workouts', { headers, data })
   expect(await replay.json()).toEqual(saved)
   const mismatch = await request.post('/api/v1/workouts', {
@@ -103,10 +118,9 @@ test('production static server preserves compression, HEAD and path isolation', 
 test('verified account deletion crosses the production proxy and rejects stale sessions', async ({
   request,
   subject,
+  authorization,
 }, info) => {
   test.skip(info.project.name !== 'desktop', 'HTTP contract is independent of viewport')
-  const { token } = await (await request.get(`/api/__fixture/token?subject=${subject}`)).json()
-  const authorization = { Authorization: `Bearer ${token}` }
   const saved = await request.post('/api/v1/workouts', {
     headers: authorization,
     data: { durationMinutes: 45, level: 2 },
@@ -142,10 +156,9 @@ test('verified account deletion crosses the production proxy and rejects stale s
 test('preferences and completion contracts separate plans, repeats, retries and undo', async ({
   request,
   subject,
+  authorization,
 }, info) => {
   test.skip(info.project.name !== 'desktop', 'HTTP contract is independent of viewport')
-  const { token } = await (await request.get(`/api/__fixture/token?subject=${subject}`)).json()
-  const authorization = { Authorization: `Bearer ${token}` }
   const updated = await request.patch('/api/v1/me', {
     headers: authorization,
     data: { defaultLevel: 4, completeOnboarding: true },

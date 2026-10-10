@@ -25,8 +25,7 @@ Artifacts:
 
 - `../output/playwright/stack.log`: Postgres, API and frontend logs.
 - `../output/playwright/test-results`: failure screenshots, traces and videos.
-- `../output/playwright/redesign`: desktop/mobile journey WebM videos and screen captures.
-- `../output/playwright/redesign/lighthouse-*.report.html`: optional audits. Set `E2E_AUDIT=1` to run `harness/page-audits.ts` against the landing page and dashboard. It owns the audit browser, temporary profile, and Lighthouse process.
+- `../output/playwright/test-results`: the print test's PDF.
 - `playwright-report/index.html`: browser report.
 
 Use `DEBUG=testcontainers:build make e2e` for image build diagnostics. The first run pulls pinned runtime images and installs locked dependencies; later runs reuse Docker build layers. Builds need registry access. The test journeys need no live Clerk service.

@@ -40,15 +40,7 @@ func NewWorkoutResponse(workout domains.SavedWorkout) WorkoutResponse {
 	for _, block := range workout.Blocks {
 		exercises := make([]ExerciseResponse, 0, len(block.Exercises))
 		for _, exercise := range block.Exercises {
-			exercises = append(exercises, ExerciseResponse{
-				Name:        exercise.Name,
-				Description: exercise.Description,
-				Difficulty:  exercise.Difficulty,
-				Reps:        exercise.Reps,
-				Duration:    exercise.Duration,
-				Rest:        exercise.Rest,
-				Rounds:      exercise.Rounds,
-			})
+			exercises = append(exercises, ExerciseResponse(exercise))
 		}
 		blocks = append(blocks, WorkoutBlockResponse{
 			Name:             block.Name,
@@ -105,7 +97,7 @@ type WorkoutSummaryResponse struct {
 func NewWorkoutSummaryResponse(summary domains.WorkoutSummary) WorkoutSummaryResponse {
 	levels := make([]WorkoutLevelCountResponse, 0, len(summary.Levels))
 	for _, level := range summary.Levels {
-		levels = append(levels, WorkoutLevelCountResponse{Level: level.Level, Count: level.Count})
+		levels = append(levels, WorkoutLevelCountResponse(level))
 	}
 	return WorkoutSummaryResponse{
 		Count:          summary.Count,

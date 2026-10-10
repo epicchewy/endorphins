@@ -27,23 +27,19 @@ test('generates, saves, reopens, and follows a workout', async ({ signedInPage: 
 })
 
 test('failed shuffle retains the saved plan and supports a retry', async ({
-  signedInPage: page,
+  savedWorkoutPage: page,
 }) => {
-  await page.goto('/app/new')
-  await page.getByRole('button', { name: 'Generate my workout', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Full-body workout' })).toBeVisible()
   const article = page.getByRole('article')
   const original = await article.locator('dl[aria-label="Workout statistics"]').innerText()
   await page.route('**/api/v1/workouts', async (route) => {
     if (route.request().method() !== 'POST') return route.fallback()
     await route.fulfill({
       status: 503,
-      contentType: 'application/json',
-      body: JSON.stringify({
+      json: {
         message: 'Please try again.',
         code: 'service_unavailable',
         requestId: 'failure-fixture',
-      }),
+      },
     })
   })
   await page.getByRole('button', { name: 'Shuffle', exact: true }).click()
@@ -62,14 +58,15 @@ test('a lost save response retries the same plan and a later shuffle creates a n
   signedInPage: page,
 }) => {
   await page.goto('/app/new')
-  let lostResponse = true
-  await page.route('**/api/v1/workouts', async (route) => {
-    if (route.request().method() !== 'POST' || !lostResponse) return route.fallback()
-    lostResponse = false
-    const saved = await route.fetch()
-    expect(saved.status()).toBe(201)
-    await route.abort('failed')
-  })
+  await page.route(
+    '**/api/v1/workouts',
+    async (route) => {
+      const saved = await route.fetch()
+      expect(saved.status()).toBe(201)
+      await route.abort('failed')
+    },
+    { times: 1 },
+  )
   await page.getByRole('button', { name: 'Generate my workout', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('connection')
   await page.getByRole('button', { name: 'Generate my workout', exact: true }).click()
@@ -97,12 +94,9 @@ test('offline generation recovers without freezing the builder', async ({ signed
 })
 
 test('account switching clears private plans and sign-out protects history', async ({
-  signedInPage: page,
+  savedWorkoutPage: page,
   signIn,
 }) => {
-  await page.goto('/app/new')
-  await page.getByRole('button', { name: 'Generate my workout', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Full-body workout' })).toBeVisible()
   await signIn(`other_${crypto.randomUUID()}`)
   await expect(page.getByRole('heading', { name: 'Full-body workout' })).toHaveCount(0)
   await page.getByRole('link', { name: 'Saved workouts', exact: true }).last().click()

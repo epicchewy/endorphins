@@ -12,10 +12,7 @@ type CreateWorkoutRequest struct {
 }
 
 func (r CreateWorkoutRequest) ToInput() workout.GenerateInput {
-	return workout.GenerateInput{
-		DurationMinutes: r.DurationMinutes,
-		Level:           r.Level,
-	}
+	return workout.GenerateInput(r)
 }
 
 // WorkoutFilterRequest holds decoded query values. The library service owns
@@ -27,7 +24,7 @@ type WorkoutFilterRequest struct {
 }
 
 func (r WorkoutFilterRequest) ToInput() domains.WorkoutFilter {
-	return domains.WorkoutFilter{Query: r.Query, Level: r.Level, Sort: r.Sort}
+	return domains.WorkoutFilter(r)
 }
 
 type ListWorkoutsRequest struct {

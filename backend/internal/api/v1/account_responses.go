@@ -15,13 +15,7 @@ type UserResponse struct {
 }
 
 func NewUserResponse(user domains.User) UserResponse {
-	return UserResponse{
-		ID:                    user.ID,
-		ClerkUserID:           user.ClerkUserID,
-		CreatedAt:             user.CreatedAt,
-		DefaultLevel:          user.DefaultLevel,
-		OnboardingCompletedAt: user.OnboardingCompletedAt,
-	}
+	return UserResponse(user)
 }
 
 type AccountExportResponse struct {

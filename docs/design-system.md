@@ -100,7 +100,7 @@ The [refinement report](architecture-refinement.md) records the change from 14 C
 
 The signup redesign keeps Sharp Serif, Inter, and the existing orange tokens. Public and app layouts are separate. The app uses direct page labels, a compact navigation bar, one primary action in the initial empty dashboard, native level radios, weekly activity bars, and a separate confirmation/success screen. Generated plans and completed workouts have separate counts.
 
-Mobbin references informed the state structure: [Hevy's weekly activity](https://mobbin.com/screens/79a622bd-392f-4ab4-9eb7-18e3a85fcc5c), [Peloton's active days](https://mobbin.com/screens/821d8083-b310-488e-be2e-e0afc024398e), [Bevel's level descriptions](https://mobbin.com/screens/ca012035-d801-42fb-bf6b-89954314cfe6), and [Laravel Cloud's empty state](https://mobbin.com/screens/5a0b71b3-f06f-4b14-af43-b862c1550a8f). Browser verification captures the implemented welcome, levels, setup, saved plan, completion, and dashboard states in `output/playwright/redesign`.
+Mobbin references informed the state structure: [Hevy's weekly activity](https://mobbin.com/screens/79a622bd-392f-4ab4-9eb7-18e3a85fcc5c), [Peloton's active days](https://mobbin.com/screens/821d8083-b310-488e-be2e-e0afc024398e), [Bevel's level descriptions](https://mobbin.com/screens/ca012035-d801-42fb-bf6b-89954314cfe6), and [Laravel Cloud's empty state](https://mobbin.com/screens/5a0b71b3-f06f-4b14-af43-b862c1550a8f). Browser tests verify welcome, levels, setup, saved plans, completion, and dashboard states. Failure captures are in `output/playwright/test-results`.
 
 ## Home workout refinement
 

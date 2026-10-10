@@ -15,7 +15,7 @@ export function WorkoutPage() {
   return (
     <div id="top">
       <SkipLink href="#home-content" />
-      <SiteHeader landing />
+      <SiteHeader />
       <main
         id="home-content"
         className="mx-auto w-[min(calc(100%-var(--page-gutter)*2),var(--page-width))]"
