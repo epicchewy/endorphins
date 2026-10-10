@@ -35,7 +35,7 @@ Start renders pages; the browser calls Go through TanStack Query. Each router ha
 | Styling        | Tailwind 4.3.3 utilities, semantic tokens and locally served fonts                            |
 | Runtime/build  | Bun 1.4.2, Node 26.10.0, Vite 8.3.1                                                           |
 | Authentication | Clerk TanStack Start SDK 1.6.3 / Go SDK v2.7.0; Svix v1.99.1 for webhook verification         |
-| Persistence    | Postgres 17, pgx v5.11.0, golang-migrate v4.20.1                                              |
+| Persistence    | Postgres 17, GORM v1.31.2 / Postgres driver v1.6.3, pgx v5.11.0                               |
 | Database tests | Testcontainers Go v0.44.0                                                                     |
 | Browser tests  | Playwright 1.61.0, desktop Chromium and Pixel 7 mobile emulation                              |
 | Contract       | OpenAPI 3.0.3, generated TypeScript with openapi-typescript 7.13.0                            |
@@ -76,7 +76,7 @@ e2e/
 backend/
   Dockerfile                 # Shared production/e2e image build
   cmd/api/main.go            # Signals, config, application entry point
-  cmd/migrate/main.go        # Explicit versioned schema migration
+  cmd/migrate/main.go        # Explicit GORM AutoMigrate command
   internal/
     api/v1/                 # Public request/response DTOs and error envelope
     app/                    # Constructor wiring and shutdown ownership
@@ -89,7 +89,7 @@ backend/
     integrations/clerk/     # JWT verification and verified deletion webhook
     domains/                # Application values and pure workout rules
     repositories/catalogue/ # Concrete filesystem store
-    repositories/postgres/  # SQL stores, versioned snapshots, migrations, query tests
+    repositories/postgres/  # Stores, versioned snapshots, and query tests
     testfixtures/           # e2e-tag-only Clerk signing and workout seed helpers
 exercises/                  # Original catalogue, shared with Python
 scripts/                    # Development lifecycle and backend layer checks
@@ -109,7 +109,7 @@ Frontend lint runs the pinned React Doctor full scan. CI fails on errors or warn
 
 `POST /api/v1/workouts` persists a resource and returns `201` with its retrieval URL. Optional owner/input-scoped idempotency keys replay the saved result; a conflicting input receives `409`. Authenticated reads include `/api/v1/workouts`, `/api/v1/workouts/summary`, `/api/v1/workouts/{id}`, `/api/v1/me`, and `/api/v1/me/export`. Errors use safe `{message, code, requestId}` envelopes. The server generates the correlation ID; structured internal logs retain unexpected causes while responses expose safe copy.
 
-`GET /healthz` is process liveness. `GET /readyz` checks the database and clean supported schema version with a two-second bound. Startup validates both catalogue and database schema. See [the account and workout model](accounts-and-workouts.md) for ownership, cursors, snapshots, idempotency, and deletion semantics; see [deployment](deployment.md) for operational setup.
+`GET /healthz` is process liveness. `GET /readyz` checks database connectivity with a two-second bound. Startup validates the catalogue and database connection. The separate migration command prepares the schema before startup. See [the account and workout model](accounts-and-workouts.md) for ownership, cursors, snapshots, idempotency, and deletion semantics; see [deployment](deployment.md) for operational setup.
 
 ## Generation policy
 
@@ -155,6 +155,12 @@ The [browser harness](../e2e/README.md) uses the application Dockerfiles and ent
 Only the external Clerk adapters change in `e2e` builds. `internal/testfixtures` supplies signing keys and fixture routes. Real JWT/webhook verifiers, owner-scoped queries, wiring, and migrations stay in use. Release import checks reject test fixtures, and frontend release checks reject test identity code. Real Clerk signup and provider webhook delivery need separate integration checks.
 
 Postgres tests use one migrated container per package, created by `TestMain` in `repositories_test.go`. Serial resource tests reset rows before each case. Schema and migration tests use temporary databases within that same container. These tests call repositories directly and cover SQL behavior; browser tests own full HTTP journeys.
+
+Repositories use GORM for reads, writes, joins, filters, cursor ordering, row locks, and conditional upserts. Persistence rows stay inside the Postgres package; domains and services have no ORM dependency. List and summary share one owner/search filter. Completion joins include both owner and workout IDs. Go hooks generate account/completion UUIDs. GORM supplies creation/confirmation timestamps in UTC; repository mappings return stored timestamps in UTC. The API supplies UTC timestamps for the first onboarding and Undo operations under row locks. GORM runs explicit transactions for account lifecycle operations, child writes, exports, and activity snapshots.
+
+The GORM migration backfills workout level, estimated minutes, and an owned search-term table from immutable snapshots when upgrading the old schema. Saves write these fields and lowercased focus, block, and exercise names in the same transaction. Retries retain the original plan and its search terms. GORM filters and orders these columns, and joins search terms on both owner and workout ID. Distinct results prevent duplicate matches. Summary reads only matching IDs, levels, and minutes and folds totals in Go. Activity counts all active completions in Postgres, then groups timestamps into four local calendar weeks in Go. Its timestamp query spans 30 UTC days to cover all zone offsets; only dates in those four weeks count.
+
+The unique deletion-digest key serializes account resolution and erasure. Resolution inserts a transient guard and removes it before commit. Erasure keeps the tombstone and deletes owned search terms with the other child records. Application and test queries contain no SQL statements or expressions. Integration fixtures use GORM, callbacks for failure injection, and isolated databases for schema upgrade tests. Temporary databases use Postgres `createdb` and `dropdb` inside the test container. There are no SQL files or versioned schema migrations. GORM uses pgx through its Postgres driver. The separate `cmd/migrate` command runs `AutoMigrate` over repository models with foreign key creation disabled. It removes known legacy relationship constraints, backfills query fields, and removes the old migration table in one transaction. Repeating the command preserves application records. API startup never calls `AutoMigrate`. UUIDs, timestamps, and value validation live in Go; model tags retain primary keys, unique keys, indexes, nullability, and literal defaults.
 
 ## Signup, onboarding, and activity
 

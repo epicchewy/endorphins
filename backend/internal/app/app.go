@@ -40,15 +40,19 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("initialize catalogue: %w", err)
 	}
-	pool, err := postgres.Open(ctx, cfg.Postgres.URL)
+	db, err := postgres.Open(ctx, cfg.Postgres.URL)
 	if err != nil {
 		return err
 	}
-	defer pool.Close()
-	if err := postgres.CheckReady(ctx, pool); err != nil {
+	pool, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("get database pool: %w", err)
+	}
+	defer func() { _ = pool.Close() }()
+	if err := postgres.CheckReady(ctx, db); err != nil {
 		return err
 	}
-	users, workouts := postgres.NewUsers(pool), postgres.NewWorkouts(pool)
+	users, workouts := postgres.NewUsers(db), postgres.NewWorkouts(db)
 	libraryService := library.New(workout.New(catalogue), workouts)
 	accountService := account.New(users)
 	clerk, err := newClerkEnvironment(cfg.Clerk, users, workouts, logger)
@@ -67,7 +71,7 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		logger.Warn("Clerk account deletion webhook is not configured for this development instance")
 	}
 	router := server.New(handlers.NewWorkout(libraryService), handlers.NewAccount(accountService), authenticate, logger, server.Options{
-		Ready: func(ctx context.Context) error { return postgres.CheckReady(ctx, pool) }, ClerkWebhook: webhook,
+		Ready: func(ctx context.Context) error { return postgres.CheckReady(ctx, db) }, ClerkWebhook: webhook,
 	})
 	srv := &http.Server{
 		Addr:              cfg.HTTP.Address,

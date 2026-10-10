@@ -1,7 +1,8 @@
-// Command migrate applies pending database migrations before API deployment.
+// Command migrate applies the GORM schema before API deployment.
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -24,10 +25,22 @@ func run() int {
 		return 2
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	if err := postgres.Migrate(cfg.Postgres.URL); err != nil {
+	ctx := context.Background()
+	db, err := postgres.Open(ctx, cfg.Postgres.URL)
+	if err != nil {
+		logger.Error("database connection failed", "error", err)
+		return 1
+	}
+	pool, err := db.DB()
+	if err != nil {
+		logger.Error("database pool failed", "error", err)
+		return 1
+	}
+	defer func() { _ = pool.Close() }()
+	if err := postgres.Migrate(ctx, db); err != nil {
 		logger.Error("migration failed", "error", err)
 		return 1
 	}
-	logger.Info("database migrations are current")
+	logger.Info("database schema is current")
 	return 0
 }

@@ -1,11 +1,11 @@
 # Go backend
 
-- `internal/app` owns constructor wiring and shutdown. Handlers depend on local service interfaces. Services consume small interfaces; repositories implement concrete storage with parameterized queries.
+- `internal/app` owns constructor wiring and shutdown. Handlers depend on local service interfaces. Services consume small interfaces; repositories own GORM models, queries, and transactions. Use GORM builders for application queries and test fixtures. Use model-driven `AutoMigrate` in the separate migration command. Do not add SQL files or raw SQL statements or expressions in Go.
 - Domains stay free of transport concerns. Resource DTOs and their `ToInput` / `New…Response` conversions live together in `internal/api/v1`; persistent JSON mappings belong in the versioned Postgres snapshot codec. Never serialize domain structs directly into historical records.
 - Owner IDs come from verified sessions resolved to internal user UUIDs. Every workout read/write is owner-scoped. Preserve idempotency and deletion/provision transaction invariants.
 - Accept context first for I/O, propagate cancellation, bound deadlines, wrap errors once, and classify expected failures centrally. Log internal causes with request IDs; return only safe API errors.
 - Never add `main_test.go` or command-entrypoint tests. Shared repository lifecycle belongs in `repositories_test.go`; query tests belong beside the resource they cover.
-- Add forward SQL migrations and tests against real Testcontainers Postgres. Docker failures are test failures, never skips. Keep generator and JWT negative-case tests fast and focused.
+- Update schema model tags and add repeatable GORM data fixes where needed. Test schema changes against real Testcontainers Postgres. Docker failures are test failures, never skips. Keep generator and JWT negative-case tests fast and focused.
 - No foreign key constraints. Lock the owner row for child writes and before account cleanup, and delete owned records explicitly in the erasure transaction.
 - Go 1.27.1 is pinned in go.mod/Makefile. Run `make check` from root; its layer checker rejects illegal transitive imports. Keep all `e2e` build-tag fixtures out of release binaries.
 - Keep config options with their owner. Use `jessevdk/go-flags` tags. Keep CLI flags, environment names, defaults, and descriptions together. Migration config must not require identity credentials. Handle help in the command before opening resources.

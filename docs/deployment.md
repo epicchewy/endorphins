@@ -48,19 +48,19 @@ The public Clerk key is a frontend build argument. Supply secret keys and databa
 Deployment sequence:
 
 1. Verify the intended database, recoverable backup, environment, and release artifact. Do not print connection strings or secrets into logs.
-2. Run the release's `bin/migrate` once with `DATABASE_URL` set. Migrations are embedded; golang-migrate handles its lock and dirty-state table. API startup does not apply them.
-3. Start `bin/api` with the matching environment and catalogue. Startup fails if the catalogue is invalid, the database is unreachable, or schema compatibility fails.
+2. Stop the old API and run one release `bin/migrate` process with `DATABASE_URL` set. It applies GORM models and repeatable data fixes in one transaction. API startup does not apply them.
+3. Start `bin/api` with the matching environment and catalogue. Startup fails if the catalogue is invalid or the database is unreachable.
 4. Start the Bun frontend/proxy and route traffic only after the Go readiness probe succeeds.
 5. Check a signed-in generation, saved detail/reload, library filters, and account export through the public origin. Check the configured Clerk lifecycle flow separately.
 
-The current API accepts clean schema version 4 only. A dirty migration, old version, future version, or missing migration table prevents startup/readiness. Inspect and repair failed migrations before advancing the version; do not clear dirty state by resetting the database.
+The migration command follows Temper's model-driven `AutoMigrate` approach. It removes known legacy foreign keys, backfills workout query fields and search terms, and removes old migration bookkeeping. Stored plans, accounts, completions, retry keys, and tombstones remain. The API writes derived fields in the save transaction and deletes them during account erasure. Older binaries that depend on cascading deletes cannot safely use this schema.
 
-Migration 4 removes legacy foreign keys. Stop the old API before applying it, then start the matching API with explicit account cleanup and owner-row locks. Older binaries that depend on cascading deletes cannot safely run against this schema. Rollback migrations never restore foreign keys.
+Serialize migration runs in the deployment platform. There is no version table, dirty flag, migration lock, or automatic down migration. A failed run rolls back schema and data together; fix its cause and rerun the same command. Readiness checks connectivity, so a successful migration command is a required deployment step.
 
 ## Liveness, readiness, and request diagnosis
 
 - `GET /healthz`: process liveness. A running API remains live during a database outage; restarting it repeatedly will not repair the database.
-- `GET /readyz`: database connectivity and schema compatibility, bounded to two seconds. Returns `200` when ready or a safe `503` envelope otherwise; responses are not cached.
+- `GET /readyz`: database connectivity, bounded to two seconds. Returns `200` when ready or a safe `503` envelope otherwise; responses are not cached.
 - Startup logs include application `version` and `revision`. Unset build metadata appears as `development`/`unknown`.
 - API failures use `{message, code, requestId}`. Match the returned `X-Request-ID` to structured logs to inspect an unexpected cause. Internal database errors and secrets are not returned to clients. A proxy connection failure produces its own safe request ID.
 
@@ -80,4 +80,4 @@ Account erasure inserts a SHA-256 subject digest into `deleted_accounts`, locks 
 
 Live database deletion does not modify existing backups. Define backup retention and access policies with the hosting operator. Before opening traffic after a restore, preserve or reconcile completed erasures and tombstones so old account data is not restored as active. Backup expiry and restore-time erasure reconciliation are operational responsibilities; this repository does not automate them.
 
-Rollback requires a binary compatible with the database schema. The current strict version check prevents assuming an older binary can run after a newer migration. Prefer a reviewed forward fix or a previously tested compatible artifact. Do not automatically run the version-2 down migration: it drops deletion tombstones and idempotency metadata. Any database rollback or backup restore needs explicit assessment of those data-loss and account-lifecycle effects before traffic resumes.
+Rollback requires a binary tested against the current database schema. `AutoMigrate` does not supply a down migration. Prefer a forward fix or a tested compatible artifact. Preserve deletion tombstones, immutable snapshots, and retry metadata when changing the schema or restoring a backup. Assess account erasure effects before traffic resumes.

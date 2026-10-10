@@ -22,12 +22,12 @@ Mobbin references: [Runna activity](https://mobbin.com/screens/17c9ee53-dcd9-498
 
 Resolved findings:
 
-- Database: migrations 1 and 3 create no foreign keys. Migration 4 removes legacy constraints without restoring them on rollback. Child writes lock the owner with `FOR KEY SHARE`; erasure uses `FOR UPDATE` and explicit deletes. Real Postgres tests cover upgrades without data loss, concurrent writes, stale sessions, and rollback after a failed user delete. Primary keys, unique retry keys, checks, and indexes remain. Legacy foreign keys exist only in upgrade-test setup.
+- Database: GORM `AutoMigrate` now creates the schema without foreign keys. Repeatable GORM fixes remove known legacy constraints. Child writes lock the owner with `FOR KEY SHARE`; erasure uses `FOR UPDATE` and explicit deletes. Real Postgres tests cover upgrades without data loss, concurrent writes, stale sessions, and rollback after a failed user delete. Primary keys, unique retry keys, nullability, and indexes remain; Go validates values. Legacy foreign keys exist only in upgrade-test setup.
 - Landing/onboarding: home photos and direct copy replace gym cues and repeated features. The landing has one signup CTA. Welcome keeps copy and the next action together on mobile. Step changes focus the new heading.
 - Setup/plan: URL edits merge field patches. The builder has one setup form with native duration validation. The plan and exercise view share a completion link. Workout headings use the correct hierarchy; decorative icons are hidden from assistive tools.
 - Dashboard/account: fetch one latest plan with a page-size-aware key. Give completed activity priority, show zero chart counts without filled tracks, and announce reached milestones. The markers fit at 320px. A native route blocker protects unsaved level edits.
 - Delivery/theme: preload the correct Inter file. Responsive WebP assets use Vite fingerprints and one-year cache lifetimes. Saved-plan rows defer off-screen rendering. The saved theme applies before first paint; React owns one theme-color tag and follows system changes.
-- Deployment: readiness requires schema 4. Stop cascade-dependent binaries before migration 4, then run the matching cleanup code.
+- Deployment: run the separate GORM migration command before the matching API. Readiness now checks connectivity. Stop cascade-dependent binaries before removing legacy constraints.
 
 ## Quality follow-up
 

@@ -11,9 +11,9 @@ import (
 	"github.com/epicchewy/endorphins/backend/internal/domains"
 	store "github.com/epicchewy/endorphins/backend/internal/repositories/postgres"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestWorkoutsCreatePersistsSnapshotAcrossConnections(t *testing.T) {
@@ -28,7 +28,7 @@ func TestWorkoutsCreatePersistsSnapshotAcrossConnections(t *testing.T) {
 
 	other, err := store.Open(t.Context(), repositoryTestURL)
 	require.NoError(t, err)
-	t.Cleanup(other.Close)
+	cleanupRepositoryDatabase(t, other)
 	loaded, err := store.NewWorkouts(other).Get(t.Context(), user.ID, "saved-plan")
 	require.NoError(t, err)
 	assert.Equal(t, saved, loaded)
@@ -50,8 +50,8 @@ func TestWorkoutsCreateRejectsDuplicateIDsAndMissingOwners(t *testing.T) {
 	assert.Equal(t, "23505", duplicate.Code)
 	_, err = repo.Create(t.Context(), "00000000-0000-0000-0000-000000000000", workoutSnapshot("orphan"), "", "")
 	assert.ErrorIs(t, err, domains.ErrNotFound)
-	var orphanCount int
-	require.NoError(t, db.QueryRow(t.Context(), `SELECT count(*) FROM workouts WHERE id='orphan'`).Scan(&orphanCount))
+	var orphanCount int64
+	require.NoError(t, db.WithContext(t.Context()).Table("workouts").Where(map[string]any{"id": "orphan"}).Count(&orphanCount).Error)
 	assert.Zero(t, orphanCount)
 	items, err := repo.List(t.Context(), user.ID, domains.WorkoutFilter{}, nil, 20)
 	require.NoError(t, err)
@@ -104,6 +104,7 @@ func TestWorkoutsListSearchesFullLibraryAndTreatsQueryLiterally(t *testing.T) {
 		{"literal SQL wildcards", domains.WorkoutFilter{Query: "%_"}, []string{"query-01"}},
 		{"SQL injection is data", domains.WorkoutFilter{Query: "' OR 1=1 --"}, []string{}},
 		{"query and level intersect", domains.WorkoutFilter{Query: "squat", Level: 1}, []string{"query-25", "query-20", "query-15", "query-10", "query-05"}},
+		{"case insensitive", domains.WorkoutFilter{Query: "SQUAT", Level: 1}, []string{"query-25", "query-20", "query-15", "query-10", "query-05"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			items, err := repo.List(t.Context(), userID, tt.filter, nil, 20)
@@ -127,7 +128,7 @@ func TestWorkoutsListPaginatesStableTimestampAndDurationTies(t *testing.T) {
 		plan.EstimatedMinutes = row.minutes
 		_, err := repo.Create(t.Context(), user.ID, plan, "", "")
 		require.NoError(t, err)
-		_, err = db.Exec(t.Context(), `UPDATE workouts SET created_at=$1 WHERE id=$2`, time.Date(2026, 1, row.day, 12, 0, 0, 0, time.UTC), row.id)
+		err = db.WithContext(t.Context()).Table("workouts").Where(map[string]any{"id": row.id}).Update("created_at", time.Date(2026, 1, row.day, 12, 0, 0, 0, time.UTC)).Error
 		require.NoError(t, err)
 	}
 	for _, tt := range []struct {
@@ -164,6 +165,7 @@ func TestWorkoutsSummaryCoversAllMatchingRecords(t *testing.T) {
 		expected domains.WorkoutSummary
 	}{
 		{"entire library", domains.WorkoutFilter{}, domains.WorkoutSummary{Count: 26, PlannedMinutes: 805, AverageMinutes: 805.0 / 26, Levels: []domains.LevelCount{{Level: 1, Count: 6}, {Level: 2, Count: 5}, {Level: 3, Count: 5}, {Level: 4, Count: 5}, {Level: 5, Count: 5}}}},
+		{"duplicate matching names", domains.WorkoutFilter{Query: "legs"}, domains.WorkoutSummary{Count: 26, PlannedMinutes: 805, AverageMinutes: 805.0 / 26, Levels: []domains.LevelCount{{Level: 1, Count: 6}, {Level: 2, Count: 5}, {Level: 3, Count: 5}, {Level: 4, Count: 5}, {Level: 5, Count: 5}}}},
 		{"level filter", domains.WorkoutFilter{Level: 1}, domains.WorkoutSummary{Count: 6, PlannedMinutes: 186, AverageMinutes: 31, Levels: []domains.LevelCount{{Level: 1, Count: 6}, {Level: 2}, {Level: 3}, {Level: 4}, {Level: 5}}}},
 		{"exercise query", domains.WorkoutFilter{Query: "rare shoulder"}, domains.WorkoutSummary{Count: 1, PlannedMinutes: 30, AverageMinutes: 30, Levels: []domains.LevelCount{{Level: 1, Count: 1}, {Level: 2}, {Level: 3}, {Level: 4}, {Level: 5}}}},
 		{"no matches", domains.WorkoutFilter{Query: "missing"}, domains.WorkoutSummary{Levels: []domains.LevelCount{{Level: 1}, {Level: 2}, {Level: 3}, {Level: 4}, {Level: 5}}}},
@@ -177,22 +179,26 @@ func TestWorkoutsSummaryCoversAllMatchingRecords(t *testing.T) {
 }
 
 func TestWorkoutsReadsRejectUnsupportedSnapshotVersion(t *testing.T) {
-	db, databaseURL := isolatedRepositoryDatabase(t)
-	require.NoError(t, store.Migrate(databaseURL))
+	db := isolatedRepositoryDatabase(t)
+	require.NoError(t, store.Migrate(t.Context(), db))
 	users := store.NewUsers(db)
 	user, err := users.Ensure(t.Context(), "user_alice")
 	require.NoError(t, err)
 	repo := store.NewWorkouts(db)
 	_, err = repo.Create(t.Context(), user.ID, workoutSnapshot("future-snapshot"), "", "")
 	require.NoError(t, err)
-	_, err = db.Exec(t.Context(), `ALTER TABLE workouts DROP CONSTRAINT workouts_snapshot_version_check; UPDATE workouts SET snapshot_version=2`)
-	require.NoError(t, err)
+	require.NoError(t, db.WithContext(t.Context()).Session(&gorm.Session{AllowGlobalUpdate: true}).
+		Table("workouts").Update("snapshot_version", 2).Error)
 	_, err = repo.Get(t.Context(), user.ID, "future-snapshot")
 	assert.ErrorContains(t, err, "unsupported snapshot version 2")
 	_, err = repo.List(t.Context(), user.ID, domains.WorkoutFilter{}, nil, 20)
 	assert.ErrorContains(t, err, "unsupported snapshot version 2")
 	_, err = users.Export(t.Context(), user.ID)
 	assert.ErrorContains(t, err, "unsupported snapshot version 2")
+	completion, err := repo.Complete(t.Context(), user.ID, "future-snapshot", "metadata-only")
+	require.NoError(t, err)
+	assert.Equal(t, 2, completion.Level)
+	assert.Equal(t, "legs", completion.Focus)
 }
 
 func workoutSnapshot(id string) domains.SavedWorkout {
@@ -213,7 +219,7 @@ func workoutIDs(items []domains.SavedWorkout) []string {
 	return ids
 }
 
-func seedWorkoutLibrary(t *testing.T, db *pgxpool.Pool) string {
+func seedWorkoutLibrary(t *testing.T, db *gorm.DB) string {
 	t.Helper()
 	users, repo := store.NewUsers(db), store.NewWorkouts(db)
 	alice, err := users.Ensure(t.Context(), "user_alice")
@@ -236,7 +242,7 @@ func seedWorkoutLibrary(t *testing.T, db *pgxpool.Pool) string {
 	other.Focus, other.EstimatedMinutes = "Rare shoulder press", 999
 	_, err = repo.Create(t.Context(), bob.ID, other, "", "")
 	require.NoError(t, err)
-	_, err = db.Exec(t.Context(), `UPDATE workouts SET created_at='2026-01-01T12:00:00Z'`)
+	err = db.WithContext(t.Context()).Session(&gorm.Session{AllowGlobalUpdate: true}).Table("workouts").Update("created_at", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)).Error
 	require.NoError(t, err)
 	return alice.ID
 }

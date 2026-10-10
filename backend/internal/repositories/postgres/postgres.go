@@ -1,4 +1,4 @@
-// Package postgres implements persistence with explicit, parameterized SQL.
+// Package postgres implements persistence and schema migration with GORM.
 package postgres
 
 import (
@@ -6,27 +6,41 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
+	gormPostgres "gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
-func Open(ctx context.Context, url string) (*pgxpool.Pool, error) {
-	cfg, err := pgxpool.ParseConfig(url)
+func Open(ctx context.Context, url string) (*gorm.DB, error) {
+	cfg, err := pgx.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf("invalid database configuration")
 	}
-	cfg.MaxConns = 10
-	cfg.MinConns = 1
-	cfg.MaxConnLifetime = time.Hour
-	cfg.MaxConnIdleTime = 5 * time.Minute
-	cfg.ConnConfig.ConnectTimeout = 5 * time.Second
-	cfg.ConnConfig.RuntimeParams["statement_timeout"] = "5000"
-	pool, err := pgxpool.NewWithConfig(ctx, cfg)
-	if err != nil {
-		return nil, fmt.Errorf("initialize database pool: %w", err)
-	}
-	if err := pool.Ping(ctx); err != nil {
-		pool.Close()
+	cfg.ConnectTimeout = 5 * time.Second
+	// Describe each query so schema changes cannot leave cached row types behind.
+	cfg.DefaultQueryExecMode = pgx.QueryExecModeDescribeExec
+	cfg.RuntimeParams["statement_timeout"] = "5000"
+	pool := stdlib.OpenDB(*cfg)
+	pool.SetMaxOpenConns(10)
+	pool.SetMaxIdleConns(10)
+	pool.SetConnMaxLifetime(time.Hour)
+	pool.SetConnMaxIdleTime(5 * time.Minute)
+	if err := pool.PingContext(ctx); err != nil {
+		_ = pool.Close()
 		return nil, fmt.Errorf("connect to database: %w", err)
 	}
-	return pool, nil
+	db, err := gorm.Open(gormPostgres.New(gormPostgres.Config{Conn: pool}), &gorm.Config{
+		DisableAutomaticPing:                     true,
+		SkipDefaultTransaction:                   true,
+		DisableForeignKeyConstraintWhenMigrating: true,
+		NowFunc:                                  func() time.Time { return time.Now().UTC() },
+		Logger:                                   logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		_ = pool.Close()
+		return nil, fmt.Errorf("initialize database: %w", err)
+	}
+	return db, nil
 }

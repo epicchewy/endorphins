@@ -3,136 +3,182 @@ package postgres
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
+	"unicode/utf8"
 
 	"github.com/epicchewy/endorphins/backend/internal/domains"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
-type Users struct{ db *pgxpool.Pool }
+type Users struct{ db *gorm.DB }
 
-func NewUsers(db *pgxpool.Pool) *Users { return &Users{db: db} }
+func NewUsers(db *gorm.DB) *Users { return &Users{db: db} }
+
+type userRow struct {
+	ID                    string    `gorm:"primaryKey;type:uuid"`
+	ClerkUserID           string    `gorm:"type:text;not null;unique"`
+	CreatedAt             time.Time `gorm:"not null"`
+	DefaultLevel          int       `gorm:"type:smallint;not null;default:1"`
+	OnboardingCompletedAt *time.Time
+}
+
+func (userRow) TableName() string { return "users" }
+
+func (row *userRow) BeforeCreate(_ *gorm.DB) error {
+	if row.ID == "" {
+		row.ID = uuid.NewString()
+	}
+	return nil
+}
+
+func (row userRow) domain() domains.User {
+	if row.OnboardingCompletedAt != nil {
+		completed := row.OnboardingCompletedAt.UTC()
+		row.OnboardingCompletedAt = &completed
+	}
+	return domains.User{
+		ID: row.ID, ClerkUserID: row.ClerkUserID, CreatedAt: row.CreatedAt.UTC(),
+		DefaultLevel: row.DefaultLevel, OnboardingCompletedAt: row.OnboardingCompletedAt,
+	}
+}
+
+type deletedAccountRow struct {
+	SubjectHash string    `gorm:"primaryKey;type:text"`
+	DeletedAt   time.Time `gorm:"not null;autoCreateTime"`
+}
+
+func (deletedAccountRow) TableName() string { return "deleted_accounts" }
+
 func subjectHash(subject string) string {
 	digest := sha256.Sum256([]byte(subject))
 	return hex.EncodeToString(digest[:])
 }
 
-// Ensure and Erase take the same per-subject transaction lock. A deletion racing
-// first-use provisioning always leaves a tombstone and no resurrected account.
+// Ensure and Erase share the same transaction lock. Erasure leaves a tombstone
+// that prevents a concurrent or late request from recreating the account.
 func (s *Users) Ensure(ctx context.Context, subject string) (domains.User, error) {
-	tx, err := s.db.Begin(ctx)
-	if err != nil {
-		return domains.User{}, fmt.Errorf("begin account resolution: %w", err)
+	if size := utf8.RuneCountInString(subject); size < 1 || size > 255 {
+		return domains.User{}, fmt.Errorf("invalid account subject")
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, subject); err != nil {
-		return domains.User{}, fmt.Errorf("lock account: %w", err)
-	}
-	var deleted bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM deleted_accounts WHERE subject_hash=$1)`, subjectHash(subject)).Scan(&deleted); err != nil {
-		return domains.User{}, fmt.Errorf("check account lifecycle: %w", err)
-	}
-	if deleted {
-		return domains.User{}, domains.ErrAccountDeleted
-	}
-	var user domains.User
-	err = tx.QueryRow(ctx, `SELECT id::text,clerk_user_id,created_at,default_level,onboarding_completed_at FROM users WHERE clerk_user_id=$1`, subject).Scan(&user.ID, &user.ClerkUserID, &user.CreatedAt, &user.DefaultLevel, &user.OnboardingCompletedAt)
-	if errors.Is(err, pgx.ErrNoRows) {
-		err = tx.QueryRow(ctx, `INSERT INTO users (clerk_user_id) VALUES ($1) RETURNING id::text,clerk_user_id,created_at,default_level,onboarding_completed_at`, subject).Scan(&user.ID, &user.ClerkUserID, &user.CreatedAt, &user.DefaultLevel, &user.OnboardingCompletedAt)
-	}
+	var row userRow
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// The unique subject key serializes provisioning and erasure. Provisioning
+		// removes its transient row before commit; erasure keeps the tombstone.
+		guard := deletedAccountRow{SubjectHash: subjectHash(subject)}
+		reserved := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&guard)
+		if reserved.Error != nil {
+			return fmt.Errorf("lock account lifecycle: %w", reserved.Error)
+		}
+		if reserved.RowsAffected == 0 {
+			return domains.ErrAccountDeleted
+		}
+		if err := tx.Clauses(clause.Returning{}).Where(map[string]any{"clerk_user_id": subject}).FirstOrCreate(&row).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&guard).Error
+	})
 	if err != nil {
 		return domains.User{}, fmt.Errorf("resolve user: %w", err)
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return domains.User{}, fmt.Errorf("commit account resolution: %w", err)
-	}
-	return user, nil
+	return row.domain(), nil
 }
+
 func (s *Users) Erase(ctx context.Context, subject string) error {
-	tx, err := s.db.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin account erasure: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, subject); err != nil {
-		return fmt.Errorf("lock account erasure: %w", err)
-	}
-	if _, err := tx.Exec(ctx, `INSERT INTO deleted_accounts (subject_hash) VALUES ($1) ON CONFLICT DO NOTHING`, subjectHash(subject)); err != nil {
-		return fmt.Errorf("record deleted account: %w", err)
-	}
-	// Lock before deleting children. Child writes hold a key-share lock on the
-	// same row, so a concurrent save either precedes cleanup or finds no owner.
-	var userID string
-	err = tx.QueryRow(ctx, `SELECT id::text FROM users WHERE clerk_user_id=$1 FOR UPDATE`, subject).Scan(&userID)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("lock account cleanup: %w", err)
-	}
-	if userID != "" {
-		if _, err := tx.Exec(ctx, `DELETE FROM workout_completions WHERE user_id=$1`, userID); err != nil {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		tombstone := deletedAccountRow{SubjectHash: subjectHash(subject)}
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&tombstone).Error; err != nil {
+			return fmt.Errorf("record deleted account: %w", err)
+		}
+		// Child writes hold KEY SHARE on the same owner. Cleanup takes UPDATE.
+		var owner userRow
+		err := tx.Select("id").Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where(map[string]any{"clerk_user_id": subject}).Take(&owner).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("lock account cleanup: %w", err)
+		}
+		if err := tx.Where(map[string]any{"user_id": owner.ID}).Delete(&completionRow{}).Error; err != nil {
 			return fmt.Errorf("erase account completions: %w", err)
 		}
-		if _, err := tx.Exec(ctx, `DELETE FROM workouts WHERE user_id=$1`, userID); err != nil {
+		if err := tx.Where(map[string]any{"user_id": owner.ID}).Delete(&workoutSearchTerm{}).Error; err != nil {
+			return fmt.Errorf("erase account search terms: %w", err)
+		}
+		if err := tx.Where(map[string]any{"user_id": owner.ID}).Delete(&workoutRow{}).Error; err != nil {
 			return fmt.Errorf("erase account workouts: %w", err)
 		}
-	}
-	if _, err := tx.Exec(ctx, `DELETE FROM users WHERE clerk_user_id=$1`, subject); err != nil {
+		return tx.Delete(&owner).Error
+	})
+	if err != nil {
 		return fmt.Errorf("erase account: %w", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit account erasure: %w", err)
 	}
 	return nil
 }
+
 func (s *Users) Export(ctx context.Context, userID string) (domains.AccountExport, error) {
-	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
-	if err != nil {
-		return domains.AccountExport{}, fmt.Errorf("begin account export: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	result := domains.AccountExport{ExportedAt: time.Now().UTC()}
-	err = tx.QueryRow(ctx, `SELECT id::text,clerk_user_id,created_at,default_level,onboarding_completed_at FROM users WHERE id=$1`, userID).Scan(&result.User.ID, &result.User.ClerkUserID, &result.User.CreatedAt, &result.User.DefaultLevel, &result.User.OnboardingCompletedAt)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return result, domains.ErrNotFound
-	}
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var user userRow
+		err := tx.Where(map[string]any{"id": userID}).Take(&user).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domains.ErrNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("export user: %w", err)
+		}
+		result.User = user.domain()
+		var workouts []workoutRow
+		err = tx.Where(map[string]any{"user_id": userID}).
+			Order(clause.OrderByColumn{Column: clause.Column{Name: "created_at"}, Desc: true}).
+			Order(clause.OrderByColumn{Column: clause.Column{Name: "id"}, Desc: true}).Find(&workouts).Error
+		if err != nil {
+			return fmt.Errorf("export workouts: %w", err)
+		}
+		result.Workouts, err = workoutDomains(workouts)
+		if err != nil {
+			return err
+		}
+		var completions []completionRow
+		if err := completionQuery(tx, userID).Find(&completions).Error; err != nil {
+			return fmt.Errorf("export completions: %w", err)
+		}
+		result.Completions, err = completionDomains(completions)
+		return err
+	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
 	if err != nil {
-		return result, fmt.Errorf("export user: %w", err)
-	}
-	rows, err := tx.Query(ctx, `SELECT id,created_at,snapshot_version,plan FROM workouts WHERE user_id=$1 ORDER BY created_at DESC,id DESC`, userID)
-	if err != nil {
-		return result, fmt.Errorf("export workouts: %w", err)
-	}
-	result.Workouts, err = collectWorkouts(rows)
-	if err != nil {
-		return result, err
-	}
-	completionRows, err := tx.Query(ctx, completionSelect+` WHERE c.user_id=$1 ORDER BY c.completed_at DESC,c.id DESC`, userID)
-	if err != nil {
-		return result, fmt.Errorf("export completions: %w", err)
-	}
-	result.Completions, err = collectCompletions(completionRows)
-	if err != nil {
-		return result, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return result, fmt.Errorf("finish account export: %w", err)
+		return result, fmt.Errorf("export account: %w", err)
 	}
 	return result, nil
 }
 
 func (s *Users) Update(ctx context.Context, userID string, level int, completeOnboarding bool) (domains.User, error) {
-	var user domains.User
-	err := s.db.QueryRow(ctx, `UPDATE users SET default_level=$2,
- onboarding_completed_at=CASE WHEN $3 THEN COALESCE(onboarding_completed_at,now()) ELSE onboarding_completed_at END
- WHERE id=$1 RETURNING id::text,clerk_user_id,created_at,default_level,onboarding_completed_at`, userID, level, completeOnboarding).Scan(&user.ID, &user.ClerkUserID, &user.CreatedAt, &user.DefaultLevel, &user.OnboardingCompletedAt)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return user, domains.ErrNotFound
+	if level < 1 || level > 5 {
+		return domains.User{}, fmt.Errorf("invalid default level")
 	}
+	var row userRow
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(map[string]any{"id": userID}).Take(&row).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domains.ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		updates := map[string]any{"default_level": level}
+		if completeOnboarding && row.OnboardingCompletedAt == nil {
+			updates["onboarding_completed_at"] = time.Now().UTC()
+		}
+		return tx.Model(&row).Clauses(clause.Returning{}).Updates(updates).Error
+	})
 	if err != nil {
-		return user, fmt.Errorf("update account: %w", err)
+		return domains.User{}, fmt.Errorf("update account: %w", err)
 	}
-	return user, nil
+	return row.domain(), nil
 }

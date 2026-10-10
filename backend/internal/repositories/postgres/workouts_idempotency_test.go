@@ -3,15 +3,16 @@
 package postgres_test
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/epicchewy/endorphins/backend/internal/domains"
 	store "github.com/epicchewy/endorphins/backend/internal/repositories/postgres"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestWorkoutsCreateConcurrentRetriesReturnOneSavedSnapshot(t *testing.T) {
@@ -30,6 +31,7 @@ func TestWorkoutsCreateConcurrentRetriesReturnOneSavedSnapshot(t *testing.T) {
 			<-start
 			plan := workoutSnapshot(fmt.Sprintf("attempt-%02d", i))
 			plan.EstimatedMinutes = 20 + i
+			plan.Focus = fmt.Sprintf("focus-%02d", i)
 			saved, err := repo.Create(t.Context(), user.ID, plan, "same-action", strings.Repeat("a", 64))
 			results <- result{saved, err}
 		}()
@@ -46,6 +48,16 @@ func TestWorkoutsCreateConcurrentRetriesReturnOneSavedSnapshot(t *testing.T) {
 	summary, err := repo.Summary(t.Context(), user.ID, domains.WorkoutFilter{})
 	require.NoError(t, err)
 	assert.Equal(t, 1, summary.Count)
+	for i := range 20 {
+		query := fmt.Sprintf("focus-%02d", i)
+		items, err := repo.List(t.Context(), user.ID, domains.WorkoutFilter{Query: query}, nil, 20)
+		require.NoError(t, err)
+		if query == received[0].workout.Focus {
+			assert.Equal(t, []domains.SavedWorkout{received[0].workout}, items)
+		} else {
+			assert.Empty(t, items, "a losing retry must not add search terms")
+		}
+	}
 
 	replay, err := repo.Create(t.Context(), user.ID, workoutSnapshot("later-attempt"), "same-action", strings.Repeat("a", 64))
 	require.NoError(t, err)
@@ -73,17 +85,20 @@ func TestWorkoutsCreateBindsIdempotencyKeyToOwnerAndInput(t *testing.T) {
 }
 
 func TestWorkoutsCreateFailureDoesNotReserveIdempotencyKey(t *testing.T) {
-	db, databaseURL := isolatedRepositoryDatabase(t)
-	require.NoError(t, store.Migrate(databaseURL))
+	db := isolatedRepositoryDatabase(t)
+	require.NoError(t, store.Migrate(t.Context(), db))
 	repo := store.NewWorkouts(db)
 	user, err := store.NewUsers(db).Ensure(t.Context(), "user_alice")
 	require.NoError(t, err)
-	_, err = db.Exec(t.Context(), `ALTER TABLE workouts ADD CONSTRAINT reject_fixture CHECK (id <> 'rejected')`)
-	require.NoError(t, err)
+	// Fail after the workout insert to verify rollback of the plan and retry key.
+	require.NoError(t, db.Callback().Create().Before("gorm:create").Register("test:reject_search_terms", func(tx *gorm.DB) {
+		if tx.Statement.Table == "workout_search_terms" {
+			_ = tx.AddError(errors.New("injected search failure"))
+		}
+	}))
 	_, err = repo.Create(t.Context(), user.ID, workoutSnapshot("rejected"), "retry-key", strings.Repeat("a", 64))
-	var rejected *pgconn.PgError
-	require.ErrorAs(t, err, &rejected)
-	assert.Equal(t, "23514", rejected.Code)
+	require.ErrorContains(t, err, "injected search failure")
+	require.NoError(t, db.Callback().Create().Remove("test:reject_search_terms"))
 
 	saved, err := repo.Create(t.Context(), user.ID, workoutSnapshot("accepted"), "retry-key", strings.Repeat("a", 64))
 	require.NoError(t, err)
@@ -110,9 +125,7 @@ func TestWorkoutsCreateRequiresCompleteIdempotencyMetadata(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := repo.Create(t.Context(), user.ID, workoutSnapshot("invalid"), tt.key, tt.fingerprint)
-			var rejected *pgconn.PgError
-			require.ErrorAs(t, err, &rejected)
-			assert.Equal(t, "23514", rejected.Code)
+			require.ErrorContains(t, err, "invalid workout retry metadata")
 		})
 	}
 	for _, id := range []string{"without-key-a", "without-key-b"} {

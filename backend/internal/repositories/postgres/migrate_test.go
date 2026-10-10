@@ -3,48 +3,42 @@
 package postgres_test
 
 import (
-	"os"
+	"errors"
+	"fmt"
 	"testing"
 
+	"github.com/epicchewy/endorphins/backend/internal/domains"
 	store "github.com/epicchewy/endorphins/backend/internal/repositories/postgres"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
-func TestMigrateReapplicationPreservesAccountsAndWorkouts(t *testing.T) {
+func TestMigrateReapplicationPreservesAccountData(t *testing.T) {
 	db := setupRepositoryTest(t)
-	users, workouts := store.NewUsers(db), store.NewWorkouts(db)
-	user, err := users.Ensure(t.Context(), "user_alice")
+	users, plans := store.NewUsers(db), store.NewWorkouts(db)
+	user, err := users.Ensure(t.Context(), "current-owner")
 	require.NoError(t, err)
-	_, err = workouts.Create(t.Context(), user.ID, workoutSnapshot("saved-before-migrate"), "", "")
+	_, err = plans.Create(t.Context(), user.ID, workoutSnapshot("saved-plan"), "", "")
 	require.NoError(t, err)
-	require.NoError(t, store.Migrate(repositoryTestURL))
-	require.NoError(t, store.CheckReady(t.Context(), db))
+	_, err = plans.Complete(t.Context(), user.ID, "saved-plan", "confirmation")
+	require.NoError(t, err)
+	before, err := users.Export(t.Context(), user.ID)
+	require.NoError(t, err)
+
+	require.NoError(t, store.Migrate(t.Context(), db))
+	require.NoError(t, store.Migrate(t.Context(), db))
 	assertNoForeignKeys(t, db)
-	exported, err := users.Export(t.Context(), user.ID)
+	after, err := users.Export(t.Context(), user.ID)
 	require.NoError(t, err)
-	assert.Equal(t, user, exported.User)
-	assert.Equal(t, []string{"saved-before-migrate"}, workoutIDs(exported.Workouts))
+	assert.Equal(t, before.User, after.User)
+	assert.Equal(t, before.Workouts, after.Workouts)
+	assert.Equal(t, before.Completions, after.Completions)
 }
 
-func TestVersionThreeUpgradeRemovesLegacyRelationshipsWithoutLosingData(t *testing.T) {
-	db, databaseURL := isolatedRepositoryDatabase(t)
-	for _, name := range []string{"migrations/000001_accounts_workouts.up.sql", "migrations/000002_library_lifecycle.up.sql", "migrations/000003_onboarding_activity.up.sql"} {
-		sql, err := os.ReadFile(name)
-		require.NoError(t, err)
-		_, err = db.Exec(t.Context(), string(sql))
-		require.NoError(t, err)
-	}
-	// Simulate an already deployed version-three database. These constraints
-	// are legacy test data, never part of the application's current schema.
-	_, err := db.Exec(t.Context(), `ALTER TABLE workouts ADD CONSTRAINT workouts_user_id_fkey FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE;
- ALTER TABLE workouts ADD CONSTRAINT workouts_owner_id UNIQUE(user_id,id);
- ALTER TABLE workout_completions ADD CONSTRAINT workout_completions_user_id_fkey FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE;
- ALTER TABLE workout_completions ADD CONSTRAINT workout_completions_user_id_workout_id_fkey FOREIGN KEY(user_id,workout_id) REFERENCES workouts(user_id,id) ON DELETE CASCADE;
- CREATE TABLE schema_migrations(version bigint NOT NULL PRIMARY KEY,dirty boolean NOT NULL);
- INSERT INTO schema_migrations VALUES(3,false)`)
-	require.NoError(t, err)
+func TestMigrateUpgradesExistingPlansAndRemovesLegacyConstraints(t *testing.T) {
+	db := isolatedRepositoryDatabase(t)
+	require.NoError(t, store.Migrate(t.Context(), db))
 	users, plans := store.NewUsers(db), store.NewWorkouts(db)
 	user, err := users.Ensure(t.Context(), "legacy-owner")
 	require.NoError(t, err)
@@ -52,54 +46,145 @@ func TestVersionThreeUpgradeRemovesLegacyRelationshipsWithoutLosingData(t *testi
 	require.NoError(t, err)
 	_, err = plans.Complete(t.Context(), user.ID, "legacy-plan", "legacy-intent")
 	require.NoError(t, err)
+	require.NoError(t, users.Erase(t.Context(), "previously-deleted"))
 	before, err := users.Export(t.Context(), user.ID)
 	require.NoError(t, err)
-	require.NoError(t, store.Migrate(databaseURL))
-	require.NoError(t, store.CheckReady(t.Context(), db))
+	other, err := users.Ensure(t.Context(), "batch-owner")
+	require.NoError(t, err)
+	for i := range 102 {
+		_, err = plans.Create(t.Context(), other.ID, workoutSnapshot(fmt.Sprintf("batch-%03d", i)), "", "")
+		require.NoError(t, err)
+	}
+	// Projection must ignore unrelated fields and preserve the original JSON.
+	preserved := []byte(`{"level":"2","estimatedMinutes":"39","requestedMinutes":"45","focus":"legs","blocks":[{"name":"legs","exercises":[{"name":"Squat"}]}]}`)
+	require.NoError(t, db.WithContext(t.Context()).Table("workouts").
+		Where(map[string]any{"user_id": other.ID, "id": "batch-000"}).UpdateColumn("plan", preserved).Error)
+
+	// Recreate the old schema shape with GORM, without storing migration history.
+	fixture := db.WithContext(t.Context()).Migrator()
+	require.NoError(t, fixture.DropTable("workout_search_terms"))
+	require.NoError(t, fixture.DropColumn("workouts", "level"))
+	require.NoError(t, fixture.DropColumn("workouts", "estimated_minutes"))
+	require.NoError(t, fixture.CreateTable(&legacyMigrationState{}))
+	require.NoError(t, fixture.RenameIndex("users", "uni_users_clerk_user_id", "users_clerk_user_id_key"))
+	require.NoError(t, fixture.CreateIndex(&legacyWorkout{}, "workouts_owner_id"))
+	require.NoError(t, fixture.CreateConstraint(&legacyWorkout{}, "User"))
+	require.NoError(t, fixture.CreateConstraint(&legacyCompletion{}, "User"))
+	require.NoError(t, fixture.CreateConstraint(&legacyCompletion{}, "Workout"))
+
+	require.NoError(t, store.Migrate(t.Context(), db))
+	require.NoError(t, store.Migrate(t.Context(), db))
 	assertNoForeignKeys(t, db)
+	assert.False(t, db.Migrator().HasTable("schema_migrations"))
+	assert.False(t, db.Migrator().HasIndex("workouts", "workouts_owner_id"))
 	after, err := users.Export(t.Context(), user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, before.User, after.User)
 	assert.Equal(t, before.Workouts, after.Workouts)
 	assert.Equal(t, before.Completions, after.Completions)
+	for _, query := range []string{"legs", "squat", "sprint"} {
+		filter := domains.WorkoutFilter{Query: query, Level: 2, Sort: "shortest"}
+		items, err := plans.List(t.Context(), user.ID, filter, nil, 20)
+		require.NoError(t, err)
+		assert.Equal(t, before.Workouts, items, query)
+		summary, err := plans.Summary(t.Context(), user.ID, filter)
+		require.NoError(t, err)
+		assert.Equal(t, 1, summary.Count, query)
+		assert.Equal(t, 39, summary.PlannedMinutes, query)
+	}
+	summary, err := plans.Summary(t.Context(), other.ID, domains.WorkoutFilter{Query: "squat", Level: 2})
+	require.NoError(t, err)
+	assert.Equal(t, 102, summary.Count)
+	assert.Equal(t, 102*39, summary.PlannedMinutes)
+	var stored struct{ Plan []byte }
+	require.NoError(t, db.WithContext(t.Context()).Table("workouts").
+		Where(map[string]any{"user_id": other.ID, "id": "batch-000"}).Take(&stored).Error)
+	assert.JSONEq(t, string(preserved), string(stored.Plan))
+
+	_, err = users.Ensure(t.Context(), "previously-deleted")
+	assert.ErrorIs(t, err, domains.ErrAccountDeleted)
 	require.NoError(t, users.Erase(t.Context(), "legacy-owner"))
-	var count int
-	require.NoError(t, db.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM workouts) + (SELECT count(*) FROM workout_completions)`).Scan(&count))
-	assert.Zero(t, count)
+	for _, table := range []string{"workouts", "workout_completions", "workout_search_terms"} {
+		var count int64
+		require.NoError(t, db.WithContext(t.Context()).Table(table).Where(map[string]any{"user_id": user.ID}).Count(&count).Error)
+		assert.Zero(t, count, table)
+	}
 }
 
-func assertNoForeignKeys(t *testing.T, db *pgxpool.Pool) {
+func TestMigrateFailureRollsBackSchemaAndCanBeRetried(t *testing.T) {
+	db := isolatedRepositoryDatabase(t)
+	require.NoError(t, store.Migrate(t.Context(), db))
+	user, err := store.NewUsers(db).Ensure(t.Context(), "retained-owner")
+	require.NoError(t, err)
+	plans := store.NewWorkouts(db)
+	before, err := plans.Create(t.Context(), user.ID, workoutSnapshot("retained-plan"), "", "")
+	require.NoError(t, err)
+	fixture := db.WithContext(t.Context()).Migrator()
+	require.NoError(t, fixture.DropTable("workout_search_terms"))
+	require.NoError(t, fixture.DropColumn("workouts", "level"))
+	require.NoError(t, fixture.DropColumn("workouts", "estimated_minutes"))
+	require.NoError(t, fixture.CreateTable(&legacyMigrationState{}))
+	require.NoError(t, db.Callback().Create().Before("gorm:create").Register("test:reject_backfill", func(tx *gorm.DB) {
+		if tx.Statement.Table == "workout_search_terms" {
+			_ = tx.AddError(errors.New("injected backfill failure"))
+		}
+	}))
+	require.ErrorContains(t, store.Migrate(t.Context(), db), "injected backfill failure")
+	assert.False(t, fixture.HasTable("workout_search_terms"))
+	assert.False(t, fixture.HasColumn("workouts", "level"))
+	assert.False(t, fixture.HasColumn("workouts", "estimated_minutes"))
+	assert.True(t, fixture.HasTable("schema_migrations"))
+	retained, err := plans.Get(t.Context(), user.ID, "retained-plan")
+	require.NoError(t, err)
+	assert.Equal(t, before, retained)
+
+	require.NoError(t, db.Callback().Create().Remove("test:reject_backfill"))
+	require.NoError(t, store.Migrate(t.Context(), db))
+	items, err := plans.List(t.Context(), user.ID, domains.WorkoutFilter{Query: "squat"}, nil, 20)
+	require.NoError(t, err)
+	assert.Equal(t, []domains.SavedWorkout{before}, items)
+}
+
+func assertNoForeignKeys(t *testing.T, db *gorm.DB) {
 	t.Helper()
-	var count int
-	require.NoError(t, db.QueryRow(t.Context(), `SELECT count(*) FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE c.contype='f' AND n.nspname='public'`).Scan(&count))
+	var count int64
+	var namespace struct {
+		OID uint32 `gorm:"column:oid"`
+	}
+	require.NoError(t, db.WithContext(t.Context()).Table("pg_namespace").
+		Select("oid").Where(map[string]any{"nspname": "public"}).Take(&namespace).Error)
+	require.NoError(t, db.WithContext(t.Context()).Table("pg_constraint").
+		Where(map[string]any{"contype": "f", "connamespace": namespace.OID}).Count(&count).Error)
 	assert.Zero(t, count, "application migrations must leave no foreign keys")
 }
 
-func TestVersionTwoUpgradePreservesHistoricalPlans(t *testing.T) {
-	db, databaseURL := isolatedRepositoryDatabase(t)
-	for _, name := range []string{"migrations/000001_accounts_workouts.up.sql", "migrations/000002_library_lifecycle.up.sql"} {
-		sql, err := os.ReadFile(name)
-		require.NoError(t, err)
-		_, err = db.Exec(t.Context(), string(sql))
-		require.NoError(t, err)
-	}
-	_, err := db.Exec(t.Context(), `CREATE TABLE schema_migrations(version bigint NOT NULL PRIMARY KEY,dirty boolean NOT NULL);INSERT INTO schema_migrations VALUES(2,false)`)
-	require.NoError(t, err)
-	var owner string
-	require.NoError(t, db.QueryRow(t.Context(), `INSERT INTO users(clerk_user_id) VALUES('historical') RETURNING id::text`).Scan(&owner))
-	plans := store.NewWorkouts(db)
-	original, err := plans.Create(t.Context(), owner, workoutSnapshot("historical-plan"), "", "")
-	require.NoError(t, err)
-	require.NoError(t, store.Migrate(databaseURL))
-	require.NoError(t, store.CheckReady(t.Context(), db))
-	restored, err := plans.Get(t.Context(), owner, "historical-plan")
-	require.NoError(t, err)
-	assert.Equal(t, original, restored)
-	user, err := store.NewUsers(db).Ensure(t.Context(), "historical")
-	require.NoError(t, err)
-	assert.Equal(t, owner, user.ID)
-	assert.Equal(t, 1, user.DefaultLevel)
-	assert.Nil(t, user.OnboardingCompletedAt)
-	_, err = plans.Complete(t.Context(), owner, "historical-plan", "after-upgrade")
-	require.NoError(t, err)
+type legacyMigrationState struct {
+	Version int
+	Dirty   bool
 }
+
+func (legacyMigrationState) TableName() string { return "schema_migrations" }
+
+// These models describe legacy relationships only. Production never creates them.
+type legacyUser struct {
+	ID string `gorm:"primaryKey;type:uuid"`
+}
+
+func (legacyUser) TableName() string { return "users" }
+
+type legacyWorkout struct {
+	ID     string     `gorm:"primaryKey;uniqueIndex:workouts_owner_id"`
+	UserID string     `gorm:"type:uuid;uniqueIndex:workouts_owner_id"`
+	User   legacyUser `gorm:"foreignKey:UserID;references:ID;constraint:workouts_user_id_fkey,OnDelete:CASCADE"`
+}
+
+func (legacyWorkout) TableName() string { return "workouts" }
+
+type legacyCompletion struct {
+	UserID    string `gorm:"type:uuid"`
+	WorkoutID string
+	User      legacyUser    `gorm:"foreignKey:UserID;references:ID;constraint:workout_completions_user_id_fkey,OnDelete:CASCADE"`
+	Workout   legacyWorkout `gorm:"foreignKey:UserID,WorkoutID;references:UserID,ID;constraint:workout_completions_user_id_workout_id_fkey,OnDelete:CASCADE"`
+}
+
+func (legacyCompletion) TableName() string { return "workout_completions" }
