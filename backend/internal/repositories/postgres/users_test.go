@@ -142,8 +142,8 @@ func TestUsersConcurrentProvisioningCannotUndoErasure(t *testing.T) {
 }
 
 func TestUsersEraseFailureRollsBackTombstoneAndData(t *testing.T) {
-	db, databaseURL := isolatedRepositoryDatabase(t)
-	require.NoError(t, store.Migrate(databaseURL))
+	db := isolatedRepositoryDatabase(t)
+	require.NoError(t, store.Migrate(t.Context(), db))
 	repo := store.NewUsers(db)
 	user, err := repo.Ensure(t.Context(), "retained-user")
 	require.NoError(t, err)
@@ -279,18 +279,22 @@ func TestUsersUpdateChangesLevelWithoutRestartingOnboarding(t *testing.T) {
 	assert.ErrorIs(t, err, domains.ErrNotFound)
 }
 
-func TestRepositoryTimestampsComeFromPostgres(t *testing.T) {
+func TestRepositoryTimestampsUseGORMClock(t *testing.T) {
 	db := setupRepositoryTest(t).Session(&gorm.Session{NowFunc: func() time.Time {
-		return time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+		return time.Date(2000, 1, 1, 0, 0, 0, 123456789, time.UTC)
 	}})
 	user, err := store.NewUsers(db).Ensure(t.Context(), "database-clock")
 	require.NoError(t, err)
-	assert.WithinDuration(t, time.Now(), user.CreatedAt, 5*time.Second)
+	assert.Equal(t, time.Date(2000, 1, 1, 0, 0, 0, 123456000, time.UTC), user.CreatedAt)
+	again, err := store.NewUsers(db).Ensure(t.Context(), "database-clock")
+	require.NoError(t, err)
+	assert.Equal(t, user, again)
+
 	repo := store.NewWorkouts(db)
 	plan, err := repo.Create(t.Context(), user.ID, workoutSnapshot("database-clock-plan"), "", "")
 	require.NoError(t, err)
-	assert.WithinDuration(t, time.Now(), plan.CreatedAt, 5*time.Second)
+	assert.Equal(t, time.Date(2000, 1, 1, 0, 0, 0, 123456000, time.UTC), plan.CreatedAt)
 	completion, err := repo.Complete(t.Context(), user.ID, plan.ID, "database-clock-completion")
 	require.NoError(t, err)
-	assert.WithinDuration(t, time.Now(), completion.CompletedAt, 5*time.Second)
+	assert.Equal(t, time.Date(2000, 1, 1, 0, 0, 0, 123456000, time.UTC), completion.CompletedAt)
 }

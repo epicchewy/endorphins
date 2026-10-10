@@ -111,3 +111,39 @@ func decodeCompletionMetadata(data []byte) (int, string, error) {
 	}
 	return int(level), *stored.Focus, nil
 }
+
+// Schema upgrades project only the fields used by queries. Numeric strings were
+// accepted by the old projection; unrelated snapshot fields stay untouched.
+func decodeWorkoutQueryFields(data []byte) (domains.WorkoutPlan, error) {
+	var stored struct {
+		Level            json.Number `json:"level"`
+		EstimatedMinutes json.Number `json:"estimatedMinutes"`
+		Focus            string      `json:"focus"`
+		Blocks           []struct {
+			Name      string `json:"name"`
+			Exercises []struct {
+				Name string `json:"name"`
+			} `json:"exercises"`
+		} `json:"blocks"`
+	}
+	if err := json.Unmarshal(data, &stored); err != nil {
+		return domains.WorkoutPlan{}, fmt.Errorf("read workout query fields: %w", err)
+	}
+	level, err := strconv.ParseInt(strings.TrimSpace(stored.Level.String()), 10, 32)
+	if err != nil {
+		return domains.WorkoutPlan{}, fmt.Errorf("read workout level: %w", err)
+	}
+	minutes, err := strconv.ParseInt(strings.TrimSpace(stored.EstimatedMinutes.String()), 10, 32)
+	if err != nil {
+		return domains.WorkoutPlan{}, fmt.Errorf("read workout minutes: %w", err)
+	}
+	plan := domains.WorkoutPlan{Level: int(level), EstimatedMinutes: int(minutes), Focus: stored.Focus}
+	for _, block := range stored.Blocks {
+		saved := domains.SavedBlock{Name: block.Name}
+		for _, exercise := range block.Exercises {
+			saved.Exercises = append(saved.Exercises, domains.Exercise{Name: exercise.Name})
+		}
+		plan.Blocks = append(plan.Blocks, saved)
+	}
+	return plan, nil
+}

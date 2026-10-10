@@ -62,7 +62,7 @@ func TestSummaryRejectsInvalidFilters(t *testing.T) {
 		{"query longer than 200 characters", domains.WorkoutFilter{Query: strings.Repeat("é", 201)}},
 		{"NUL in query", domains.WorkoutFilter{Query: "bad\x00query"}},
 		{"invalid level", domains.WorkoutFilter{Level: 6}},
-		{"invalid sort", domains.WorkoutFilter{Sort: "DROP TABLE"}},
+		{"invalid sort", domains.WorkoutFilter{Sort: "unsupported"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := service.Summary(t.Context(), "alice", tt.filter)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/epicchewy/endorphins/backend/internal/domains"
 	"gorm.io/gorm"
@@ -17,24 +18,25 @@ type Workouts struct{ db *gorm.DB }
 func NewWorkouts(db *gorm.DB) *Workouts { return &Workouts{db: db} }
 
 type workoutRow struct {
-	ID               string `gorm:"primaryKey"`
-	UserID           string
-	CreatedAt        time.Time `gorm:"autoCreateTime:false;default:(-)"`
-	SnapshotVersion  int       `gorm:"default:(-)"`
-	Plan             []byte    `gorm:"type:jsonb"`
-	IdempotencyKey   *string
-	InputFingerprint *string
-	Level            int
-	EstimatedMinutes int
+	ID               string    `gorm:"primaryKey;type:text;index:workouts_user_created_id_idx,priority:3,sort:desc;index:workouts_user_duration_created_id_idx,priority:4,sort:desc"`
+	UserID           string    `gorm:"type:uuid;not null;index:workouts_user_created_id_idx,priority:1;index:workouts_user_duration_created_id_idx,priority:1;uniqueIndex:workouts_owner_idempotency,priority:1"`
+	CreatedAt        time.Time `gorm:"not null;index:workouts_user_created_id_idx,priority:2,sort:desc;index:workouts_user_duration_created_id_idx,priority:3,sort:desc"`
+	SnapshotVersion  int       `gorm:"type:smallint;not null;default:1"`
+	Plan             []byte    `gorm:"type:jsonb;not null"`
+	IdempotencyKey   *string   `gorm:"type:text;uniqueIndex:workouts_owner_idempotency,priority:2"`
+	InputFingerprint *string   `gorm:"type:text"`
+	// Literal defaults let AutoMigrate add query fields to populated tables.
+	Level            int `gorm:"type:integer;not null;default:0"`
+	EstimatedMinutes int `gorm:"type:integer;not null;default:0;index:workouts_user_duration_created_id_idx,priority:2"`
 }
 
 func (workoutRow) TableName() string { return "workouts" }
 
 type workoutSearchTerm struct {
 	UserID    string `gorm:"primaryKey;type:uuid"`
-	WorkoutID string `gorm:"primaryKey"`
-	Position  int    `gorm:"primaryKey;autoIncrement:false"`
-	Name      string
+	WorkoutID string `gorm:"primaryKey;type:text"`
+	Position  int    `gorm:"primaryKey;type:integer;autoIncrement:false"`
+	Name      string `gorm:"type:text;not null"`
 }
 
 func (workoutSearchTerm) TableName() string { return "workout_search_terms" }
@@ -44,10 +46,19 @@ func (row workoutRow) domain() (domains.SavedWorkout, error) {
 	if err != nil {
 		return domains.SavedWorkout{}, err
 	}
-	return domains.SavedWorkout{ID: row.ID, CreatedAt: row.CreatedAt, WorkoutPlan: plan}, nil
+	return domains.SavedWorkout{ID: row.ID, CreatedAt: row.CreatedAt.UTC(), WorkoutPlan: plan}, nil
 }
 
 func (s *Workouts) Create(ctx context.Context, userID string, workout domains.SavedWorkout, key, fingerprint string) (domains.SavedWorkout, error) {
+	if size := utf8.RuneCountInString(workout.ID); size < 1 || size > 128 {
+		return domains.SavedWorkout{}, fmt.Errorf("invalid workout ID")
+	}
+	if workout.Level < 1 || workout.Level > 5 {
+		return domains.SavedWorkout{}, fmt.Errorf("invalid workout level")
+	}
+	if (key == "") != (fingerprint == "") || utf8.RuneCountInString(key) > 128 || (fingerprint != "" && utf8.RuneCountInString(fingerprint) != 64) {
+		return domains.SavedWorkout{}, fmt.Errorf("invalid workout retry metadata")
+	}
 	plan, err := encodeSnapshot(workout.WorkoutPlan)
 	if err != nil {
 		return domains.SavedWorkout{}, fmt.Errorf("encode workout: %w", err)
@@ -85,19 +96,7 @@ func (s *Workouts) Create(ctx context.Context, userID string, workout domains.Sa
 			return err
 		}
 		// Build terms from the returned immutable plan, including on a retry.
-		names := []string{item.Focus}
-		for _, block := range item.Blocks {
-			names = append(names, block.Name)
-		}
-		for _, block := range item.Blocks {
-			for _, exercise := range block.Exercises {
-				names = append(names, exercise.Name)
-			}
-		}
-		terms := make([]workoutSearchTerm, 0, len(names))
-		for i, name := range names {
-			terms = append(terms, workoutSearchTerm{UserID: userID, WorkoutID: item.ID, Position: i + 1, Name: strings.ToLower(name)})
-		}
+		terms := workoutSearchTerms(userID, item)
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&terms).Error; err != nil {
 			return fmt.Errorf("save workout search terms: %w", err)
 		}
@@ -108,6 +107,23 @@ func (s *Workouts) Create(ctx context.Context, userID string, workout domains.Sa
 		return domains.SavedWorkout{}, fmt.Errorf("save workout: %w", err)
 	}
 	return result, nil
+}
+
+func workoutSearchTerms(userID string, workout domains.SavedWorkout) []workoutSearchTerm {
+	names := []string{workout.Focus}
+	for _, block := range workout.Blocks {
+		names = append(names, block.Name)
+	}
+	for _, block := range workout.Blocks {
+		for _, exercise := range block.Exercises {
+			names = append(names, exercise.Name)
+		}
+	}
+	terms := make([]workoutSearchTerm, 0, len(names))
+	for i, name := range names {
+		terms = append(terms, workoutSearchTerm{UserID: userID, WorkoutID: workout.ID, Position: i + 1, Name: strings.ToLower(name)})
+	}
+	return terms
 }
 
 func lockWorkoutOwner(tx *gorm.DB, userID string) error {

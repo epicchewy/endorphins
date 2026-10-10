@@ -179,15 +179,14 @@ func TestWorkoutsSummaryCoversAllMatchingRecords(t *testing.T) {
 }
 
 func TestWorkoutsReadsRejectUnsupportedSnapshotVersion(t *testing.T) {
-	db, databaseURL := isolatedRepositoryDatabase(t)
-	require.NoError(t, store.Migrate(databaseURL))
+	db := isolatedRepositoryDatabase(t)
+	require.NoError(t, store.Migrate(t.Context(), db))
 	users := store.NewUsers(db)
 	user, err := users.Ensure(t.Context(), "user_alice")
 	require.NoError(t, err)
 	repo := store.NewWorkouts(db)
 	_, err = repo.Create(t.Context(), user.ID, workoutSnapshot("future-snapshot"), "", "")
 	require.NoError(t, err)
-	require.NoError(t, db.WithContext(t.Context()).Migrator().DropConstraint("workouts", "workouts_snapshot_version_check"))
 	require.NoError(t, db.WithContext(t.Context()).Session(&gorm.Session{AllowGlobalUpdate: true}).
 		Table("workouts").Update("snapshot_version", 2).Error)
 	_, err = repo.Get(t.Context(), user.ID, "future-snapshot")

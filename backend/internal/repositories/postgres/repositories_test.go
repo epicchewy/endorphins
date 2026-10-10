@@ -55,10 +55,6 @@ func runRepositoryTests(m *testing.M) (code int) {
 		fmt.Fprintln(os.Stderr, "get repository test connection:", err)
 		return 1
 	}
-	if err := store.Migrate(repositoryTestURL); err != nil {
-		fmt.Fprintln(os.Stderr, "migrate repository test database:", err)
-		return 1
-	}
 	repositoryTestDB, err = store.Open(ctx, repositoryTestURL)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "open repository test database:", err)
@@ -70,6 +66,10 @@ func runRepositoryTests(m *testing.M) (code int) {
 		return 1
 	}
 	defer func() { _ = pool.Close() }()
+	if err := store.Migrate(ctx, repositoryTestDB); err != nil {
+		fmt.Fprintln(os.Stderr, "migrate repository test database:", err)
+		return 1
+	}
 	return m.Run()
 }
 
@@ -87,7 +87,7 @@ func setupRepositoryTest(t *testing.T) *gorm.DB {
 
 // Schema mutations and fault injection use another database in the same
 // container. A failed assertion cannot leave DDL behind for another test.
-func isolatedRepositoryDatabase(t *testing.T) (*gorm.DB, string) {
+func isolatedRepositoryDatabase(t *testing.T) *gorm.DB {
 	t.Helper()
 	name := fmt.Sprintf("isolated_%d", time.Now().UnixNano())
 	runPostgresCommand(t, t.Context(), "createdb", "--username=test", "--maintenance-db=endorphins_repositories_test", name)
@@ -103,7 +103,7 @@ func isolatedRepositoryDatabase(t *testing.T) (*gorm.DB, string) {
 	pool, err := store.Open(t.Context(), databaseURL)
 	require.NoError(t, err)
 	cleanupRepositoryDatabase(t, pool)
-	return pool, databaseURL
+	return pool
 }
 
 func runPostgresCommand(t *testing.T, ctx context.Context, command ...string) {

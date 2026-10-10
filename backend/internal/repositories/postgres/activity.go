@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"unicode/utf8"
 
 	"github.com/epicchewy/endorphins/backend/internal/domains"
 	"github.com/google/uuid"
@@ -14,25 +15,36 @@ import (
 )
 
 type completionRow struct {
-	ID             string `gorm:"primaryKey;type:uuid;default:(-)"`
-	UserID         string
-	WorkoutID      string
-	CompletedAt    time.Time `gorm:"default:(-)"`
-	UndoneAt       *time.Time
-	IdempotencyKey string
+	ID             string     `gorm:"primaryKey;type:uuid;index:workout_completions_user_activity_idx,priority:4,sort:desc"`
+	UserID         string     `gorm:"type:uuid;not null;uniqueIndex:workout_completions_user_id_idempotency_key_key,priority:1;index:workout_completions_user_activity_idx,priority:1"`
+	WorkoutID      string     `gorm:"type:text;not null"`
+	CompletedAt    time.Time  `gorm:"not null;autoCreateTime;index:workout_completions_user_activity_idx,priority:3,sort:desc"`
+	UndoneAt       *time.Time `gorm:"index:workout_completions_user_activity_idx,priority:2"`
+	IdempotencyKey string     `gorm:"type:text;not null;uniqueIndex:workout_completions_user_id_idempotency_key_key,priority:2"`
 	// Both parts of the relationship are required for account ownership.
 	Workout workoutRow `gorm:"foreignKey:UserID,WorkoutID;references:UserID,ID"`
 }
 
 func (completionRow) TableName() string { return "workout_completions" }
 
+func (row *completionRow) BeforeCreate(_ *gorm.DB) error {
+	if row.ID == "" {
+		row.ID = uuid.NewString()
+	}
+	return nil
+}
+
 func (row completionRow) domain() (domains.Completion, error) {
 	level, focus, err := decodeCompletionMetadata(row.Workout.Plan)
 	if err != nil {
 		return domains.Completion{}, err
 	}
+	if row.UndoneAt != nil {
+		undone := row.UndoneAt.UTC()
+		row.UndoneAt = &undone
+	}
 	return domains.Completion{
-		ID: row.ID, WorkoutID: row.WorkoutID, CompletedAt: row.CompletedAt,
+		ID: row.ID, WorkoutID: row.WorkoutID, CompletedAt: row.CompletedAt.UTC(),
 		UndoneAt: row.UndoneAt, Level: level, Focus: focus,
 	}, nil
 }
@@ -57,6 +69,9 @@ func completionDomains(rows []completionRow) ([]domains.Completion, error) {
 }
 
 func (s *Workouts) Complete(ctx context.Context, userID, workoutID, key string) (domains.Completion, error) {
+	if size := utf8.RuneCountInString(key); size < 1 || size > 128 {
+		return domains.Completion{}, fmt.Errorf("invalid completion retry key")
+	}
 	row := completionRow{UserID: userID, WorkoutID: workoutID, IdempotencyKey: key}
 	var result domains.Completion
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

@@ -80,7 +80,7 @@ The frontend retains the key across a manual retry of a failed attempt with unch
 
 ## Historical snapshots and API models
 
-The `plan` JSONB column preserves level, requested duration, warm-up, total and per-block estimates, focus, sets, exercise descriptions, reps, timed rounds, and rests. History reads this snapshot without recalculating it. Edits to the source catalogue or estimate formulas do not change old workouts. The generator's existing opaque random text IDs are retained; the database supplies creation timestamps.
+The `plan` JSONB column preserves level, requested duration, warm-up, total and per-block estimates, focus, sets, exercise descriptions, reps, timed rounds, and rests. History reads this snapshot without recalculating it. Edits to the source catalogue or estimate formulas do not change old workouts. The generator's existing opaque random text IDs are retained; GORM supplies UTC creation timestamps.
 
 Storage has an explicit version-1 encoder/decoder with its own structs. Every read selects `snapshot_version`; an unsupported version fails explicitly. Public request/response DTOs live in `internal/api/v1`, with resource-specific request/response conversions beside the DTOs. Changing an HTTP field or domain struct therefore does not silently change the historical storage format. `api/openapi.json` defines the public contract and generates frontend types.
 
@@ -96,7 +96,7 @@ Storage has an explicit version-1 encoder/decoder with its own structs. Every re
 | `limit`   | 1–50 records, default 20.                                                                                                                                       |
 | `cursor`  | Opaque continuation position for the same owner, normalized filters, and ordering.                                                                              |
 
-Migration 5 projects level and estimated minutes into workout columns. An owned `workout_search_terms` table stores lowercased focus, block names, and exercise names. Saves write these projections with the immutable plan; retries retain the original fields. Search joins include both owner and workout ID and return each plan once.
+The GORM migration projects level and estimated minutes into workout columns for existing plans. An owned `workout_search_terms` table stores lowercased focus, block names, and exercise names. Saves write these projections with the immutable plan; retries retain the original fields. Search joins include both owner and workout ID and return each plan once.
 
 Newest ordering uses `(created_at DESC, id DESC)`. Shortest ordering uses estimated minutes ascending, then the same timestamp/ID tie-breakers. Cursors carry the relevant position and a scope digest; changing owner, filters, or order requires starting a new first page. An empty `nextCursor` means the final page. Cursors are positions, not credentials: GORM queries still check the authenticated owner on every request.
 
@@ -116,13 +116,13 @@ Tombstones currently have no automatic expiry. They retain only the subject dige
 
 ## Migrations
 
-`cmd/migrate` applies embedded SQL with golang-migrate’s version table, lock, and dirty-state handling. API startup never applies migrations. See [architecture](architecture.md) for module ownership.
+`cmd/migrate` follows Temper: it runs GORM `AutoMigrate` over repository models with foreign key creation disabled. Small repeatable fixes remove legacy relationship constraints and backfill derived workout fields. The old migration table is removed after a successful upgrade. Schema and data changes share one transaction. There are no SQL files, migration versions, or automatic down migrations. API startup never applies migrations. See [architecture](architecture.md) for module ownership.
 
-The current API requires clean schema version 5, both at startup and in its database-aware `/readyz` probe. `/healthz` reports process liveness separately. Run migrations before deploying a matching API binary. Future schema changes add migrations. The user's removal of legacy foreign keys is the authorized exception to preserving applied SQL. Never silently reset a database to clear a dirty state.
+Run one migration process before starting the matching API binary. A failed migration rolls back and can be retried after fixing its cause. Startup and `/readyz` check database connectivity; `/healthz` reports process liveness. Future schema changes update model tags and add repeatable GORM data fixes when needed. Storage snapshot versions remain independent of schema setup.
 
 ## Preferences and completion records
 
-Migration 3 adds `users.default_level` (1–5, initially Light) and `users.onboarding_completed_at`. `PATCH /api/v1/me` updates the caller's level and can set the onboarding timestamp once. It cannot change ownership or clear onboarding.
+`users.default_level` stores a level of 1–5, initially Light. `users.onboarding_completed_at` stores the first setup time. `PATCH /api/v1/me` updates the caller's level and can set the onboarding timestamp once. It cannot change ownership or clear onboarding.
 
 `workout_completions` stores an ID, account ID, saved plan ID, server confirmation time, optional undo time, and required retry key. Repository transactions check plan ownership and lock the account row before writing. The account/key pair is unique. `POST /api/v1/workouts/{id}/completions` replays the same record for the same key and plan; another plan with that key returns 409. A fresh key counts another workout. `DELETE /api/v1/completions/{id}` voids the caller's record; repeating Undo is harmless. Replaying a voided completion returns 409. Account erasure removes all logs.
 
@@ -130,8 +130,8 @@ Migration 3 adds `users.default_level` (1–5, initially Light) and `users.onboa
 
 ## No foreign keys
 
-Foreign keys are prohibited in all application migrations, including rollback migrations. Migrations 1 and 3 contain no relationship constraints. Migration 4 drops the legacy constraints and the redundant owner/plan unique index from already migrated databases. Rollback never restores foreign keys. Primary keys, unique retry keys, value checks, and query indexes remain.
+Foreign keys are prohibited. GORM disables their creation. The migration command removes known legacy relationship constraints and the redundant owner/plan unique index. Primary keys, unique retry keys, nullability, and query indexes remain. Go validates value ranges and retry metadata; model tags contain no SQL expressions.
 
 Workout and completion writes hold a `FOR KEY SHARE` lock on the owner row until commit. Missing owners return `ErrNotFound`. Account erasure takes `FOR UPDATE` on that row before deleting completion logs, saved workouts, and the account. A concurrent write either commits before cleanup or finds no owner after cleanup. The subject tombstone and all data deletion commit together. The locks prevent child records from surviving account erasure.
 
-Real Postgres tests cover zero-foreign-key schemas, legacy version-three upgrades without data loss, writes during erasure, and rollback after a failed user delete. [Browser contracts](../e2e/specs/contracts.spec.ts) check ownership, retries, exports, and signed deletion through the production proxy. See [test ownership](engineering-practices.md#test-ownership) for the remaining checks. Actual Clerk signup, profile changes, and webhook delivery need a development-instance check.
+Real Postgres tests cover zero-foreign-key schemas, legacy schema upgrades without data loss, writes during erasure, and rollback after a failed user delete. [Browser contracts](../e2e/specs/contracts.spec.ts) check ownership, retries, exports, and signed deletion through the production proxy. See [test ownership](engineering-practices.md#test-ownership) for the remaining checks. Actual Clerk signup, profile changes, and webhook delivery need a development-instance check.

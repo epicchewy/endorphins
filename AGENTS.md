@@ -8,7 +8,7 @@ Read `docs/architecture.md` for ownership, `docs/engineering-practices.md` for w
 - Never add `main_test.go` files or tests for command entrypoints. Test behavior in the owning packages and full-stack journeys.
 - Put behavior in the module that owns it. Do not add wrappers, generic repositories, global service locators or duplicate UI test suites.
 - Never edit generated route/API types; update inputs and run `cd frontend && bun run typegen`.
-- Use GORM for all application queries and integration fixtures. Do not use raw SQL statements or expressions, including `Raw`, `Exec`, or `gorm.Expr`. Keep `.sql` files only for versioned migrations. Keep GORM models and transactions in repositories.
-- Add migrations; never rewrite applied SQL. Keep account ownership in every private query and stable application UUIDs in relationships.
-- Never add foreign key constraints, including in rollback migrations. Enforce ownership, parent existence, and account cleanup in repository transactions. The removal of legacy foreign keys is the authorized exception to preserving applied SQL.
+- Use GORM for all application queries and integration fixtures. Do not use raw SQL statements or expressions, including `Raw`, `Exec`, or `gorm.Expr`. Keep GORM models, schema setup, and transactions in repositories. Do not add `.sql` files.
+- Follow Temper: update GORM models and run `AutoMigrate` through the separate migration command. Add repeatable GORM data fixes when needed; do not add versioned migrations. Keep account ownership in every private query and stable application UUIDs in relationships.
+- Never add foreign key constraints. Disable their creation in GORM. Enforce ownership, parent existence, and account cleanup in repository transactions.
 - Update the relevant docs when architecture changes.

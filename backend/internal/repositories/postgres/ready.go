@@ -8,22 +8,16 @@ import (
 	"gorm.io/gorm"
 )
 
-const SchemaVersion = 5
-
-// CheckReady checks connectivity and the exact migration version this binary
-// supports. Future migrations require an explicit compatibility decision.
+// CheckReady checks database connectivity. Schema changes run in cmd/migrate.
 func CheckReady(ctx context.Context, db *gorm.DB) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	var schema struct {
-		Version int
-		Dirty   bool
+	pool, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("get database pool: %w", err)
 	}
-	if err := db.WithContext(ctx).Table("schema_migrations").Take(&schema).Error; err != nil {
-		return fmt.Errorf("check database schema: %w", err)
-	}
-	if schema.Dirty || schema.Version != SchemaVersion {
-		return fmt.Errorf("incompatible database schema: version=%d dirty=%t", schema.Version, schema.Dirty)
+	if err := pool.PingContext(ctx); err != nil {
+		return fmt.Errorf("check database connection: %w", err)
 	}
 	return nil
 }

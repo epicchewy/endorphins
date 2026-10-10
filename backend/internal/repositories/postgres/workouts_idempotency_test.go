@@ -3,15 +3,16 @@
 package postgres_test
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/epicchewy/endorphins/backend/internal/domains"
 	store "github.com/epicchewy/endorphins/backend/internal/repositories/postgres"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestWorkoutsCreateConcurrentRetriesReturnOneSavedSnapshot(t *testing.T) {
@@ -84,16 +85,20 @@ func TestWorkoutsCreateBindsIdempotencyKeyToOwnerAndInput(t *testing.T) {
 }
 
 func TestWorkoutsCreateFailureDoesNotReserveIdempotencyKey(t *testing.T) {
-	db, databaseURL := isolatedRepositoryDatabase(t)
-	require.NoError(t, store.Migrate(databaseURL))
+	db := isolatedRepositoryDatabase(t)
+	require.NoError(t, store.Migrate(t.Context(), db))
 	repo := store.NewWorkouts(db)
 	user, err := store.NewUsers(db).Ensure(t.Context(), "user_alice")
 	require.NoError(t, err)
-	// The existing fingerprint constraint rejects this write.
-	_, err = repo.Create(t.Context(), user.ID, workoutSnapshot("rejected"), "retry-key", "short")
-	var rejected *pgconn.PgError
-	require.ErrorAs(t, err, &rejected)
-	assert.Equal(t, "23514", rejected.Code)
+	// Fail after the workout insert to verify rollback of the plan and retry key.
+	require.NoError(t, db.Callback().Create().Before("gorm:create").Register("test:reject_search_terms", func(tx *gorm.DB) {
+		if tx.Statement.Table == "workout_search_terms" {
+			_ = tx.AddError(errors.New("injected search failure"))
+		}
+	}))
+	_, err = repo.Create(t.Context(), user.ID, workoutSnapshot("rejected"), "retry-key", strings.Repeat("a", 64))
+	require.ErrorContains(t, err, "injected search failure")
+	require.NoError(t, db.Callback().Create().Remove("test:reject_search_terms"))
 
 	saved, err := repo.Create(t.Context(), user.ID, workoutSnapshot("accepted"), "retry-key", strings.Repeat("a", 64))
 	require.NoError(t, err)
@@ -120,9 +125,7 @@ func TestWorkoutsCreateRequiresCompleteIdempotencyMetadata(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := repo.Create(t.Context(), user.ID, workoutSnapshot("invalid"), tt.key, tt.fingerprint)
-			var rejected *pgconn.PgError
-			require.ErrorAs(t, err, &rejected)
-			assert.Equal(t, "23514", rejected.Code)
+			require.ErrorContains(t, err, "invalid workout retry metadata")
 		})
 	}
 	for _, id := range []string{"without-key-a", "without-key-b"} {

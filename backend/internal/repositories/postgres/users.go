@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"unicode/utf8"
 
 	"github.com/epicchewy/endorphins/backend/internal/domains"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -19,23 +21,36 @@ type Users struct{ db *gorm.DB }
 func NewUsers(db *gorm.DB) *Users { return &Users{db: db} }
 
 type userRow struct {
-	ID                    string `gorm:"primaryKey;type:uuid;default:(-)"`
-	ClerkUserID           string
-	CreatedAt             time.Time `gorm:"autoCreateTime:false;default:(-)"`
-	DefaultLevel          int       `gorm:"default:(-)"`
+	ID                    string    `gorm:"primaryKey;type:uuid"`
+	ClerkUserID           string    `gorm:"type:text;not null;unique"`
+	CreatedAt             time.Time `gorm:"not null"`
+	DefaultLevel          int       `gorm:"type:smallint;not null;default:1"`
 	OnboardingCompletedAt *time.Time
 }
 
 func (userRow) TableName() string { return "users" }
+
+func (row *userRow) BeforeCreate(_ *gorm.DB) error {
+	if row.ID == "" {
+		row.ID = uuid.NewString()
+	}
+	return nil
+}
+
 func (row userRow) domain() domains.User {
+	if row.OnboardingCompletedAt != nil {
+		completed := row.OnboardingCompletedAt.UTC()
+		row.OnboardingCompletedAt = &completed
+	}
 	return domains.User{
-		ID: row.ID, ClerkUserID: row.ClerkUserID, CreatedAt: row.CreatedAt,
+		ID: row.ID, ClerkUserID: row.ClerkUserID, CreatedAt: row.CreatedAt.UTC(),
 		DefaultLevel: row.DefaultLevel, OnboardingCompletedAt: row.OnboardingCompletedAt,
 	}
 }
 
 type deletedAccountRow struct {
-	SubjectHash string `gorm:"primaryKey"`
+	SubjectHash string    `gorm:"primaryKey;type:text"`
+	DeletedAt   time.Time `gorm:"not null;autoCreateTime"`
 }
 
 func (deletedAccountRow) TableName() string { return "deleted_accounts" }
@@ -48,6 +63,9 @@ func subjectHash(subject string) string {
 // Ensure and Erase share the same transaction lock. Erasure leaves a tombstone
 // that prevents a concurrent or late request from recreating the account.
 func (s *Users) Ensure(ctx context.Context, subject string) (domains.User, error) {
+	if size := utf8.RuneCountInString(subject); size < 1 || size > 255 {
+		return domains.User{}, fmt.Errorf("invalid account subject")
+	}
 	var row userRow
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// The unique subject key serializes provisioning and erasure. Provisioning
@@ -60,7 +78,7 @@ func (s *Users) Ensure(ctx context.Context, subject string) (domains.User, error
 		if reserved.RowsAffected == 0 {
 			return domains.ErrAccountDeleted
 		}
-		if err := tx.Where(map[string]any{"clerk_user_id": subject}).FirstOrCreate(&row).Error; err != nil {
+		if err := tx.Clauses(clause.Returning{}).Where(map[string]any{"clerk_user_id": subject}).FirstOrCreate(&row).Error; err != nil {
 			return err
 		}
 		return tx.Delete(&guard).Error
@@ -141,6 +159,9 @@ func (s *Users) Export(ctx context.Context, userID string) (domains.AccountExpor
 }
 
 func (s *Users) Update(ctx context.Context, userID string, level int, completeOnboarding bool) (domains.User, error) {
+	if level < 1 || level > 5 {
+		return domains.User{}, fmt.Errorf("invalid default level")
+	}
 	var row userRow
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(map[string]any{"id": userID}).Take(&row).Error

@@ -1,4 +1,4 @@
-// Package postgres implements persistence with GORM and versioned SQL migrations.
+// Package postgres implements persistence and schema migration with GORM.
 package postgres
 
 import (
@@ -19,6 +19,8 @@ func Open(ctx context.Context, url string) (*gorm.DB, error) {
 		return nil, fmt.Errorf("invalid database configuration")
 	}
 	cfg.ConnectTimeout = 5 * time.Second
+	// Describe each query so schema changes cannot leave cached row types behind.
+	cfg.DefaultQueryExecMode = pgx.QueryExecModeDescribeExec
 	cfg.RuntimeParams["statement_timeout"] = "5000"
 	pool := stdlib.OpenDB(*cfg)
 	pool.SetMaxOpenConns(10)
@@ -30,9 +32,11 @@ func Open(ctx context.Context, url string) (*gorm.DB, error) {
 		return nil, fmt.Errorf("connect to database: %w", err)
 	}
 	db, err := gorm.Open(gormPostgres.New(gormPostgres.Config{Conn: pool}), &gorm.Config{
-		DisableAutomaticPing:   true,
-		SkipDefaultTransaction: true,
-		Logger:                 logger.Default.LogMode(logger.Silent),
+		DisableAutomaticPing:                     true,
+		SkipDefaultTransaction:                   true,
+		DisableForeignKeyConstraintWhenMigrating: true,
+		NowFunc:                                  func() time.Time { return time.Now().UTC() },
+		Logger:                                   logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
 		_ = pool.Close()

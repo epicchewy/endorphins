@@ -14,7 +14,7 @@ This records the first pass on October 1, 2026: a mobile workout generator based
 - OpenAPI contract and generated frontend types.
 - Development entry point, production server, layer checks, lint, race tests, render/client tests, and CI workflow.
 - Clerk CLI setup, Start middleware/provider, sign-in/sign-up, and account controls.
-- Postgres users and immutable, owner-scoped workout snapshots with versioned migrations.
+- Postgres users and immutable, owner-scoped workout snapshots. Schema setup now follows Temper's GORM `AutoMigrate` command; see [current architecture](architecture.md).
 - Workout journal and saved-plan detail pages, session-scoped caches, and account data documentation.
 - Real-query Testcontainers tests and signed-JWT authentication tests.
 
