@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make setup)",
+      "Bash(make node-version)",
+      "Bash(make check)",
+      "Bash(make lint)",
+      "Bash(make test)",
+      "Bash(make build)",
+      "Bash(make format)",
+      "Bash(make e2e)",
+      "Bash(make browsers)",
+      "Bash(make db-up)",
+      "Bash(make db-stop)",
+      "Bash(make migrate)",
+      "Bash(python3 scripts/check-layers.py)",
+      "Bash(go test *)",
+      "Bash(bun test *)",
+      "Bash(bun run typegen)",
+      "Bash(bun run typecheck)",
+      "Bash(bun run lint)",
+      "Bash(bun run doctor)",
+      "Bash(bunx playwright test *)"
+    ]
+  }
+}

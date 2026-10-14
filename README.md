@@ -68,6 +68,7 @@ The Bun server compresses built JavaScript and CSS once at startup and serves ca
 - [Engineering practices](docs/engineering-practices.md)
 - [OpenAPI contract](api/openapi.json)
 - [Deployment runbook](docs/deployment.md)
+- [History: dated reviews, research, and decision records](docs/history/)
 
 Open `/design-system` in development to inspect the shared controls. `/app/account` provides an authenticated JSON data export.
 
