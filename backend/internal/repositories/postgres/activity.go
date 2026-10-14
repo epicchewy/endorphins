@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -35,9 +36,13 @@ func (row *completionRow) BeforeCreate(_ *gorm.DB) error {
 }
 
 func (row completionRow) domain() (domains.Completion, error) {
-	level, focus, err := decodeCompletionMetadata(row.Workout.Plan)
-	if err != nil {
-		return domains.Completion{}, err
+	// Read only the focus, independent of the snapshot version, so a completion
+	// still records against a plan saved by a newer release.
+	var plan struct {
+		Focus *string `json:"focus"`
+	}
+	if err := json.Unmarshal(row.Workout.Plan, &plan); err != nil || plan.Focus == nil {
+		return domains.Completion{}, fmt.Errorf("read completion plan focus")
 	}
 	if row.UndoneAt != nil {
 		undone := row.UndoneAt.UTC()
@@ -45,12 +50,12 @@ func (row completionRow) domain() (domains.Completion, error) {
 	}
 	return domains.Completion{
 		ID: row.ID, WorkoutID: row.WorkoutID, CompletedAt: row.CompletedAt.UTC(),
-		UndoneAt: row.UndoneAt, Level: level, Focus: focus,
+		UndoneAt: row.UndoneAt, Level: row.Workout.Level, Focus: *plan.Focus,
 	}, nil
 }
 
 func completionQuery(db *gorm.DB, userID string) *gorm.DB {
-	return db.Model(&completionRow{}).InnerJoins("Workout", db.Select("ID", "UserID", "Plan")).
+	return db.Model(&completionRow{}).InnerJoins("Workout", db.Select("ID", "UserID", "Level", "Plan")).
 		Where(map[string]any{"workout_completions.user_id": userID}).
 		Order(clause.OrderByColumn{Column: clause.Column{Table: clause.CurrentTable, Name: "completed_at"}, Desc: true}).
 		Order(clause.OrderByColumn{Column: clause.Column{Table: clause.CurrentTable, Name: "id"}, Desc: true})

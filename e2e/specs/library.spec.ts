@@ -10,8 +10,14 @@ test('finds an older plan beyond the loaded page and preserves filters through n
   await expect(page.getByRole('link', { name: /View plan/ })).toHaveCount(20)
   await expect(page.getByRole('button', { name: 'Load more workouts' })).toBeVisible()
   await expect(page.getByRole('status').filter({ hasText: 'of 26' })).toContainText('26')
-  await page.getByRole('searchbox').fill('Archive-only')
+  // Typing waits for a pause before searching, so each keystroke does not reach the API.
+  const searches: string[] = []
+  page.on('request', (request) => {
+    if (/\/api\/v1\/workouts\?.*q=/.test(request.url())) searches.push(request.url())
+  })
+  await page.getByRole('searchbox').pressSequentially('Archive-only', { delay: 20 })
   await expect(page.getByRole('link', { name: /View plan/ })).toHaveCount(1)
+  expect(searches.length).toBeLessThanOrEqual(2)
   await expect(page).toHaveURL(/q=Archive-only/)
   await page.getByRole('combobox', { name: 'Filter by level' }).selectOption('5')
   await page.getByRole('combobox', { name: 'Sort workouts' }).selectOption('shortest')

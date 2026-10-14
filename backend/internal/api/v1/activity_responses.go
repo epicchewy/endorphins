@@ -1,8 +1,9 @@
 package v1
 
 import (
-	"github.com/epicchewy/endorphins/backend/internal/domains"
 	"time"
+
+	"github.com/epicchewy/endorphins/backend/internal/domains"
 )
 
 type CompletionResponse struct {

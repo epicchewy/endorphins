@@ -1,6 +1,6 @@
 import type { GenerateInput } from './workouts'
 
-function boundedInteger(value: unknown, min: number, max: number) {
+export function boundedInteger(value: unknown, min: number, max: number) {
   const number =
     typeof value === 'number'
       ? value

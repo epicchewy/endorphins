@@ -35,9 +35,6 @@ func Load(args []string) (Config, error) {
 	if err := parse(&cfg, "endorphins-api", args); err != nil {
 		return Config{}, err
 	}
-	if cfg.HTTP.Address == "" {
-		cfg.HTTP.Address = "127.0.0.1:8088"
-	}
 	_, port, err := net.SplitHostPort(cfg.HTTP.Address)
 	if err != nil {
 		return Config{}, fmt.Errorf("API_ADDRESS or --api-address must use host:port")
@@ -46,7 +43,6 @@ func Load(args []string) (Config, error) {
 	if err != nil || number < 0 || number > 65535 {
 		return Config{}, fmt.Errorf("API_ADDRESS or --api-address must use a port from 0 to 65535")
 	}
-	cfg.Catalogue.Resolve()
 	if err := cfg.Postgres.Validate(); err != nil {
 		return Config{}, err
 	}

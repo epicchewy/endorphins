@@ -1,4 +1,4 @@
-import { useRef, useReducer } from 'react'
+import { useRef, useState } from 'react'
 import { createFileRoute, Navigate } from '@tanstack/react-router'
 import { ArrowRight, Check, House } from 'lucide-react'
 import { useAccount, useUpdateAccount } from '~/hooks/use-account'
@@ -18,10 +18,6 @@ export const Route = createFileRoute('/_authenticated/app_/onboarding')({
   }),
   component: Onboarding,
 })
-
-function onboardingReducer(state: { step: number; level: number }, patch: Partial<typeof state>) {
-  return { ...state, ...patch }
-}
 
 function Onboarding() {
   const account = useAccount()
@@ -50,7 +46,8 @@ function Onboarding() {
 
 function OnboardingSetup({ defaultLevel }: { defaultLevel: number }) {
   const update = useUpdateAccount()
-  const [{ step, level }, dispatch] = useReducer(onboardingReducer, { step: 0, level: 1 })
+  const [step, setStep] = useState(0)
+  const [level, setLevel] = useState(1)
   const heading = useRef<HTMLHeadingElement>(null)
   return (
     <main
@@ -120,7 +117,8 @@ function OnboardingSetup({ defaultLevel }: { defaultLevel: number }) {
               variant="primary"
               className="w-full justify-between"
               onClick={() => {
-                dispatch({ step: 1, level: defaultLevel })
+                setStep(1)
+                setLevel(defaultLevel)
                 requestAnimationFrame(() => heading.current?.focus())
               }}
             >
@@ -164,7 +162,7 @@ function OnboardingSetup({ defaultLevel }: { defaultLevel: number }) {
                   value={item.number}
                   checked={level === item.number}
                   onChange={() => {
-                    dispatch({ level: item.number })
+                    setLevel(item.number)
                     update.reset()
                   }}
                   className="justify-start gap-4 px-5 py-4"
@@ -197,7 +195,7 @@ function OnboardingSetup({ defaultLevel }: { defaultLevel: number }) {
               variant="ghost"
               disabled={update.isPending}
               onClick={() => {
-                dispatch({ step: 0 })
+                setStep(0)
                 requestAnimationFrame(() => heading.current?.focus())
               }}
             >

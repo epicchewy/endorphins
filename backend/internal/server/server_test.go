@@ -15,6 +15,7 @@ import (
 	"github.com/epicchewy/endorphins/backend/internal/domains"
 	"github.com/epicchewy/endorphins/backend/internal/services/library"
 	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -68,9 +69,10 @@ func TestSafeErrorsAndRequestIDs(t *testing.T) {
 		{code: "account_deleted", err: domains.ErrAccountDeleted, status: 401},
 		{code: "idempotency_conflict", err: domains.ErrIdempotencyConflict, status: 409},
 		{code: "invalid_page", err: library.ErrInvalidPage, status: 400},
+		{code: "rate_limited", err: middleware.ErrRateLimitExceeded, status: 429},
 	} {
 		t.Run(tt.code, func(t *testing.T) {
-			router := New(nil, nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+			router := New(nil, nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{})
 			router.GET("/failure", func(*echo.Context) error { return tt.err })
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/failure", nil)
 			req.Header.Set("X-Request-ID", "untrusted")

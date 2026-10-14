@@ -5,6 +5,7 @@ VERSION ?= dev
 REVISION := $(shell git rev-parse --short HEAD)
 API_PACKAGE := github.com/epicchewy/endorphins/backend/internal/app
 NODE_VERSION := $(shell cat .nvmrc)
+GOLANGCI := go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
 
 .PHONY: workout
 workout:
@@ -39,7 +40,7 @@ web: node-version
 	cd frontend && bun run dev
 
 format: node-version
-	cd backend && gofmt -w .
+	cd backend && $(GOLANGCI) fmt
 	cd frontend && bun run format
 	cd frontend && bunx prettier --write ../e2e --ignore-path ../.gitignore
 
@@ -48,10 +49,9 @@ test:
 	cd frontend && bun test test
 
 lint: node-version
-	@test -z "$$(cd backend && gofmt -l .)" || (echo 'Run make format'; exit 1)
 	python3 scripts/check-layers.py
-	cd backend && GOTOOLCHAIN=go1.27.1 go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run
-	cd backend && GOTOOLCHAIN=go1.27.1 go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run --build-tags=integration,e2e
+	cd backend && $(GOLANGCI) run
+	cd backend && $(GOLANGCI) run --build-tags=integration,e2e
 	cd frontend && bun run lint && bun run format:check
 	cd e2e && bun run typecheck
 	cd frontend && bunx prettier --check ../e2e --ignore-path ../.gitignore

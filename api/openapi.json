@@ -97,6 +97,16 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Too many workouts created for this account; wait and retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [

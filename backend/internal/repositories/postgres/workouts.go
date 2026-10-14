@@ -212,6 +212,8 @@ func (s *Workouts) Summary(ctx context.Context, userID string, filter domains.Wo
 	for i := range result.Levels {
 		result.Levels[i].Level = i + 1
 	}
+	// ponytail: scans every matching row because aggregates need SQL expressions;
+	// store per-account level counts and minutes if libraries grow to thousands.
 	var rows []struct {
 		ID                      string
 		Level, EstimatedMinutes int
