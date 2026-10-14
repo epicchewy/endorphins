@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { test as base, expect, type Page } from '@playwright/test'
+import { test as base, expect, type APIRequestContext, type Page } from '@playwright/test'
+
+async function token(request: APIRequestContext, subject: string): Promise<string> {
+  const response = await request.get(`/api/__fixture/token?subject=${subject}`)
+  expect(response.status()).toBe(200)
+  return (await response.json()).token
+}
 
 type Fixtures = {
   subject: string
@@ -13,10 +19,7 @@ type Fixtures = {
 export const test = base.extend<Fixtures>({
   subject: async ({}, use) => use(`browser_${randomUUID()}`),
   authorization: async ({ request, subject }, use) => {
-    const response = await request.get(`/api/__fixture/token?subject=${subject}`)
-    expect(response.status()).toBe(200)
-    const { token } = await response.json()
-    await use({ Authorization: `Bearer ${token}` })
+    await use({ Authorization: `Bearer ${await token(request, subject)}` })
   },
   page: async ({ page, baseURL }, use) => {
     // All browser dependencies must be served by this run's local stack.
@@ -30,18 +33,16 @@ export const test = base.extend<Fixtures>({
   },
   signIn: async ({ page, request, baseURL }, use) => {
     await use(async (subject) => {
-      const response = await request.get(`/api/__fixture/token?subject=${subject}`)
-      expect(response.status()).toBe(200)
-      const { token } = await response.json()
+      const session = await token(request, subject)
       const account = await request.patch('/api/v1/me', {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${session}` },
         data: { defaultLevel: 2, completeOnboarding: true },
       })
       expect(account.status()).toBe(200)
       await page.context().addCookies([
         {
           name: 'endorphins_test_session',
-          value: encodeURIComponent(token),
+          value: encodeURIComponent(session),
           url: baseURL!,
           sameSite: 'Strict',
         },

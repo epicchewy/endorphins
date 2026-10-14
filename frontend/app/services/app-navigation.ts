@@ -4,12 +4,6 @@ export function safeAppPath(value: unknown): string {
   try {
     const url = new URL(value, 'https://endorphins.invalid')
     if (
-      url.pathname === '/account' ||
-      url.pathname === '/workouts' ||
-      url.pathname.startsWith('/workouts/')
-    )
-      url.pathname = '/app' + url.pathname
-    if (
       url.origin !== 'https://endorphins.invalid' ||
       (url.pathname !== '/app' && !url.pathname.startsWith('/app/')) ||
       url.pathname.replace(/\/+$/, '') === '/app/onboarding'

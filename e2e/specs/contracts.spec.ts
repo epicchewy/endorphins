@@ -102,13 +102,12 @@ test('production static server preserves compression, HEAD and path isolation', 
   })
   expect(head.headers()['content-length']).toBe(compressed.headers()['content-length'])
   expect(await head.body()).toHaveLength(0)
-  expect(
-    (
-      await request.get(asset!, {
-        headers: { 'Accept-Encoding': 'gzip;q=0, identity;q=0' },
-      })
-    ).status(),
-  ).toBe(406)
+  const refused = await request.get(asset!, { headers: { 'Accept-Encoding': 'gzip;q=0' } })
+  expect(refused.headers()['content-encoding']).toBeUndefined()
+  for (const response of [html, compressed, await request.get('/api/v1/workouts')]) {
+    expect(response.headers()['content-security-policy']).toBe("frame-ancestors 'none'")
+    expect(response.headers()['x-content-type-options']).toBe('nosniff')
+  }
   expect((await request.get('/assets/%2e%2e/%2e%2e/package.json')).status()).toBe(404)
   expect((await request.get('/assets/missing.js')).status()).toBe(404)
 })

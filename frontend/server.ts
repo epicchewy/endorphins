@@ -17,86 +17,99 @@ if (!URL.canParse(origin)) throw new Error('API_ORIGIN must be a valid URL')
 const apiOrigin = new URL(origin)
 if (!['http:', 'https:'].includes(apiOrigin.protocol))
   throw new Error('API_ORIGIN must use HTTP or HTTPS')
+// A full script/style CSP needs Clerk's hosts and the inline theme script; framing is the cheap win.
+const securityHeaders = {
+  'Content-Security-Policy': "frame-ancestors 'none'",
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Strict-Transport-Security': 'max-age=31536000',
+  'X-Content-Type-Options': 'nosniff',
+}
 const server = Bun.serve({
   hostname: process.env.HOST ?? '127.0.0.1',
   port: Number(process.env.PORT ?? 3100),
   // Let the 15-second upstream deadline return its 503 before closing the socket.
   idleTimeout: 30,
   async fetch(request) {
-    const url = new URL(request.url)
-    if (url.pathname.startsWith('/api/')) {
-      const requestId = crypto.randomUUID()
-      try {
-        return await fetch(new URL(url.pathname + url.search, apiOrigin), {
-          method: request.method,
-          headers: {
-            'Content-Type': request.headers.get('content-type') ?? 'application/json',
-            'X-Request-ID': requestId,
-            ...Object.fromEntries(
-              ['svix-id', 'svix-timestamp', 'svix-signature', 'idempotency-key', 'authorization']
-                .filter((name) => request.headers.has(name))
-                .map((name) => [name, request.headers.get(name)!]),
-            ),
-          },
-          body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
-          redirect: 'manual',
-          signal: AbortSignal.any([request.signal, AbortSignal.timeout(15_000)]),
-        })
-      } catch {
-        return Response.json(
-          { message: 'Workout generator unavailable.', code: 'service_unavailable', requestId },
-          { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Request-ID': requestId } },
-        )
-      }
-    }
-    if (
-      url.pathname.startsWith('/assets/') ||
-      url.pathname.startsWith('/images/') ||
-      url.pathname === '/favicon.svg'
-    ) {
-      if (!['GET', 'HEAD'].includes(request.method)) return new Response(null, { status: 405 })
-      let path: string
-      try {
-        path = await realpath(resolve(clientDir, '.' + decodeURIComponent(url.pathname)))
-      } catch {
-        return new Response(null, { status: 404 })
-      }
-      if (!path.startsWith(clientRoot + sep)) return new Response(null, { status: 404 })
-      const file = Bun.file(path)
-      const encodings = new Map(
-        (request.headers.get('accept-encoding') ?? '').split(',').map((entry) => {
-          const [name, ...parameters] = entry.toLowerCase().split(';')
-          const quality = parameters.find((parameter) => parameter.trim().startsWith('q='))
-          const weight = quality === undefined ? 1 : Number(quality.trim().slice(2))
-          return [name.trim(), Number.isFinite(weight) && weight >= 0 && weight <= 1 ? weight : 0]
-        }),
-      )
-      const gzipQuality = encodings.get('gzip') ?? encodings.get('*') ?? 0
-      const identityQuality = encodings.get('identity') ?? (encodings.get('*') === 0 ? 0 : 1)
-      const compressed =
-        gzipQuality > 0 && gzipQuality >= (encodings.get('identity') ?? 0)
-          ? compressedAssets.get(path)
-          : undefined
-      const headers = new Headers({
-        'Content-Type': file.type,
-        Vary: 'Accept-Encoding',
-        'Cache-Control': url.pathname.startsWith('/assets/')
-          ? 'public, max-age=31536000, immutable'
-          : 'public, max-age=3600',
-      })
-      if (!compressed && identityQuality === 0) {
-        return new Response(null, { status: 406, headers: { Vary: 'Accept-Encoding' } })
-      }
-      if (compressed) headers.set('Content-Encoding', 'gzip')
-      headers.set('Content-Length', String(compressed?.byteLength ?? file.size))
-      return new Response(request.method === 'HEAD' ? null : (compressed ?? file), {
-        headers,
-      })
-    }
-    const response = await handler.fetch(request)
-    const privateResponse = new Response(response.body, response)
-    privateResponse.headers.set('Cache-Control', 'private, no-store')
-    return privateResponse
+    const response = await respond(request, server.requestIP(request)?.address)
+    for (const [name, value] of Object.entries(securityHeaders)) response.headers.set(name, value)
+    return response
   },
 })
 console.log(`Endorphins is available at ${server.url}`)
+
+async function respond(request: Request, client: string | undefined): Promise<Response> {
+  const url = new URL(request.url)
+  if (url.pathname.startsWith('/api/')) {
+    const requestId = crypto.randomUUID()
+    try {
+      const upstream = await fetch(new URL(url.pathname + url.search, apiOrigin), {
+        method: request.method,
+        headers: {
+          'Content-Type': request.headers.get('content-type') ?? 'application/json',
+          'X-Request-ID': requestId,
+          // Go trusts this header only from loopback and private-network peers.
+          'X-Forwarded-For': [request.headers.get('x-forwarded-for'), client]
+            .filter(Boolean)
+            .join(', '),
+          ...Object.fromEntries(
+            [
+              'svix-id',
+              'svix-timestamp',
+              'svix-signature',
+              'idempotency-key',
+              'authorization',
+              'user-agent',
+            ]
+              .filter((name) => request.headers.has(name))
+              .map((name) => [name, request.headers.get(name)!]),
+          ),
+        },
+        body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
+        redirect: 'manual',
+        signal: AbortSignal.any([request.signal, AbortSignal.timeout(15_000)]),
+      })
+      return new Response(upstream.body, upstream)
+    } catch {
+      return Response.json(
+        { message: 'Workout generator unavailable.', code: 'service_unavailable', requestId },
+        { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Request-ID': requestId } },
+      )
+    }
+  }
+  if (
+    url.pathname.startsWith('/assets/') ||
+    url.pathname.startsWith('/images/') ||
+    url.pathname === '/favicon.svg'
+  ) {
+    if (!['GET', 'HEAD'].includes(request.method)) return new Response(null, { status: 405 })
+    let path: string
+    try {
+      path = await realpath(resolve(clientDir, '.' + decodeURIComponent(url.pathname)))
+    } catch {
+      return new Response(null, { status: 404 })
+    }
+    if (!path.startsWith(clientRoot + sep)) return new Response(null, { status: 404 })
+    const file = Bun.file(path)
+    const acceptsGzip = (request.headers.get('accept-encoding') ?? '').split(',').some((entry) => {
+      const [name, quality = '1'] = entry.split(';q=')
+      return name.trim().toLowerCase() === 'gzip' && Number(quality) > 0
+    })
+    const compressed = acceptsGzip ? compressedAssets.get(path) : undefined
+    const headers = new Headers({
+      'Content-Type': file.type,
+      Vary: 'Accept-Encoding',
+      'Cache-Control': url.pathname.startsWith('/assets/')
+        ? 'public, max-age=31536000, immutable'
+        : 'public, max-age=3600',
+    })
+    if (compressed) headers.set('Content-Encoding', 'gzip')
+    headers.set('Content-Length', String(compressed?.byteLength ?? file.size))
+    return new Response(request.method === 'HEAD' ? null : (compressed ?? file), {
+      headers,
+    })
+  }
+  const response = await handler.fetch(request)
+  const privateResponse = new Response(response.body, response)
+  privateResponse.headers.set('Cache-Control', 'private, no-store')
+  return privateResponse
+}

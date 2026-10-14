@@ -1,3 +1,5 @@
+import { boundedInteger } from './workout-preferences'
+
 export type LibrarySearch = {
   q?: string
   level?: number
@@ -7,13 +9,9 @@ export type LibrarySearch = {
 export const librarySearchDefaults = { q: '', sort: 'newest' } as const
 
 export function librarySearch(search: Record<string, unknown>): LibrarySearch {
-  const level = typeof search.level === 'string' ? Number(search.level) : search.level
   return {
     q: typeof search.q === 'string' ? [...search.q].slice(0, 200).join('') : '',
-    level:
-      typeof level === 'number' && Number.isInteger(level) && level >= 1 && level <= 5
-        ? level
-        : undefined,
+    level: boundedInteger(search.level, 1, 5),
     sort: search.sort === 'shortest' ? 'shortest' : 'newest',
   }
 }

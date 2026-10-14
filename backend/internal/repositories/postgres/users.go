@@ -60,14 +60,23 @@ func subjectHash(subject string) string {
 	return hex.EncodeToString(digest[:])
 }
 
-// Ensure and Erase share the same transaction lock. Erasure leaves a tombstone
-// that prevents a concurrent or late request from recreating the account.
+// Provisioning and Erase share the same transaction lock. Erasure leaves a
+// tombstone that prevents a concurrent or late request from recreating the account.
 func (s *Users) Ensure(ctx context.Context, subject string) (domains.User, error) {
 	if size := utf8.RuneCountInString(subject); size < 1 || size > 255 {
 		return domains.User{}, fmt.Errorf("invalid account subject")
 	}
 	var row userRow
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	// Existing accounts need no lock: erasure deletes the row, and owned writes
+	// take KEY SHARE on it. Only first provisioning races erasure.
+	err := s.db.WithContext(ctx).Where(map[string]any{"clerk_user_id": subject}).Take(&row).Error
+	if err == nil {
+		return row.domain(), nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return domains.User{}, fmt.Errorf("resolve user: %w", err)
+	}
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// The unique subject key serializes provisioning and erasure. Provisioning
 		// removes its transient row before commit; erasure keeps the tombstone.
 		guard := deletedAccountRow{SubjectHash: subjectHash(subject)}

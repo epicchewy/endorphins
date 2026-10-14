@@ -4,6 +4,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -13,7 +14,9 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func Open(ctx context.Context, url string) (*gorm.DB, error) {
+// Open connects with a per-statement bound. Zero leaves statements unbounded,
+// which schema migration needs for index builds on large tables.
+func Open(ctx context.Context, url string, statementTimeout time.Duration) (*gorm.DB, error) {
 	cfg, err := pgx.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf("invalid database configuration")
@@ -21,7 +24,9 @@ func Open(ctx context.Context, url string) (*gorm.DB, error) {
 	cfg.ConnectTimeout = 5 * time.Second
 	// Describe each query so schema changes cannot leave cached row types behind.
 	cfg.DefaultQueryExecMode = pgx.QueryExecModeDescribeExec
-	cfg.RuntimeParams["statement_timeout"] = "5000"
+	if statementTimeout > 0 {
+		cfg.RuntimeParams["statement_timeout"] = strconv.FormatInt(statementTimeout.Milliseconds(), 10)
+	}
 	pool := stdlib.OpenDB(*cfg)
 	pool.SetMaxOpenConns(10)
 	pool.SetMaxIdleConns(10)

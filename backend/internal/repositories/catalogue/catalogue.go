@@ -1,4 +1,4 @@
-// Package repositories implements storage access behind service-owned ports.
+// Package catalogue loads the validated exercise catalogue from the JSON files.
 package catalogue
 
 import (

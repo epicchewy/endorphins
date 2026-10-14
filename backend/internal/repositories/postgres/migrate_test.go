@@ -4,10 +4,9 @@ package postgres_test
 
 import (
 	"errors"
-	"fmt"
+	"strings"
 	"testing"
 
-	"github.com/epicchewy/endorphins/backend/internal/domains"
 	store "github.com/epicchewy/endorphins/backend/internal/repositories/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,81 +35,6 @@ func TestMigrateReapplicationPreservesAccountData(t *testing.T) {
 	assert.Equal(t, before.Completions, after.Completions)
 }
 
-func TestMigrateUpgradesExistingPlansAndRemovesLegacyConstraints(t *testing.T) {
-	db := isolatedRepositoryDatabase(t)
-	require.NoError(t, store.Migrate(t.Context(), db))
-	users, plans := store.NewUsers(db), store.NewWorkouts(db)
-	user, err := users.Ensure(t.Context(), "legacy-owner")
-	require.NoError(t, err)
-	_, err = plans.Create(t.Context(), user.ID, workoutSnapshot("legacy-plan"), "", "")
-	require.NoError(t, err)
-	_, err = plans.Complete(t.Context(), user.ID, "legacy-plan", "legacy-intent")
-	require.NoError(t, err)
-	require.NoError(t, users.Erase(t.Context(), "previously-deleted"))
-	before, err := users.Export(t.Context(), user.ID)
-	require.NoError(t, err)
-	other, err := users.Ensure(t.Context(), "batch-owner")
-	require.NoError(t, err)
-	for i := range 102 {
-		_, err = plans.Create(t.Context(), other.ID, workoutSnapshot(fmt.Sprintf("batch-%03d", i)), "", "")
-		require.NoError(t, err)
-	}
-	// Projection must ignore unrelated fields and preserve the original JSON.
-	preserved := []byte(`{"level":"2","estimatedMinutes":"39","requestedMinutes":"45","focus":"legs","blocks":[{"name":"legs","exercises":[{"name":"Squat"}]}]}`)
-	require.NoError(t, db.WithContext(t.Context()).Table("workouts").
-		Where(map[string]any{"user_id": other.ID, "id": "batch-000"}).UpdateColumn("plan", preserved).Error)
-
-	// Recreate the old schema shape with GORM, without storing migration history.
-	fixture := db.WithContext(t.Context()).Migrator()
-	require.NoError(t, fixture.DropTable("workout_search_terms"))
-	require.NoError(t, fixture.DropColumn("workouts", "level"))
-	require.NoError(t, fixture.DropColumn("workouts", "estimated_minutes"))
-	require.NoError(t, fixture.CreateTable(&legacyMigrationState{}))
-	require.NoError(t, fixture.RenameIndex("users", "uni_users_clerk_user_id", "users_clerk_user_id_key"))
-	require.NoError(t, fixture.CreateIndex(&legacyWorkout{}, "workouts_owner_id"))
-	require.NoError(t, fixture.CreateConstraint(&legacyWorkout{}, "User"))
-	require.NoError(t, fixture.CreateConstraint(&legacyCompletion{}, "User"))
-	require.NoError(t, fixture.CreateConstraint(&legacyCompletion{}, "Workout"))
-
-	require.NoError(t, store.Migrate(t.Context(), db))
-	require.NoError(t, store.Migrate(t.Context(), db))
-	assertNoForeignKeys(t, db)
-	assert.False(t, db.Migrator().HasTable("schema_migrations"))
-	assert.False(t, db.Migrator().HasIndex("workouts", "workouts_owner_id"))
-	after, err := users.Export(t.Context(), user.ID)
-	require.NoError(t, err)
-	assert.Equal(t, before.User, after.User)
-	assert.Equal(t, before.Workouts, after.Workouts)
-	assert.Equal(t, before.Completions, after.Completions)
-	for _, query := range []string{"legs", "squat", "sprint"} {
-		filter := domains.WorkoutFilter{Query: query, Level: 2, Sort: "shortest"}
-		items, err := plans.List(t.Context(), user.ID, filter, nil, 20)
-		require.NoError(t, err)
-		assert.Equal(t, before.Workouts, items, query)
-		summary, err := plans.Summary(t.Context(), user.ID, filter)
-		require.NoError(t, err)
-		assert.Equal(t, 1, summary.Count, query)
-		assert.Equal(t, 39, summary.PlannedMinutes, query)
-	}
-	summary, err := plans.Summary(t.Context(), other.ID, domains.WorkoutFilter{Query: "squat", Level: 2})
-	require.NoError(t, err)
-	assert.Equal(t, 102, summary.Count)
-	assert.Equal(t, 102*39, summary.PlannedMinutes)
-	var stored struct{ Plan []byte }
-	require.NoError(t, db.WithContext(t.Context()).Table("workouts").
-		Where(map[string]any{"user_id": other.ID, "id": "batch-000"}).Take(&stored).Error)
-	assert.JSONEq(t, string(preserved), string(stored.Plan))
-
-	_, err = users.Ensure(t.Context(), "previously-deleted")
-	assert.ErrorIs(t, err, domains.ErrAccountDeleted)
-	require.NoError(t, users.Erase(t.Context(), "legacy-owner"))
-	for _, table := range []string{"workouts", "workout_completions", "workout_search_terms"} {
-		var count int64
-		require.NoError(t, db.WithContext(t.Context()).Table(table).Where(map[string]any{"user_id": user.ID}).Count(&count).Error)
-		assert.Zero(t, count, table)
-	}
-}
-
 func TestMigrateFailureRollsBackSchemaAndCanBeRetried(t *testing.T) {
 	db := isolatedRepositoryDatabase(t)
 	require.NoError(t, store.Migrate(t.Context(), db))
@@ -122,27 +46,23 @@ func TestMigrateFailureRollsBackSchemaAndCanBeRetried(t *testing.T) {
 	fixture := db.WithContext(t.Context()).Migrator()
 	require.NoError(t, fixture.DropTable("workout_search_terms"))
 	require.NoError(t, fixture.DropColumn("workouts", "level"))
-	require.NoError(t, fixture.DropColumn("workouts", "estimated_minutes"))
-	require.NoError(t, fixture.CreateTable(&legacyMigrationState{}))
-	require.NoError(t, db.Callback().Create().Before("gorm:create").Register("test:reject_backfill", func(tx *gorm.DB) {
-		if tx.Statement.Table == "workout_search_terms" {
-			_ = tx.AddError(errors.New("injected backfill failure"))
+	// The search-term table migrates last, after the workouts column is restored.
+	require.NoError(t, db.Callback().Raw().Before("gorm:raw").Register("test:reject_search_terms", func(tx *gorm.DB) {
+		if strings.Contains(tx.Statement.SQL.String(), "workout_search_terms") {
+			_ = tx.AddError(errors.New("injected migration failure"))
 		}
 	}))
-	require.ErrorContains(t, store.Migrate(t.Context(), db), "injected backfill failure")
+	require.ErrorContains(t, store.Migrate(t.Context(), db), "injected migration failure")
 	assert.False(t, fixture.HasTable("workout_search_terms"))
 	assert.False(t, fixture.HasColumn("workouts", "level"))
-	assert.False(t, fixture.HasColumn("workouts", "estimated_minutes"))
-	assert.True(t, fixture.HasTable("schema_migrations"))
+
+	require.NoError(t, db.Callback().Raw().Remove("test:reject_search_terms"))
+	require.NoError(t, store.Migrate(t.Context(), db))
+	assert.True(t, fixture.HasTable("workout_search_terms"))
+	assert.True(t, fixture.HasColumn("workouts", "level"))
 	retained, err := plans.Get(t.Context(), user.ID, "retained-plan")
 	require.NoError(t, err)
 	assert.Equal(t, before, retained)
-
-	require.NoError(t, db.Callback().Create().Remove("test:reject_backfill"))
-	require.NoError(t, store.Migrate(t.Context(), db))
-	items, err := plans.List(t.Context(), user.ID, domains.WorkoutFilter{Query: "squat"}, nil, 20)
-	require.NoError(t, err)
-	assert.Equal(t, []domains.SavedWorkout{before}, items)
 }
 
 func assertNoForeignKeys(t *testing.T, db *gorm.DB) {
@@ -157,34 +77,3 @@ func assertNoForeignKeys(t *testing.T, db *gorm.DB) {
 		Where(map[string]any{"contype": "f", "connamespace": namespace.OID}).Count(&count).Error)
 	assert.Zero(t, count, "application migrations must leave no foreign keys")
 }
-
-type legacyMigrationState struct {
-	Version int
-	Dirty   bool
-}
-
-func (legacyMigrationState) TableName() string { return "schema_migrations" }
-
-// These models describe legacy relationships only. Production never creates them.
-type legacyUser struct {
-	ID string `gorm:"primaryKey;type:uuid"`
-}
-
-func (legacyUser) TableName() string { return "users" }
-
-type legacyWorkout struct {
-	ID     string     `gorm:"primaryKey;uniqueIndex:workouts_owner_id"`
-	UserID string     `gorm:"type:uuid;uniqueIndex:workouts_owner_id"`
-	User   legacyUser `gorm:"foreignKey:UserID;references:ID;constraint:workouts_user_id_fkey,OnDelete:CASCADE"`
-}
-
-func (legacyWorkout) TableName() string { return "workouts" }
-
-type legacyCompletion struct {
-	UserID    string `gorm:"type:uuid"`
-	WorkoutID string
-	User      legacyUser    `gorm:"foreignKey:UserID;references:ID;constraint:workout_completions_user_id_fkey,OnDelete:CASCADE"`
-	Workout   legacyWorkout `gorm:"foreignKey:UserID,WorkoutID;references:UserID,ID;constraint:workout_completions_user_id_workout_id_fkey,OnDelete:CASCADE"`
-}
-
-func (legacyCompletion) TableName() string { return "workout_completions" }

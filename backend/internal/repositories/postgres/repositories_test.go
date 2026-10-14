@@ -55,7 +55,7 @@ func runRepositoryTests(m *testing.M) (code int) {
 		fmt.Fprintln(os.Stderr, "get repository test connection:", err)
 		return 1
 	}
-	repositoryTestDB, err = store.Open(ctx, repositoryTestURL)
+	repositoryTestDB, err = store.Open(ctx, repositoryTestURL, 5*time.Second)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "open repository test database:", err)
 		return 1
@@ -100,7 +100,7 @@ func isolatedRepositoryDatabase(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 	parsed.Path = "/" + name
 	databaseURL := parsed.String()
-	pool, err := store.Open(t.Context(), databaseURL)
+	pool, err := store.Open(t.Context(), databaseURL, 5*time.Second)
 	require.NoError(t, err)
 	cleanupRepositoryDatabase(t, pool)
 	return pool
