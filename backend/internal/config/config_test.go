@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/base64"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -17,7 +18,10 @@ var configEnvironment = []string{
 func clearEnvironment(t *testing.T) {
 	t.Helper()
 	for _, name := range configEnvironment {
-		t.Setenv(name, "")
+		t.Setenv(name, "") // Restores the original value after the test.
+		if err := os.Unsetenv(name); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 func validEnvironment(t *testing.T) {

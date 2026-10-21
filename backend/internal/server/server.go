@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/epicchewy/endorphins/backend/internal/domains"
 	"github.com/epicchewy/endorphins/backend/internal/handlers"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
@@ -17,13 +18,12 @@ type Options struct {
 	ClerkWebhook http.Handler
 }
 
-func New(workouts *handlers.Workout, accounts *handlers.Account, authenticate func(http.Handler) http.Handler, logger *slog.Logger, options ...Options) *echo.Echo {
-	var opts Options
-	if len(options) > 0 {
-		opts = options[0]
-	}
+func New(workouts *handlers.Workout, accounts *handlers.Account, authenticate func(http.Handler) http.Handler, logger *slog.Logger, opts Options) *echo.Echo {
 	e := echo.New()
 	e.Logger = logger
+	// The Bun proxy appends the client to X-Forwarded-For. Only loopback and
+	// private-network peers are trusted, so a direct client cannot spoof it.
+	e.IPExtractor = echo.ExtractIPFromXFFHeader()
 	e.HTTPErrorHandler = errorHandler(logger)
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
@@ -58,7 +58,13 @@ func New(workouts *handlers.Workout, accounts *handlers.Account, authenticate fu
 	api.GET("/me", accounts.Me)
 	api.PATCH("/me", accounts.Update)
 	api.GET("/me/export", accounts.Export)
-	api.POST("/workouts", workouts.Create)
+	api.POST("/workouts", workouts.Create, middleware.RateLimiterWithConfig(middleware.RateLimiterConfig{
+		// ponytail: per-process memory store; use a shared store when running several API instances.
+		Store: middleware.NewRateLimiterMemoryStoreWithConfig(middleware.RateLimiterMemoryStoreConfig{Rate: 10.0 / 60, Burst: 30}),
+		IdentifierExtractor: func(c *echo.Context) (string, error) {
+			return domains.Subject(c.Request().Context()), nil
+		},
+	}))
 	api.GET("/workouts", workouts.List)
 	api.GET("/workouts/summary", workouts.Summary)
 	api.GET("/workouts/:id", workouts.Get)

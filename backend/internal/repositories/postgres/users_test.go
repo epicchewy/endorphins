@@ -32,6 +32,21 @@ func TestUsersEnsurePreservesApplicationIdentity(t *testing.T) {
 	assert.NotEqual(t, alice.ID, bob.ID)
 }
 
+func TestUsersEnsureExistingAccountWritesNothing(t *testing.T) {
+	db := isolatedRepositoryDatabase(t)
+	require.NoError(t, store.Migrate(t.Context(), db))
+	repo := store.NewUsers(db)
+	user, err := repo.Ensure(t.Context(), "returning-user")
+	require.NoError(t, err)
+	// Every API request resolves the account; only first provisioning may write.
+	require.NoError(t, db.Callback().Create().Before("gorm:create").Register("test:reject_writes", func(tx *gorm.DB) {
+		_ = tx.AddError(errors.New("unexpected write"))
+	}))
+	again, err := repo.Ensure(t.Context(), "returning-user")
+	require.NoError(t, err)
+	assert.Equal(t, user, again)
+}
+
 func TestUsersEnsureConcurrentFirstRequestsCreateOneAccount(t *testing.T) {
 	db := setupRepositoryTest(t)
 	repo := store.NewUsers(db)

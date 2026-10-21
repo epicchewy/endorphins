@@ -26,7 +26,7 @@ func run() int {
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	ctx := context.Background()
-	db, err := postgres.Open(ctx, cfg.Postgres.URL)
+	db, err := postgres.Open(ctx, cfg.Postgres.URL, 0)
 	if err != nil {
 		logger.Error("database connection failed", "error", err)
 		return 1

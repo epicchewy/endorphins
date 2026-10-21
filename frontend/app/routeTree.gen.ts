@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as DesignSystemRouteImport } from './routes/design-system'
-import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated.account'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated.app'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
 import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
@@ -20,8 +19,6 @@ import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAppAccountRouteImport } from './routes/_authenticated.app.account'
 import { Route as AuthenticatedAppNewRouteImport } from './routes/_authenticated.app.new'
 import { Route as AuthenticatedAppOnboardingRouteImport } from './routes/_authenticated.app_.onboarding'
-import { Route as AuthenticatedWorkoutsIndexRouteImport } from './routes/_authenticated.workouts.index'
-import { Route as AuthenticatedWorkoutsWorkoutIdRouteImport } from './routes/_authenticated.workouts.$workoutId'
 import { Route as AuthenticatedAppWorkoutsIndexRouteImport } from './routes/_authenticated.app.workouts.index'
 import { Route as AuthenticatedAppWorkoutsWorkoutIdRouteImport } from './routes/_authenticated.app.workouts.$workoutId'
 import { Route as AuthenticatedAppWorkoutsWorkoutIdFinishRouteImport } from './routes/_authenticated.app.workouts.$workoutId_.finish'
@@ -39,11 +36,6 @@ const DesignSystemRoute = DesignSystemRouteImport.update({
   id: '/design-system',
   path: '/design-system',
   getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedAccountRoute = AuthenticatedAccountRouteImport.update({
-  id: '/account',
-  path: '/account',
-  getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
   id: '/app',
@@ -81,18 +73,6 @@ const AuthenticatedAppOnboardingRoute =
     path: '/app/onboarding',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedWorkoutsIndexRoute =
-  AuthenticatedWorkoutsIndexRouteImport.update({
-    id: '/workouts/',
-    path: '/workouts/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedWorkoutsWorkoutIdRoute =
-  AuthenticatedWorkoutsWorkoutIdRouteImport.update({
-    id: '/workouts/$workoutId',
-    path: '/workouts/$workoutId',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedAppWorkoutsIndexRoute =
   AuthenticatedAppWorkoutsIndexRouteImport.update({
     id: '/workouts/',
@@ -115,16 +95,13 @@ const AuthenticatedAppWorkoutsWorkoutIdFinishRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/design-system': typeof DesignSystemRoute
-  '/account': typeof AuthenticatedAccountRoute
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/app/account': typeof AuthenticatedAppAccountRoute
   '/app/new': typeof AuthenticatedAppNewRoute
   '/app/onboarding': typeof AuthenticatedAppOnboardingRoute
-  '/workouts/$workoutId': typeof AuthenticatedWorkoutsWorkoutIdRoute
   '/app/': typeof AuthenticatedAppIndexRoute
-  '/workouts/': typeof AuthenticatedWorkoutsIndexRoute
   '/app/workouts/$workoutId': typeof AuthenticatedAppWorkoutsWorkoutIdRoute
   '/app/workouts/': typeof AuthenticatedAppWorkoutsIndexRoute
   '/app/workouts/$workoutId/finish': typeof AuthenticatedAppWorkoutsWorkoutIdFinishRoute
@@ -132,15 +109,12 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/design-system': typeof DesignSystemRoute
-  '/account': typeof AuthenticatedAccountRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/app/account': typeof AuthenticatedAppAccountRoute
   '/app/new': typeof AuthenticatedAppNewRoute
   '/app/onboarding': typeof AuthenticatedAppOnboardingRoute
-  '/workouts/$workoutId': typeof AuthenticatedWorkoutsWorkoutIdRoute
   '/app': typeof AuthenticatedAppIndexRoute
-  '/workouts': typeof AuthenticatedWorkoutsIndexRoute
   '/app/workouts/$workoutId': typeof AuthenticatedAppWorkoutsWorkoutIdRoute
   '/app/workouts': typeof AuthenticatedAppWorkoutsIndexRoute
   '/app/workouts/$workoutId/finish': typeof AuthenticatedAppWorkoutsWorkoutIdFinishRoute
@@ -150,16 +124,13 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/design-system': typeof DesignSystemRoute
-  '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/_authenticated/app/account': typeof AuthenticatedAppAccountRoute
   '/_authenticated/app/new': typeof AuthenticatedAppNewRoute
   '/_authenticated/app_/onboarding': typeof AuthenticatedAppOnboardingRoute
-  '/_authenticated/workouts/$workoutId': typeof AuthenticatedWorkoutsWorkoutIdRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
-  '/_authenticated/workouts/': typeof AuthenticatedWorkoutsIndexRoute
   '/_authenticated/app/workouts/$workoutId': typeof AuthenticatedAppWorkoutsWorkoutIdRoute
   '/_authenticated/app/workouts/': typeof AuthenticatedAppWorkoutsIndexRoute
   '/_authenticated/app/workouts/$workoutId_/finish': typeof AuthenticatedAppWorkoutsWorkoutIdFinishRoute
@@ -169,16 +140,13 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/design-system'
-    | '/account'
     | '/app'
     | '/sign-in/$'
     | '/sign-up/$'
     | '/app/account'
     | '/app/new'
     | '/app/onboarding'
-    | '/workouts/$workoutId'
     | '/app/'
-    | '/workouts/'
     | '/app/workouts/$workoutId'
     | '/app/workouts/'
     | '/app/workouts/$workoutId/finish'
@@ -186,15 +154,12 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/design-system'
-    | '/account'
     | '/sign-in/$'
     | '/sign-up/$'
     | '/app/account'
     | '/app/new'
     | '/app/onboarding'
-    | '/workouts/$workoutId'
     | '/app'
-    | '/workouts'
     | '/app/workouts/$workoutId'
     | '/app/workouts'
     | '/app/workouts/$workoutId/finish'
@@ -203,16 +168,13 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/design-system'
-    | '/_authenticated/account'
     | '/_authenticated/app'
     | '/sign-in/$'
     | '/sign-up/$'
     | '/_authenticated/app/account'
     | '/_authenticated/app/new'
     | '/_authenticated/app_/onboarding'
-    | '/_authenticated/workouts/$workoutId'
     | '/_authenticated/app/'
-    | '/_authenticated/workouts/'
     | '/_authenticated/app/workouts/$workoutId'
     | '/_authenticated/app/workouts/'
     | '/_authenticated/app/workouts/$workoutId_/finish'
@@ -248,13 +210,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/design-system'
       preLoaderRoute: typeof DesignSystemRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/account': {
-      id: '/_authenticated/account'
-      path: '/account'
-      fullPath: '/account'
-      preLoaderRoute: typeof AuthenticatedAccountRouteImport
-      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/app': {
       id: '/_authenticated/app'
@@ -305,20 +260,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppOnboardingRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/workouts/': {
-      id: '/_authenticated/workouts/'
-      path: '/workouts'
-      fullPath: '/workouts/'
-      preLoaderRoute: typeof AuthenticatedWorkoutsIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/workouts/$workoutId': {
-      id: '/_authenticated/workouts/$workoutId'
-      path: '/workouts/$workoutId'
-      fullPath: '/workouts/$workoutId'
-      preLoaderRoute: typeof AuthenticatedWorkoutsWorkoutIdRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/app/workouts/': {
       id: '/_authenticated/app/workouts/'
       path: '/workouts'
@@ -367,19 +308,13 @@ const AuthenticatedAppRouteWithChildren =
   AuthenticatedAppRoute._addFileChildren(AuthenticatedAppRouteChildren)
 
 interface AuthenticatedRouteChildren {
-  AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
   AuthenticatedAppRoute: typeof AuthenticatedAppRouteWithChildren
   AuthenticatedAppOnboardingRoute: typeof AuthenticatedAppOnboardingRoute
-  AuthenticatedWorkoutsWorkoutIdRoute: typeof AuthenticatedWorkoutsWorkoutIdRoute
-  AuthenticatedWorkoutsIndexRoute: typeof AuthenticatedWorkoutsIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
-  AuthenticatedAccountRoute: AuthenticatedAccountRoute,
   AuthenticatedAppRoute: AuthenticatedAppRouteWithChildren,
   AuthenticatedAppOnboardingRoute: AuthenticatedAppOnboardingRoute,
-  AuthenticatedWorkoutsWorkoutIdRoute: AuthenticatedWorkoutsWorkoutIdRoute,
-  AuthenticatedWorkoutsIndexRoute: AuthenticatedWorkoutsIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

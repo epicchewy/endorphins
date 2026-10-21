@@ -3,10 +3,11 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
-	"github.com/labstack/echo/v5"
 	"io"
 	"mime"
 	"net/http"
+
+	"github.com/labstack/echo/v5"
 )
 
 func decodeJSON(c *echo.Context, input any) error {

@@ -20,7 +20,7 @@ func TestCheckReadyChecksConnectivityAndCancellation(t *testing.T) {
 }
 
 func TestCheckReadyRejectsClosedDatabase(t *testing.T) {
-	db, err := store.Open(t.Context(), repositoryTestURL)
+	db, err := store.Open(t.Context(), repositoryTestURL, 0)
 	require.NoError(t, err)
 	require.NoError(t, store.CheckReady(t.Context(), db))
 	pool, err := db.DB()

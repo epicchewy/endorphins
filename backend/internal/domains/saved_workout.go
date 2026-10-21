@@ -5,25 +5,25 @@ import "time"
 // WorkoutPlan preserves the prescriptions and estimates shown at generation time.
 // History never recomputes these values against newer catalogue or timing rules.
 type WorkoutPlan struct {
-	Level            int          `json:"level"`
-	RequestedMinutes int          `json:"requestedMinutes"`
-	EstimatedMinutes int          `json:"estimatedMinutes"`
-	WarmupMinutes    int          `json:"warmupMinutes"`
-	Focus            string       `json:"focus"`
-	Blocks           []SavedBlock `json:"blocks"`
+	Level            int
+	RequestedMinutes int
+	EstimatedMinutes int
+	WarmupMinutes    int
+	Focus            string
+	Blocks           []SavedBlock
 }
 
 type SavedBlock struct {
-	Name             string     `json:"name"`
-	Sets             int        `json:"sets"`
-	EstimatedMinutes int        `json:"estimatedMinutes"`
-	Difficulty       string     `json:"difficulty"`
-	Exercises        []Exercise `json:"exercises"`
+	Name             string
+	Sets             int
+	EstimatedMinutes int
+	Difficulty       string
+	Exercises        []Exercise
 }
 
 type SavedWorkout struct {
-	ID        string    `json:"id"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID        string
+	CreatedAt time.Time
 	WorkoutPlan
 }
 
@@ -34,8 +34,8 @@ type WorkoutCursor struct {
 }
 
 type WorkoutPage struct {
-	Items      []SavedWorkout `json:"items"`
-	NextCursor string         `json:"nextCursor"`
+	Items      []SavedWorkout
+	NextCursor string
 }
 
 func Snapshot(w Workout) SavedWorkout {
