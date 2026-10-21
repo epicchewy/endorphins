@@ -6,22 +6,28 @@ The landing page is `/`; the signed-in app is `/app`. Signup leads through a wel
 
 ## Run locally
 
-Prerequisites: Docker (running), Node.js 26.10.0 (`nvm use`), Bun 1.4.2, Python 3 for repository checks, and Go with automatic toolchain downloads enabled. The backend and Go linter use Go 1.27.1 without changing your global Go installation.
+Prerequisites: Docker (running), Node.js 26.10.0 (`nvm install`), Bun 1.4.2, Python 3 for repository checks, and Go with automatic toolchain downloads enabled. Make targets use nvm's Node 26.10.0 by themselves, so you do not need `nvm use`. The backend and Go linter use Go 1.27.1 without changing your global Go installation.
+
+Install the Clerk CLI and sign in once per machine:
 
 ```sh
-make setup
 npm install -g clerk
 clerk auth login
-cd frontend
-clerk init --app app_3K5z4w8PFdIMSXl1sR7bXIDV6EV
-clerk doctor
-cd ..
+```
+
+Then start the app in any checkout or worktree:
+
+```sh
 make dev
 ```
 
 Open [Endorphins](http://127.0.0.1:3100). The Go API listens on `127.0.0.1:8088`. The frontend proxies `/api` to Go, keeping browser requests on the same origin. The exercise files are loaded and validated when Go starts.
 
-The Clerk setup only needs to be done once per checkout. It writes ignored development keys to `frontend/.env.local`. `make dev` starts Postgres on loopback port 5548, applies migrations, and starts both servers. The Make targets use Bun’s CLI to load `.env.example` defaults and `frontend/.env.local`, then run Go directly. Exported variables take precedence.
+`make dev` installs dependencies and pulls Clerk development keys into ignored `frontend/.env.local` if that file is missing. Then it starts Postgres on loopback port 5548, applies migrations, and starts both servers. In the Claude desktop app, start **endorphins** from the Browser pane's **Dev servers** menu. It runs `make dev` from [`.claude/launch.json`](.claude/launch.json).
+
+Get keys with `clerk env pull` only. `clerk init` rewrites `frontend/app/start.ts`.
+
+The Make targets use Bun’s CLI to load `.env.example` defaults and `frontend/.env.local`, then run Go directly. Exported variables take precedence.
 
 For separate terminals, run `make db-up`, `make migrate`, then `make api` and `make web`. Export `DATABASE_URL` to use a different database. Set `APP_ORIGINS` to comma-separated frontend origins when changing the frontend address; if changing `API_ADDRESS`, update `API_ORIGIN` too. `make db-stop` preserves your local database volume.
 
@@ -33,7 +39,7 @@ The checked-in [Codex environment](.codex/environments/environment.toml) install
 
 Actions that need Node use `npx` to select the version in `.nvmrc`. This caches the project version without changing your global Node default. npm/npx, Bun, Go, Python 3, and Docker must already be installed; Docker must run for the app and database tests.
 
-Complete the Clerk CLI setup above in each new checkout before starting the app. Keys stay in ignored `frontend/.env.local`; setup does not copy credentials or start services. **Run app** uses ports 3100, 8088, and 5548, so run one local development stack at a time. **E2E** uses disposable services on random ports and needs no Clerk credentials.
+Sign in to the Clerk CLI once, as shown above. **Run app** pulls keys into ignored `frontend/.env.local` in each new checkout; setup does not copy credentials or start services. **Run app** uses ports 3100, 8088, and 5548, so run one local development stack at a time. **E2E** uses disposable services on random ports and needs no Clerk credentials.
 
 ## Verify and build
 
@@ -42,11 +48,12 @@ make check       # formatting, boundaries, lint, React Doctor, race and frontend
                  # API types, TypeScript, and both production builds
 make browsers    # install pinned Chromium once
 make e2e         # hermetic desktop/mobile browser tests on dynamic ports
+make e2e-clerk   # real Clerk sign-up and sign-in against make dev
 make format      # apply Go and frontend formatting
 cd frontend && bun run doctor # full React Doctor scan; errors and warnings fail
 ```
 
-`make test` runs real Postgres tests and needs Docker. `make e2e` runs desktop/mobile journeys against disposable Postgres, Go API, and Bun frontend containers. Only the external Clerk UI/session adapter is replaced. Real Clerk signup and webhook delivery need separate integration checks. See [browser tests and artifacts](e2e/README.md). `make smoke` is an alias for `make e2e`. Do not run a frontend build while E2E images are building; both use `frontend/build`.
+`make test` runs real Postgres tests and needs Docker. `make e2e` runs desktop/mobile journeys against disposable Postgres, Go API, and Bun frontend containers. Only the external Clerk UI/session adapter is replaced. `make e2e-clerk` covers real Clerk sign-up and sessions with `@clerk/testing`; webhook delivery still needs a separate check. See [browser tests and artifacts](e2e/README.md). `make smoke` is an alias for `make e2e`. Do not run a frontend build while E2E images are building; both use `frontend/build`.
 
 For a production-mode local preview, run these in separate terminals after `make check`:
 

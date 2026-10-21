@@ -6,13 +6,13 @@ Read [architecture](architecture.md) for module ownership. Dated reviews and dec
 
 - `make setup` downloads pinned dependencies.
 - `make db-up` starts local Postgres; `make migrate` runs GORM `AutoMigrate` through the separate migration command.
-- `make dev` starts the database, runs migrations, and supervises the API and frontend; Ctrl-C stops both.
+- `make dev` installs dependencies, pulls missing Clerk development keys, starts the database, runs migrations, and supervises the API and frontend; Ctrl-C stops both. The desktop app's `endorphins` server in `.claude/launch.json` runs the same command.
 - `make format` applies formatting; `make lint` checks formatting and code without fixing it.
 - `make check` checks layers, lint, React Doctor, race tests, frontend tests, generated types, TypeScript, and production builds.
 - `cd frontend && bun run doctor` runs the pinned React Doctor full scan. Errors and warnings fail the command. Lint and CI use the same scan; it does not use the remote score or supply-chain services.
 - `make browsers` installs pinned Chromium once. `make e2e` runs desktop/mobile journeys against disposable app containers. See [browser tests](../e2e/README.md). `make smoke` is an alias.
 
-CI runs `make check` and `make e2e`, rejects generated route/API drift, checks release bundles for test-identity leakage, and uploads browser reports, traces, videos and stack logs. The external Clerk provider UI is replaced only in the explicit e2e build; real API authorization and SQL remain exercised. Real Clerk sign-up still needs a provider integration check.
+CI runs `make check` and `make e2e`, rejects generated route/API drift, checks release bundles for test-identity leakage, and uploads browser reports, traces, videos and stack logs. The external Clerk provider UI is replaced only in the explicit e2e build; real API authorization and SQL remain exercised. `make e2e-clerk` checks real Clerk sign-up and sessions locally; it is not part of CI.
 
 ## Go structure and discipline
 

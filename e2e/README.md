@@ -1,6 +1,6 @@
 # Browser tests
 
-Run `make browsers` once, then `make e2e`. Docker must run. Use Node 26.10.0 (`nvm use`) and Bun 1.4.2. Testcontainers needs Node 22.19.0 or newer. Do not run a frontend build while E2E images are building; both use `frontend/build`.
+Run `make browsers` once, then `make e2e`. Docker must run. Use Node 26.10.0 (`nvm install`; Make selects it) and Bun 1.4.2. Testcontainers needs Node 22.19.0 or newer. Do not run a frontend build while E2E images are building; both use `frontend/build`.
 
 ```text
 Host: Playwright (desktop + mobile Chromium)
@@ -29,3 +29,12 @@ Artifacts:
 - `playwright-report/index.html`: browser report.
 
 Use `DEBUG=testcontainers:build make e2e` for image build diagnostics. The first run pulls pinned runtime images and installs locked dependencies; later runs reuse Docker build layers. Builds need registry access. The test journeys need no live Clerk service.
+
+## Real Clerk suite
+
+`make e2e-clerk` runs `clerk/` with [`@clerk/testing`](https://clerk.com/docs/guides/development/testing/playwright/overview) against the real Clerk development instance. It reuses a running `make dev` stack on port 3100, or starts one. It loads keys from `frontend/.env.local` and refuses keys that are not `pk_test_`.
+
+- **Sign-up**: fills Clerk's sign-up form with a `+clerk_test` email and a `555-01xx` phone number. It enters the development code `424242` for both, then expects onboarding.
+- **Session**: creates a user through the Clerk Backend API and signs in with `clerk.signIn`. It opens `/app`, which proves that the Go API accepts a real Clerk token. Then it signs out and expects the sign-in redirect.
+
+Each test deletes its Clerk users afterwards, even when it fails. Their app accounts stay in the local database, because development has no deletion webhook. Results go to `../output/playwright/clerk-results`. The suite needs network access to Clerk and is not part of `make e2e` or CI.
