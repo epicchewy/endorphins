@@ -40,7 +40,7 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("initialize catalogue: %w", err)
 	}
-	db, err := postgres.Open(ctx, cfg.Postgres.URL)
+	db, err := postgres.Open(ctx, cfg.Postgres.URL, 5*time.Second)
 	if err != nil {
 		return err
 	}

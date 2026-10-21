@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/epicchewy/endorphins/backend/internal/domains"
 	store "github.com/epicchewy/endorphins/backend/internal/repositories/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,50 +34,30 @@ func TestMigrateReapplicationPreservesAccountData(t *testing.T) {
 	assert.Equal(t, before.Completions, after.Completions)
 }
 
-func TestMigrateUpgradesOldSchemaAndRemovesLegacyConstraints(t *testing.T) {
+func TestMigrateDropsLibrarySearchSchemaAndKeepsAccountData(t *testing.T) {
 	db := isolatedRepositoryDatabase(t)
 	require.NoError(t, store.Migrate(t.Context(), db))
 	users, plans := store.NewUsers(db), store.NewWorkouts(db)
-	user, err := users.Ensure(t.Context(), "legacy-owner")
+	user, err := users.Ensure(t.Context(), "search-owner")
 	require.NoError(t, err)
-	_, err = plans.Create(t.Context(), user.ID, workoutSnapshot("legacy-plan"), "", "")
+	_, err = plans.Create(t.Context(), user.ID, workoutSnapshot("searched-plan"), "", "")
 	require.NoError(t, err)
-	_, err = plans.Complete(t.Context(), user.ID, "legacy-plan", "legacy-intent")
+	_, err = plans.Complete(t.Context(), user.ID, "searched-plan", "search-intent")
 	require.NoError(t, err)
-	require.NoError(t, users.Erase(t.Context(), "previously-deleted"))
 	before, err := users.Export(t.Context(), user.ID)
 	require.NoError(t, err)
-
-	// Recreate the old schema shape with GORM, without storing migration history.
 	restoreLibrarySearchSchema(t, db, user.ID)
-	fixture := db.WithContext(t.Context()).Migrator()
-	require.NoError(t, fixture.CreateTable(&legacyMigrationState{}))
-	require.NoError(t, fixture.RenameIndex("users", "uni_users_clerk_user_id", "users_clerk_user_id_key"))
-	require.NoError(t, fixture.CreateIndex(&legacyWorkout{}, "workouts_owner_id"))
-	require.NoError(t, fixture.CreateConstraint(&legacyWorkout{}, "User"))
-	require.NoError(t, fixture.CreateConstraint(&legacyCompletion{}, "User"))
-	require.NoError(t, fixture.CreateConstraint(&legacyCompletion{}, "Workout"))
+	require.Len(t, remainingLibrarySearchSchema(t, db), 3)
 
 	require.NoError(t, store.Migrate(t.Context(), db))
 	require.NoError(t, store.Migrate(t.Context(), db))
 	assertNoForeignKeys(t, db)
 	assert.Empty(t, remainingLibrarySearchSchema(t, db))
-	assert.False(t, db.Migrator().HasTable("schema_migrations"))
-	assert.False(t, db.Migrator().HasIndex("workouts", "workouts_owner_id"))
 	after, err := users.Export(t.Context(), user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, before.User, after.User)
 	assert.Equal(t, before.Workouts, after.Workouts)
 	assert.Equal(t, before.Completions, after.Completions)
-
-	_, err = users.Ensure(t.Context(), "previously-deleted")
-	assert.ErrorIs(t, err, domains.ErrAccountDeleted)
-	require.NoError(t, users.Erase(t.Context(), "legacy-owner"))
-	for _, table := range []string{"workouts", "workout_completions"} {
-		var count int64
-		require.NoError(t, db.WithContext(t.Context()).Table(table).Where(map[string]any{"user_id": user.ID}).Count(&count).Error)
-		assert.Zero(t, count, table)
-	}
 }
 
 func TestMigrateFailureRollsBackSchemaAndCanBeRetried(t *testing.T) {
@@ -92,9 +71,9 @@ func TestMigrateFailureRollsBackSchemaAndCanBeRetried(t *testing.T) {
 	_, err = plans.Create(t.Context(), user.ID, workoutSnapshot("second-plan"), "second", strings.Repeat("a", 64))
 	require.NoError(t, err)
 	restoreLibrarySearchSchema(t, db, user.ID)
+	// A duplicate retry key makes AutoMigrate fail to restore the unique index,
+	// after the search schema was already dropped in the same transaction.
 	fixture := db.WithContext(t.Context()).Migrator()
-	require.NoError(t, fixture.CreateTable(&legacyMigrationState{}))
-	// A duplicate retry key makes AutoMigrate fail to restore the unique index.
 	require.NoError(t, fixture.DropIndex("workouts", "workouts_owner_idempotency"))
 	setSecondKey := func(key string) {
 		require.NoError(t, db.WithContext(t.Context()).Table("workouts").
@@ -103,8 +82,7 @@ func TestMigrateFailureRollsBackSchemaAndCanBeRetried(t *testing.T) {
 	setSecondKey("first")
 
 	require.ErrorContains(t, store.Migrate(t.Context(), db), "workouts_owner_idempotency")
-	assert.Len(t, remainingLibrarySearchSchema(t, db), 4)
-	assert.True(t, fixture.HasTable("schema_migrations"))
+	assert.Len(t, remainingLibrarySearchSchema(t, db), 3)
 	retained, err := plans.Get(t.Context(), user.ID, "retained-plan")
 	require.NoError(t, err)
 	assert.Equal(t, before, retained)
@@ -112,22 +90,20 @@ func TestMigrateFailureRollsBackSchemaAndCanBeRetried(t *testing.T) {
 	setSecondKey("second")
 	require.NoError(t, store.Migrate(t.Context(), db))
 	assert.Empty(t, remainingLibrarySearchSchema(t, db))
-	assert.False(t, fixture.HasTable("schema_migrations"))
 	items, err := plans.List(t.Context(), user.ID, nil, 20)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{"retained-plan", "second-plan"}, workoutIDs(items))
 }
 
-// restoreLibrarySearchSchema recreates the removed search table, projection
-// columns, and duration index, with one stored search term.
+// restoreLibrarySearchSchema recreates the removed search table, minutes
+// column, and duration index, with one stored search term.
 func restoreLibrarySearchSchema(t *testing.T, db *gorm.DB, userID string) {
 	t.Helper()
 	fixture := db.WithContext(t.Context()).Migrator()
-	require.NoError(t, fixture.CreateTable(&legacySearchTerm{}))
-	require.NoError(t, fixture.AddColumn(&legacyWorkout{}, "Level"))
-	require.NoError(t, fixture.AddColumn(&legacyWorkout{}, "EstimatedMinutes"))
-	require.NoError(t, fixture.CreateIndex(&legacyWorkout{}, "workouts_user_duration_created_id_idx"))
-	require.NoError(t, db.WithContext(t.Context()).Create(&legacySearchTerm{UserID: userID, WorkoutID: "any", Name: "squat"}).Error)
+	require.NoError(t, fixture.CreateTable(&removedSearchTerm{}))
+	require.NoError(t, fixture.AddColumn(&removedWorkoutColumns{}, "EstimatedMinutes"))
+	require.NoError(t, fixture.CreateIndex(&removedWorkoutColumns{}, "workouts_user_duration_created_id_idx"))
+	require.NoError(t, db.WithContext(t.Context()).Create(&removedSearchTerm{UserID: userID, WorkoutID: "any", Name: "squat"}).Error)
 }
 
 func remainingLibrarySearchSchema(t *testing.T, db *gorm.DB) []string {
@@ -137,10 +113,8 @@ func remainingLibrarySearchSchema(t *testing.T, db *gorm.DB) []string {
 	if m.HasTable("workout_search_terms") {
 		found = append(found, "workout_search_terms")
 	}
-	for _, column := range []string{"level", "estimated_minutes"} {
-		if m.HasColumn("workouts", column) {
-			found = append(found, column)
-		}
+	if m.HasColumn("workouts", "estimated_minutes") {
+		found = append(found, "estimated_minutes")
 	}
 	if m.HasIndex("workouts", "workouts_user_duration_created_id_idx") {
 		found = append(found, "workouts_user_duration_created_id_idx")
@@ -161,39 +135,14 @@ func assertNoForeignKeys(t *testing.T, db *gorm.DB) {
 	assert.Zero(t, count, "application migrations must leave no foreign keys")
 }
 
-type legacyMigrationState struct {
-	Version int
-	Dirty   bool
-}
-
-func (legacyMigrationState) TableName() string { return "schema_migrations" }
-
-// These models describe legacy relationships only. Production never creates them.
-type legacyUser struct {
-	ID string `gorm:"primaryKey;type:uuid"`
-}
-
-func (legacyUser) TableName() string { return "users" }
-
-type legacyWorkout struct {
-	ID               string     `gorm:"primaryKey;uniqueIndex:workouts_owner_id"`
-	UserID           string     `gorm:"type:uuid;uniqueIndex:workouts_owner_id"`
-	User             legacyUser `gorm:"foreignKey:UserID;references:ID;constraint:workouts_user_id_fkey,OnDelete:CASCADE"`
-	Level            int
+// These models describe the removed library search schema. Production never
+// creates them.
+type removedWorkoutColumns struct {
 	EstimatedMinutes int `gorm:"index:workouts_user_duration_created_id_idx"`
 }
 
-func (legacyWorkout) TableName() string { return "workouts" }
+func (removedWorkoutColumns) TableName() string { return "workouts" }
 
-type legacySearchTerm struct{ UserID, WorkoutID, Name string }
+type removedSearchTerm struct{ UserID, WorkoutID, Name string }
 
-func (legacySearchTerm) TableName() string { return "workout_search_terms" }
-
-type legacyCompletion struct {
-	UserID    string `gorm:"type:uuid"`
-	WorkoutID string
-	User      legacyUser    `gorm:"foreignKey:UserID;references:ID;constraint:workout_completions_user_id_fkey,OnDelete:CASCADE"`
-	Workout   legacyWorkout `gorm:"foreignKey:UserID,WorkoutID;references:UserID,ID;constraint:workout_completions_user_id_workout_id_fkey,OnDelete:CASCADE"`
-}
-
-func (legacyCompletion) TableName() string { return "workout_completions" }
+func (removedSearchTerm) TableName() string { return "workout_search_terms" }

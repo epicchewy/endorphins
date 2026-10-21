@@ -22,6 +22,7 @@ function errorMessage(status: number, code?: string) {
   if (code === 'invalid_page') return 'These filters couldn’t be used. Clear them and try again.'
   if (code === 'idempotency_conflict')
     return 'This request was already used for another workout. Start a new attempt.'
+  if (status === 429) return 'You are creating workouts too quickly. Wait a minute and try again.'
   if (status === 401) return 'Your session has ended. Please sign in again.'
   if (status === 404) return 'This workout couldn’t be found in your account.'
   if (status === 422) return 'Choose 30-120 minutes and a level from 1 to 5.'

@@ -21,6 +21,7 @@ erDiagram
     timestamptz created_at
     smallint snapshot_version
     jsonb plan
+    integer level
     text idempotency_key
     text input_fingerprint
   }
@@ -54,7 +55,7 @@ Private routes use a server auth check when entering the private route tree and 
 
 ## Application users
 
-The first authenticated API request resolves `sub` to `users.clerk_user_id`. Resolution and erasure serialize through the unique deletion-digest key. Resolution inserts a transient guard, returns an existing user or inserts a user, then removes the guard before commit. An existing tombstone rejects resolution. Erasure keeps its tombstone. Simultaneous first requests return the same internal UUID; a first request racing a deletion cannot recreate the account after erasure commits.
+Every authenticated API request resolves `sub` to `users.clerk_user_id`. An existing account resolves with one read and no lock: erasure deletes that row, and owned writes lock it. Only first provisioning serializes with erasure through the unique deletion-digest key. It inserts a transient guard, inserts the user, then removes the guard before commit. An existing tombstone rejects resolution. Erasure keeps its tombstone. Simultaneous first requests return the same internal UUID; a first request racing a deletion cannot recreate the account after erasure commits.
 
 `users.id` is the stable key for application relationships. Completion logs and preferences use it. Future favorites and other account records should also reference it. Never use email, display name, or a browser-provided owner ID as the relationship key. Clerk remains the source for email and profile details; the app stores no profile copy.
 
@@ -101,7 +102,7 @@ Tombstones currently have no automatic expiry. They retain only the subject dige
 
 ## Migrations
 
-`cmd/migrate` follows Temper: it runs GORM `AutoMigrate` over repository models with foreign key creation disabled. Small repeatable fixes remove legacy relationship constraints and the old library search table and columns. The old migration table is removed after a successful upgrade. Schema and data changes share one transaction. There are no SQL files, migration versions, or automatic down migrations. API startup never applies migrations. See [architecture](architecture.md) for module ownership.
+`cmd/migrate` follows Temper: it runs GORM `AutoMigrate` over repository models with foreign key creation disabled. A repeatable fix drops the old library search table and estimated-minutes column, which `AutoMigrate` would leave behind. Schema and data fixes share one transaction. The command has no statement timeout, so index builds on large tables can finish; the API bounds each statement to five seconds. There are no SQL files, migration versions, or automatic down migrations. API startup never applies migrations. See [architecture](architecture.md) for module ownership.
 
 Run one migration process before starting the matching API binary. A failed migration rolls back and can be retried after fixing its cause. Startup and `/readyz` check database connectivity; `/healthz` reports process liveness. Future schema changes update model tags and add repeatable GORM data fixes when needed. Storage snapshot versions remain independent of schema setup.
 
@@ -115,8 +116,8 @@ Run one migration process before starting the matching API binary. A failed migr
 
 ## No foreign keys
 
-Foreign keys are prohibited. GORM disables their creation. The migration command removes known legacy relationship constraints and the redundant owner/plan unique index. Primary keys, unique retry keys, nullability, and query indexes remain. Go validates value ranges and retry metadata; model tags contain no SQL expressions.
+Foreign keys are prohibited. GORM disables their creation. Primary keys, unique retry keys, nullability, and query indexes remain. Go validates value ranges and retry metadata; model tags contain no SQL expressions.
 
 Workout and completion writes hold a `FOR KEY SHARE` lock on the owner row until commit. Missing owners return `ErrNotFound`. Account erasure takes `FOR UPDATE` on that row before deleting completion logs, saved workouts, and the account. A concurrent write either commits before cleanup or finds no owner after cleanup. The subject tombstone and all data deletion commit together. The locks prevent child records from surviving account erasure.
 
-Real Postgres tests cover zero-foreign-key schemas, legacy schema upgrades without data loss, writes during erasure, and rollback after a failed user delete. [Browser contracts](../e2e/specs/contracts.spec.ts) check ownership, retries, exports, and signed deletion through the production proxy. See [test ownership](engineering-practices.md#test-ownership) for the remaining checks. Actual Clerk signup, profile changes, and webhook delivery need a development-instance check.
+Real Postgres tests cover zero-foreign-key schemas, repeated and failed migrations, writes during erasure, and rollback after a failed user delete. [Browser contracts](../e2e/specs/contracts.spec.ts) check ownership, retries, exports, and signed deletion through the production proxy. See [test ownership](engineering-practices.md#test-ownership) for the remaining checks. Actual Clerk signup, profile changes, and webhook delivery need a development-instance check.

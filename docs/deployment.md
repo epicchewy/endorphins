@@ -53,7 +53,7 @@ Deployment sequence:
 4. Start the Bun frontend/proxy and route traffic only after the Go readiness probe succeeds.
 5. Check a signed-in generation, saved detail/reload, library paging, and account export through the public origin. Check the configured Clerk lifecycle flow separately.
 
-The migration command follows Temper's model-driven `AutoMigrate` approach. It removes known legacy foreign keys, the old library search table and columns, and old migration bookkeeping. Stored plans, accounts, completions, retry keys, and tombstones remain. Account erasure deletes owned records explicitly. Older binaries that depend on cascading deletes or write library search terms cannot safely use this schema.
+The migration command follows Temper's model-driven `AutoMigrate` approach. It drops the old library search table and estimated-minutes column. Stored plans, accounts, completions, retry keys, and tombstones remain. The API writes the workout level in the save transaction, and account erasure deletes owned records explicitly. The command runs without the API's five-second statement timeout. Older binaries that write library search terms cannot use this schema.
 
 Serialize migration runs in the deployment platform. There is no version table, dirty flag, migration lock, or automatic down migration. A failed run rolls back schema and data together; fix its cause and rerun the same command. Readiness checks connectivity, so a successful migration command is a required deployment step.
 
@@ -62,6 +62,9 @@ Serialize migration runs in the deployment platform. There is no version table, 
 - `GET /healthz`: process liveness. A running API remains live during a database outage; restarting it repeatedly will not repair the database.
 - `GET /readyz`: database connectivity, bounded to two seconds. Returns `200` when ready or a safe `503` envelope otherwise; responses are not cached.
 - Startup logs include application `version` and `revision`. Unset build metadata appears as `development`/`unknown`.
+- Request logs record the client IP from `X-Forwarded-For` and the user agent. Go trusts that header only from loopback and private-network peers, such as the Bun proxy.
+- Each account can create about 10 workouts per minute after a burst of 30; more return `429`. The limit is per API process, so several instances multiply it.
+- Bun adds `Content-Security-Policy: frame-ancestors 'none'`, `nosniff`, `Referrer-Policy`, and HSTS to every response. A full script CSP would need Clerk's hosts and the inline theme script.
 - API failures use `{message, code, requestId}`. Match the returned `X-Request-ID` to structured logs to inspect an unexpected cause. Internal database errors and secrets are not returned to clients. A proxy connection failure produces its own safe request ID.
 
 ## Configure Clerk account deletion

@@ -25,7 +25,7 @@ func TestWorkoutsCreatePersistsSnapshotAcrossConnections(t *testing.T) {
 	assert.Equal(t, workoutSnapshot("saved-plan").WorkoutPlan, saved.WorkoutPlan)
 	assert.WithinDuration(t, time.Now(), saved.CreatedAt, 5*time.Second)
 
-	other, err := store.Open(t.Context(), repositoryTestURL)
+	other, err := store.Open(t.Context(), repositoryTestURL, 5*time.Second)
 	require.NoError(t, err)
 	cleanupRepositoryDatabase(t, other)
 	loaded, err := store.NewWorkouts(other).Get(t.Context(), user.ID, "saved-plan")

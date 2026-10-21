@@ -68,6 +68,8 @@ func publicError(err error) (int, string, string) {
 			return 413, "invalid_request", "This request is too large."
 		case 415:
 			return 415, "unsupported_media_type", "Send this request as JSON."
+		case 429:
+			return 429, "rate_limited", "You are creating workouts too quickly. Wait a minute and try again."
 		case 503:
 			return 503, "unavailable", "The service is temporarily unavailable. Please try again."
 		}

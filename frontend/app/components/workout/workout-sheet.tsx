@@ -1,4 +1,4 @@
-import { lazy, Suspense, useReducer, type ReactNode } from 'react'
+import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { List, Play, Printer, Repeat, Shuffle } from 'lucide-react'
 import type { Workout } from '~/services/workouts'
 import { Button } from '~/components/ui/button'
@@ -26,7 +26,7 @@ export function WorkoutSheet({
   onShuffle: () => void
   finish: ReactNode
 }) {
-  const [focus, toggleFocus] = useReducer((open: boolean) => !open, false)
+  const [focus, setFocus] = useState(false)
   const count = workout.blocks.reduce((sum, block) => sum + block.exercises.length, 0)
   return (
     <article className="print:block print:w-full" aria-labelledby="workout-title">
@@ -53,7 +53,7 @@ export function WorkoutSheet({
           <Button
             size="small"
             className={cn(actionButton, 'max-[600px]:col-span-full')}
-            onClick={() => toggleFocus()}
+            onClick={() => setFocus(!focus)}
           >
             {focus ? (
               <>

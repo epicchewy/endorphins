@@ -24,6 +24,9 @@ type workoutRow struct {
 	Plan             []byte    `gorm:"type:jsonb;not null"`
 	IdempotencyKey   *string   `gorm:"type:text;uniqueIndex:workouts_owner_idempotency,priority:2"`
 	InputFingerprint *string   `gorm:"type:text"`
+	// Completion records read the level without decoding the plan. The literal
+	// default lets AutoMigrate add the column to populated tables.
+	Level int `gorm:"type:integer;not null;default:0"`
 }
 
 func (workoutRow) TableName() string { return "workouts" }
@@ -50,7 +53,7 @@ func (s *Workouts) Create(ctx context.Context, userID string, workout domains.Sa
 	if err != nil {
 		return domains.SavedWorkout{}, fmt.Errorf("encode workout: %w", err)
 	}
-	row := workoutRow{ID: workout.ID, UserID: userID, Plan: plan}
+	row := workoutRow{ID: workout.ID, UserID: userID, Plan: plan, Level: workout.Level}
 	if key != "" {
 		row.IdempotencyKey = &key
 	}

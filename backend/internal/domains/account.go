@@ -9,9 +9,9 @@ import (
 var ErrNotFound = errors.New("not found")
 
 type User struct {
-	ID                    string    `json:"id"`
-	ClerkUserID           string    `json:"clerkUserId"`
-	CreatedAt             time.Time `json:"createdAt"`
+	ID                    string
+	ClerkUserID           string
+	CreatedAt             time.Time
 	DefaultLevel          int
 	OnboardingCompletedAt *time.Time
 }

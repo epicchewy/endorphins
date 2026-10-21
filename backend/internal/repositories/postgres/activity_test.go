@@ -3,7 +3,6 @@
 package postgres_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -215,42 +214,23 @@ func TestCompletionConcurrentDifferentPlansWithOneKeyKeepOneWinner(t *testing.T)
 	assert.Equal(t, winner, replayed)
 }
 
-func TestCompletionRejectsInvalidMetadataWithoutReservingRetryKey(t *testing.T) {
-	for _, tt := range []struct {
-		name string
-		plan map[string]any
-	}{
-		{"missing level", map[string]any{"focus": "legs"}},
-		{"missing focus", map[string]any{"level": 2}},
-		{"null fields", map[string]any{"level": nil, "focus": nil}},
-		{"invalid level", map[string]any{"level": "bad", "focus": "legs"}},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
+func TestCompletionRejectsPlanWithoutFocusAndReservesNoRetryKey(t *testing.T) {
+	for _, plan := range []string{`{"level":2}`, `{"focus":null}`, `{"focus":2}`} {
+		t.Run(plan, func(t *testing.T) {
 			db := setupRepositoryTest(t)
 			repo := store.NewWorkouts(db)
 			user, err := store.NewUsers(db).Ensure(t.Context(), "invalid-metadata")
 			require.NoError(t, err)
 			_, err = repo.Create(t.Context(), user.ID, workoutSnapshot("plan"), "", "")
 			require.NoError(t, err)
-			plan, err := json.Marshal(tt.plan)
-			require.NoError(t, err)
 			query := db.WithContext(t.Context()).Table("workouts").Where(map[string]any{"user_id": user.ID, "id": "plan"})
-			require.NoError(t, query.Update("plan", plan).Error)
+			require.NoError(t, query.Update("plan", []byte(plan)).Error)
 			_, err = repo.Complete(t.Context(), user.ID, "plan", "one-intent")
 			require.Error(t, err)
 			var count int64
 			require.NoError(t, db.WithContext(t.Context()).Table("workout_completions").
 				Where(map[string]any{"user_id": user.ID}).Count(&count).Error)
 			assert.Zero(t, count)
-
-			// Historical projections accepted integer levels stored as strings.
-			plan, err = json.Marshal(map[string]any{"level": "2", "focus": "legs"})
-			require.NoError(t, err)
-			require.NoError(t, query.Update("plan", plan).Error)
-			completed, err := repo.Complete(t.Context(), user.ID, "plan", "one-intent")
-			require.NoError(t, err)
-			assert.Equal(t, 2, completed.Level)
-			assert.Equal(t, "legs", completed.Focus)
 		})
 	}
 }

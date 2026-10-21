@@ -30,9 +30,6 @@ func (o *Options) Validate() error {
 	if strings.HasPrefix(o.PublishableKey, "pk_live_") && o.WebhookSigningSecret == "" {
 		return fmt.Errorf("CLERK_WEBHOOK_SIGNING_SECRET is required for live Clerk accounts")
 	}
-	if len(o.AllowedOrigins) == 0 || (len(o.AllowedOrigins) == 1 && o.AllowedOrigins[0] == "") {
-		o.AllowedOrigins = []string{"http://127.0.0.1:3100", "http://localhost:3100"}
-	}
 	for i, origin := range o.AllowedOrigins {
 		origin = strings.TrimSpace(origin)
 		parsed, err := url.Parse(origin)

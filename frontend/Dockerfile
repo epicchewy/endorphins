@@ -1,6 +1,6 @@
 FROM oven/bun:1.4.2 AS bun
 
-FROM node:22.17.1-bookworm-slim AS build
+FROM node:26.10.0-bookworm-slim AS build
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
 COPY frontend/package.json frontend/bun.lock ./
