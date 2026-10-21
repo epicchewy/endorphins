@@ -6,6 +6,12 @@ REVISION := $(shell git rev-parse --short HEAD)
 API_PACKAGE := github.com/epicchewy/endorphins/backend/internal/app
 NODE_VERSION := $(shell cat .nvmrc)
 GOLANGCI := go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
+CLERK_APP := app_3K5z4w8PFdIMSXl1sR7bXIDV6EV
+# Use nvm's copy of the pinned Node when it is installed, so no target needs `nvm use`.
+NVM_NODE_BIN := $(wildcard $(or $(NVM_DIR),$(HOME)/.nvm)/versions/node/v$(NODE_VERSION)/bin)
+ifneq ($(NVM_NODE_BIN),)
+export PATH := $(NVM_NODE_BIN):$(PATH)
+endif
 
 .PHONY: workout
 workout:
@@ -23,20 +29,24 @@ install:
 .PHONY: node-version setup dev api web check test lint build format
 # Another Node on PATH breaks Vite and the e2e harness in confusing ways.
 node-version:
-	@test "$$(node --version)" = "v$(NODE_VERSION)" || { echo "Found Node $$(node --version); .nvmrc pins v$(NODE_VERSION). Run 'nvm use', or prefix the command with: npx --yes --package=node@$(NODE_VERSION) --" >&2; exit 1; }
+	@test "$$(node --version)" = "v$(NODE_VERSION)" || { echo "Found Node $$(node --version); .nvmrc pins v$(NODE_VERSION). Run 'nvm install' (Make then uses it), or prefix the command with: npx --yes --package=node@$(NODE_VERSION) --" >&2; exit 1; }
 
 setup: node-version
 	cd backend && go mod download
 	cd frontend && bun install --frozen-lockfile
 	cd e2e && bun install --frozen-lockfile
 
-dev: node-version db-up migrate
+# Clerk development keys, pulled once per checkout. Needs the Clerk CLI and `clerk auth login`.
+frontend/.env.local:
+	cd frontend && clerk env pull --app $(CLERK_APP) --file .env.local || { echo 'Could not pull Clerk keys. Run: npm install -g clerk && clerk auth login, then retry.' >&2; exit 1; }
+
+dev: setup frontend/.env.local db-up migrate
 	bash scripts/dev.sh
 
-api:
+api: frontend/.env.local
 	cd backend && bun --env-file=../.env.example --env-file=../frontend/.env.local run --no-orphans go run ./cmd/api
 
-web: node-version
+web: node-version frontend/.env.local
 	cd frontend && bun run dev
 
 format: node-version

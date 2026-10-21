@@ -1,6 +1,6 @@
 # Browser tests
 
-Run `make browsers` once, then `make e2e`. Docker must run. Use Node 26.10.0 (`nvm use`) and Bun 1.4.2. Testcontainers needs Node 22.19.0 or newer. Do not run a frontend build while E2E images are building; both use `frontend/build`.
+Run `make browsers` once, then `make e2e`. Docker must run. Use Node 26.10.0 (`nvm install`; Make selects it) and Bun 1.4.2. Testcontainers needs Node 22.19.0 or newer. Do not run a frontend build while E2E images are building; both use `frontend/build`.
 
 ```text
 Host: Playwright (desktop + mobile Chromium)

@@ -6,7 +6,7 @@ Read [architecture](architecture.md) for module ownership. Dated reviews and dec
 
 - `make setup` downloads pinned dependencies.
 - `make db-up` starts local Postgres; `make migrate` runs GORM `AutoMigrate` through the separate migration command.
-- `make dev` starts the database, runs migrations, and supervises the API and frontend; Ctrl-C stops both.
+- `make dev` installs dependencies, pulls missing Clerk development keys, starts the database, runs migrations, and supervises the API and frontend; Ctrl-C stops both. The desktop app's `endorphins` server in `.claude/launch.json` runs the same command.
 - `make format` applies formatting; `make lint` checks formatting and code without fixing it.
 - `make check` checks layers, lint, React Doctor, race tests, frontend tests, generated types, TypeScript, and production builds.
 - `cd frontend && bun run doctor` runs the pinned React Doctor full scan. Errors and warnings fail the command. Lint and CI use the same scan; it does not use the remote score or supply-chain services.
