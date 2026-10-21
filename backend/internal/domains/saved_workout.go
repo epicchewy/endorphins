@@ -28,9 +28,8 @@ type SavedWorkout struct {
 }
 
 type WorkoutCursor struct {
-	CreatedAt        time.Time `json:"createdAt"`
-	ID               string    `json:"id"`
-	EstimatedMinutes int       `json:"estimatedMinutes"`
+	CreatedAt time.Time `json:"createdAt"`
+	ID        string    `json:"id"`
 }
 
 type WorkoutPage struct {
@@ -51,18 +50,4 @@ func Snapshot(w Workout) SavedWorkout {
 	return result
 }
 
-// WorkoutFilter describes a view over all saved plans owned by one account.
-// An empty level means all levels. Query is a literal case-insensitive substring.
-type WorkoutFilter struct {
-	Query string
-	Level int
-	Sort  string
-}
-
-type LevelCount struct{ Level, Count int }
-type WorkoutSummary struct {
-	Count          int
-	PlannedMinutes int
-	AverageMinutes float64
-	Levels         []LevelCount
-}
+type WorkoutSummary struct{ Count int }

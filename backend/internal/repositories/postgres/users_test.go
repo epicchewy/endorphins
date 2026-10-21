@@ -166,9 +166,6 @@ func TestUsersEraseFailureRollsBackTombstoneAndData(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"retained-plan"}, workoutIDs(exported.Workouts))
 	assert.Len(t, exported.Completions, 1)
-	search, err := store.NewWorkouts(db).List(t.Context(), user.ID, domains.WorkoutFilter{Query: "squat"}, nil, 20)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"retained-plan"}, workoutIDs(search))
 
 	require.NoError(t, db.Callback().Delete().Remove("test:reject_account_delete"))
 	require.NoError(t, repo.Erase(t.Context(), "retained-user"))
@@ -214,7 +211,7 @@ func TestUsersEraseRacingWorkoutAndCompletionWritesLeavesNoOrphans(t *testing.T)
 				require.NoError(t, err)
 			}
 		}
-		for _, table := range []string{"users", "workouts", "workout_completions", "workout_search_terms"} {
+		for _, table := range []string{"users", "workouts", "workout_completions"} {
 			column := "user_id"
 			if table == "users" {
 				column = "id"

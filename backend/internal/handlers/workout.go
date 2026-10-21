@@ -16,7 +16,7 @@ type workoutService interface {
 	Create(context.Context, string, workout.GenerateInput, string) (domains.SavedWorkout, error)
 	Get(context.Context, string, string) (domains.SavedWorkout, error)
 	List(context.Context, string, library.ListInput) (domains.WorkoutPage, error)
-	Summary(context.Context, string, domains.WorkoutFilter) (domains.WorkoutSummary, error)
+	Summary(context.Context, string) (domains.WorkoutSummary, error)
 	Complete(context.Context, string, string, string) (domains.Completion, error)
 	Undo(context.Context, string, string) error
 	Activity(context.Context, string, string) (domains.Activity, error)
@@ -55,15 +55,7 @@ func (h *Workout) List(c *echo.Context) error {
 		}
 		limit = parsed
 	}
-	filter, err := workoutFilterRequest(c)
-	if err != nil {
-		return err
-	}
-	request := v1.ListWorkoutsRequest{
-		Cursor:               c.QueryParam("cursor"),
-		Limit:                limit,
-		WorkoutFilterRequest: filter,
-	}
+	request := v1.ListWorkoutsRequest{Cursor: c.QueryParam("cursor"), Limit: limit}
 	result, err := h.service.List(c.Request().Context(), currentUser(c).ID, request.ToInput())
 	if err != nil {
 		return err
@@ -71,26 +63,11 @@ func (h *Workout) List(c *echo.Context) error {
 	return c.JSON(http.StatusOK, v1.NewWorkoutPageResponse(result))
 }
 func (h *Workout) Summary(c *echo.Context) error {
-	filter, err := workoutFilterRequest(c)
-	if err != nil {
-		return err
-	}
-	result, err := h.service.Summary(c.Request().Context(), currentUser(c).ID, filter.ToInput())
+	result, err := h.service.Summary(c.Request().Context(), currentUser(c).ID)
 	if err != nil {
 		return err
 	}
 	return c.JSON(http.StatusOK, v1.NewWorkoutSummaryResponse(result))
-}
-func workoutFilterRequest(c *echo.Context) (v1.WorkoutFilterRequest, error) {
-	filter := v1.WorkoutFilterRequest{Query: c.QueryParam("q"), Sort: c.QueryParam("sort")}
-	if value := c.QueryParam("level"); value != "" {
-		level, err := strconv.Atoi(value)
-		if err != nil || level < 1 || level > 5 {
-			return filter, library.ErrInvalidPage
-		}
-		filter.Level = level
-	}
-	return filter, nil
 }
 
 func (h *Workout) Complete(c *echo.Context) error {

@@ -77,7 +77,7 @@ func runRepositoryTests(m *testing.M) (code int) {
 // retaining the schema migrated once by TestMain.
 func setupRepositoryTest(t *testing.T) *gorm.DB {
 	t.Helper()
-	for _, table := range []string{"workout_completions", "workout_search_terms", "workouts", "users", "deleted_accounts"} {
+	for _, table := range []string{"workout_completions", "workouts", "users", "deleted_accounts"} {
 		err := repositoryTestDB.WithContext(t.Context()).Session(&gorm.Session{AllowGlobalUpdate: true}).
 			Table(table).Delete(&struct{}{}).Error
 		require.NoError(t, err)

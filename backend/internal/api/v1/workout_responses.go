@@ -82,27 +82,10 @@ func NewWorkoutPageResponse(page domains.WorkoutPage) WorkoutPageResponse {
 	}
 }
 
-type WorkoutLevelCountResponse struct {
-	Level int `json:"level"`
+type WorkoutSummaryResponse struct {
 	Count int `json:"count"`
 }
 
-type WorkoutSummaryResponse struct {
-	Count          int                         `json:"count"`
-	PlannedMinutes int                         `json:"plannedMinutes"`
-	AverageMinutes float64                     `json:"averageMinutes"`
-	Levels         []WorkoutLevelCountResponse `json:"levels"`
-}
-
 func NewWorkoutSummaryResponse(summary domains.WorkoutSummary) WorkoutSummaryResponse {
-	levels := make([]WorkoutLevelCountResponse, 0, len(summary.Levels))
-	for _, level := range summary.Levels {
-		levels = append(levels, WorkoutLevelCountResponse(level))
-	}
-	return WorkoutSummaryResponse{
-		Count:          summary.Count,
-		PlannedMinutes: summary.PlannedMinutes,
-		AverageMinutes: summary.AverageMinutes,
-		Levels:         levels,
-	}
+	return WorkoutSummaryResponse(summary)
 }

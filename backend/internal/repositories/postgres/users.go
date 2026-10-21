@@ -108,9 +108,6 @@ func (s *Users) Erase(ctx context.Context, subject string) error {
 		if err := tx.Where(map[string]any{"user_id": owner.ID}).Delete(&completionRow{}).Error; err != nil {
 			return fmt.Errorf("erase account completions: %w", err)
 		}
-		if err := tx.Where(map[string]any{"user_id": owner.ID}).Delete(&workoutSearchTerm{}).Error; err != nil {
-			return fmt.Errorf("erase account search terms: %w", err)
-		}
 		if err := tx.Where(map[string]any{"user_id": owner.ID}).Delete(&workoutRow{}).Error; err != nil {
 			return fmt.Errorf("erase account workouts: %w", err)
 		}

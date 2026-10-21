@@ -115,7 +115,7 @@
       },
       "get": {
         "operationId": "listWorkouts",
-        "summary": "Search your complete saved library with stable cursor pagination",
+        "summary": "List your saved workouts, newest first, with stable cursor pagination",
         "parameters": [
           {
             "name": "cursor",
@@ -124,7 +124,7 @@
               "type": "string",
               "maxLength": 512
             },
-            "description": "Opaque cursor scoped to owner and normalized filters/order; changing filters requires a new first page."
+            "description": "Opaque cursor scoped to the owner. Pass nextCursor from the previous page."
           },
           {
             "name": "limit",
@@ -134,36 +134,6 @@
               "minimum": 1,
               "maximum": 50,
               "default": 20
-            }
-          },
-          {
-            "name": "q",
-            "in": "query",
-            "description": "Literal case-insensitive search across all owned workout focus, block, and exercise names. Trimmed; at most 200 Unicode characters.",
-            "schema": {
-              "type": "string",
-              "maxLength": 200
-            }
-          },
-          {
-            "name": "level",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 5
-            }
-          },
-          {
-            "name": "sort",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "newest",
-                "shortest"
-              ],
-              "default": "newest"
             }
           }
         ],
@@ -396,44 +366,14 @@
     "/api/v1/workouts/summary": {
       "get": {
         "operationId": "summarizeWorkouts",
-        "summary": "Summarize all owned plans matching the active q/level filters, independent of pagination",
-        "parameters": [
-          {
-            "name": "q",
-            "in": "query",
-            "description": "Literal case-insensitive search across all owned workout focus, block, and exercise names. Trimmed; at most 200 Unicode characters.",
-            "schema": {
-              "type": "string",
-              "maxLength": 200
-            }
-          },
-          {
-            "name": "level",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 5
-            }
-          }
-        ],
+        "summary": "Count all owned plans, independent of pagination",
         "responses": {
           "200": {
-            "description": "Plan counts and estimated minutes across the matching library. These are generated plans, not completed training.",
+            "description": "The number of saved plans. These are generated plans, not completed training.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WorkoutSummary"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid filters",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -1190,47 +1130,12 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "count",
-          "plannedMinutes",
-          "averageMinutes",
-          "levels"
+          "count"
         ],
         "properties": {
           "count": {
             "type": "integer",
             "minimum": 0
-          },
-          "plannedMinutes": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "averageMinutes": {
-            "type": "number",
-            "minimum": 0
-          },
-          "levels": {
-            "type": "array",
-            "minItems": 5,
-            "maxItems": 5,
-            "items": {
-              "type": "object",
-              "required": [
-                "level",
-                "count"
-              ],
-              "additionalProperties": false,
-              "properties": {
-                "level": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "maximum": 5
-                },
-                "count": {
-                  "type": "integer",
-                  "minimum": 0
-                }
-              }
-            }
           }
         }
       },

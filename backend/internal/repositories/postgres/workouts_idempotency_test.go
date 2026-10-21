@@ -45,19 +45,9 @@ func TestWorkoutsCreateConcurrentRetriesReturnOneSavedSnapshot(t *testing.T) {
 		require.NoError(t, got.err)
 		assert.Equal(t, received[0].workout, got.workout)
 	}
-	summary, err := repo.Summary(t.Context(), user.ID, domains.WorkoutFilter{})
+	summary, err := repo.Summary(t.Context(), user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, summary.Count)
-	for i := range 20 {
-		query := fmt.Sprintf("focus-%02d", i)
-		items, err := repo.List(t.Context(), user.ID, domains.WorkoutFilter{Query: query}, nil, 20)
-		require.NoError(t, err)
-		if query == received[0].workout.Focus {
-			assert.Equal(t, []domains.SavedWorkout{received[0].workout}, items)
-		} else {
-			assert.Empty(t, items, "a losing retry must not add search terms")
-		}
-	}
 
 	replay, err := repo.Create(t.Context(), user.ID, workoutSnapshot("later-attempt"), "same-action", strings.Repeat("a", 64))
 	require.NoError(t, err)
@@ -91,19 +81,19 @@ func TestWorkoutsCreateFailureDoesNotReserveIdempotencyKey(t *testing.T) {
 	user, err := store.NewUsers(db).Ensure(t.Context(), "user_alice")
 	require.NoError(t, err)
 	// Fail after the workout insert to verify rollback of the plan and retry key.
-	require.NoError(t, db.Callback().Create().Before("gorm:create").Register("test:reject_search_terms", func(tx *gorm.DB) {
-		if tx.Statement.Table == "workout_search_terms" {
-			_ = tx.AddError(errors.New("injected search failure"))
+	require.NoError(t, db.Callback().Create().After("gorm:create").Register("test:reject_saved_workout", func(tx *gorm.DB) {
+		if tx.Statement.Table == "workouts" {
+			_ = tx.AddError(errors.New("injected save failure"))
 		}
 	}))
 	_, err = repo.Create(t.Context(), user.ID, workoutSnapshot("rejected"), "retry-key", strings.Repeat("a", 64))
-	require.ErrorContains(t, err, "injected search failure")
-	require.NoError(t, db.Callback().Create().Remove("test:reject_search_terms"))
+	require.ErrorContains(t, err, "injected save failure")
+	require.NoError(t, db.Callback().Create().Remove("test:reject_saved_workout"))
 
 	saved, err := repo.Create(t.Context(), user.ID, workoutSnapshot("accepted"), "retry-key", strings.Repeat("a", 64))
 	require.NoError(t, err)
 	assert.Equal(t, "accepted", saved.ID)
-	items, err := repo.List(t.Context(), user.ID, domains.WorkoutFilter{}, nil, 20)
+	items, err := repo.List(t.Context(), user.ID, nil, 20)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"accepted"}, workoutIDs(items))
 }
@@ -133,7 +123,7 @@ func TestWorkoutsCreateRequiresCompleteIdempotencyMetadata(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, id, saved.ID)
 	}
-	summary, err := repo.Summary(t.Context(), user.ID, domains.WorkoutFilter{})
+	summary, err := repo.Summary(t.Context(), user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 2, summary.Count)
 }
