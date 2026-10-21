@@ -7,3 +7,4 @@
 - Use accessible roles and assert visible outcomes. Test retries by losing a real saved response. Keep SQL races, JWT edge cases, snapshot compatibility and pure cache policy in focused package tests.
 - Stop containers and the network on success and partial startup failure. Keep the real upstream-outage check in teardown. Docker failures must fail the run; never fall back to local app processes.
 - `make e2e` runs desktop and mobile projects. Traces, videos, screenshots and service logs go to ignored `output/playwright`; reports go to `e2e/playwright-report`.
+- `clerk/` is the one live suite, run by `make e2e-clerk` against `make dev` and the Clerk development instance with `@clerk/testing`. Keep it to journeys only real Clerk proves: provider sign-up, real session tokens reaching the Go API, and sign-out. It refuses non-`pk_test_` keys and deletes the Clerk users it creates; it stays out of `make e2e` and CI.

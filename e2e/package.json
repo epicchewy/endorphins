@@ -8,6 +8,7 @@
     "install:browsers": "playwright install chromium"
   },
   "devDependencies": {
+    "@clerk/testing": "2.2.43",
     "@playwright/test": "1.61.0",
     "@testcontainers/postgresql": "12.0.3",
     "@types/node": "24.7.2",
@@ -15,6 +16,11 @@
     "ajv-formats": "3.0.1",
     "testcontainers": "12.0.3",
     "typescript": "5.9.3"
+  },
+  "overrides": {
+    "@clerk/backend": "3.23.0",
+    "@clerk/shared": "4.39.0",
+    "@tanstack/query-core": "5.104.0"
   },
   "engines": {
     "node": ">=22.19.0"

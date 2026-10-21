@@ -80,6 +80,11 @@ e2e: node-version
 
 smoke: e2e
 
+# Real Clerk sign-up and sign-in against `make dev` (started if not running). Creates and deletes Clerk test users.
+.PHONY: e2e-clerk
+e2e-clerk: node-version frontend/.env.local
+	cd e2e && bun --env-file=../frontend/.env.local run playwright test -c clerk/playwright.config.ts
+
 browsers: node-version
 	cd e2e && bunx playwright install chromium
 
