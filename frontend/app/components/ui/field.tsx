@@ -1,5 +1,4 @@
 import type { ComponentProps, ReactNode } from 'react'
-import { Search } from 'lucide-react'
 import { cn } from './cn'
 
 const control =
@@ -54,30 +53,6 @@ export function Select({ className, ...props }: ComponentProps<'select'>) {
       {...props}
       className={cn(control, 'cursor-pointer [&_option]:bg-surface [&_option]:text-ink', className)}
     />
-  )
-}
-export function SearchInput({
-  wrapperClassName,
-  className,
-  ...props
-}: Omit<ComponentProps<'input'>, 'type'> & { wrapperClassName?: string }) {
-  return (
-    <div
-      className={cn(
-        'flex min-w-0 items-center gap-2 rounded-control border border-line-strong bg-surface px-3 text-muted focus-within:outline-3 focus-within:outline-offset-4 focus-within:outline-focus',
-        wrapperClassName,
-      )}
-    >
-      <Search size={18} aria-hidden="true" />
-      <Input
-        {...props}
-        type="search"
-        className={cn(
-          'border-0 bg-transparent px-0 outline-none focus-visible:outline-none',
-          className,
-        )}
-      />
-    </div>
   )
 }
 export function RadioOption({

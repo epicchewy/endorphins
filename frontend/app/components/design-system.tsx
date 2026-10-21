@@ -5,20 +5,20 @@ import { Brand } from './brand'
 import { ThemeControl } from './theme'
 import { Button } from './ui/button'
 import { buttonClassName } from './ui/button-styles'
-import { Field, Input, RadioOption, SearchInput, Select } from './ui/field'
+import { Field, Input, RadioOption, Select } from './ui/field'
 import { EmptyState, Feedback, LoadingState } from './ui/feedback'
 import { Presence } from './ui/presence'
 import { SkipLink } from './ui/skip-link'
 
 const colors = ['background', 'surface', 'ink', 'muted', 'line', 'accent', 'focus', 'error']
 
-const initialPreview = { duration: 45, query: '', error: true, step: 1 }
+const initialPreview = { duration: 45, error: true, step: 1 }
 function previewReducer(state: typeof initialPreview, patch: Partial<typeof state>) {
   return { ...state, ...patch }
 }
 
 function ComponentPreview({ theme }: { theme: 'light' | 'dark' }) {
-  const [{ duration, query, error, step }, dispatch] = useReducer(previewReducer, initialPreview)
+  const [{ duration, error, step }, dispatch] = useReducer(previewReducer, initialPreview)
   const id = (name: string) => `${theme}-${name}`
   return (
     <section
@@ -55,8 +55,8 @@ function ComponentPreview({ theme }: { theme: 'light' | 'dark' }) {
             Next move <ArrowUpRight size={18} aria-hidden="true" />
           </Button>
           <Button onClick={() => dispatch({ step: 1 })}>Reset preview</Button>
-          <Button variant="ghost" onClick={() => dispatch({ query: '' })}>
-            Clear search
+          <Button variant="ghost" onClick={() => dispatch({ step: Math.max(1, step - 1) })}>
+            Previous move
           </Button>
           <Button disabled>Unavailable</Button>
           <Button pending>Saving…</Button>
@@ -89,14 +89,6 @@ function ComponentPreview({ theme }: { theme: 'light' | 'dark' }) {
                 </option>
               ))}
             </Select>
-          </Field>
-          <Field className="col-span-full" label="Search your workouts" htmlFor={id('search')}>
-            <SearchInput
-              id={id('search')}
-              placeholder="Exercise or body area"
-              value={query}
-              onChange={(event) => dispatch({ query: event.target.value })}
-            />
           </Field>
           <Field
             className="col-span-full"

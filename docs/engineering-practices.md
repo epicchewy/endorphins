@@ -37,7 +37,7 @@ Project searchable and sortable snapshot fields into owned columns and rows in t
 
 ## Frontend discipline
 
-Routes own navigation and document metadata. Pages compose controls and presentation. Components do not know about Go package layout. HTTP calls live in `services/`; hooks coordinate remote state. Query keys come from one session-aware factory. URL search owns builder preferences and library q/level/sort; controls emit field patches and functional navigation merges the latest state. Keep incomplete number drafts local.
+Routes own navigation and document metadata. Pages compose controls and presentation. Components do not know about Go package layout. HTTP calls live in `services/`; hooks coordinate remote state. Query keys come from one session-aware factory. URL search owns builder preferences; controls emit field patches and functional navigation merges the latest state. Keep incomplete number drafts local.
 
 Create a QueryClient for each router instance, with `defaultPreloadStaleTime: 0`. Put user actions in event handlers and mutations. Use `useSyncExternalStore` for browser subscriptions, with stable snapshots and a fixed server snapshot. Use callback refs with cleanup for DOM listeners, and declarative router navigation for redirects. The keyed session boundary owns cache cleanup on unmount. Do not access `window` during server rendering or create a global SSR cache. Scope private queries and mutations by Clerk session ID, clear the old session on changes, and capture tokens from the specific session resource. Route guards never replace API authorization.
 
@@ -51,7 +51,7 @@ Keep pending, error, and success states distinct. Failed shuffles keep the saved
 
 Workout generation uses Query's `networkMode: 'always'` so connectivity failures reach the bounded fetch/error path instead of leaving controls paused offline. Keep the generation status region outside the result's `aria-busy` container, and announce success only for the current mutation's successful state. Show a failed shuffle beside the retained plan, with one error announcement.
 
-Use Paper’s semantic tokens and locally served fonts. Use the shared `components/ui` library and its development `/design-system` gallery. Use Tailwind utilities in markup and shared primitive variants. Keep global theme/font/base rules in `app.css`; do not add page CSS or shared mapping dumping grounds. Keep motion inside the shared Presence component. Prefer readable copy, 48px controls (44px minimum targets), visible keyboard focus, native disclosure behavior, and reduced-motion support. Check 320/390/768px layouts and desktop in a real browser when browser access is available. Verify the print dialog and actual PDF before asserting print QA has passed.
+Use Paper’s semantic tokens and locally served fonts. Use the shared `components/ui` library and its development `/design-system` gallery. Use Tailwind utilities in markup and shared primitive variants. Keep global theme/font/base rules in `app.css`; do not add page CSS or shared mapping dumping grounds. Keep motion inside the shared Presence component. Prefer readable copy, 48px controls (44px minimum targets), visible keyboard focus, and reduced-motion support. Check 320/390/768px layouts and desktop in a real browser when browser access is available. Verify the print dialog and actual PDF before asserting print QA has passed.
 
 ## Scope and handoff
 
@@ -63,7 +63,7 @@ Review the final diff, run relevant checks, and report only checks actually comp
 
 ## Test ownership
 
-Browser tests own generation, retry/offline behavior, URL persistence, account switching, library search, export, keyboard/mobile interactions and print output. The production-proxy contract checks live in the same Playwright harness. Focused tests retain algorithm budgets, JWT rejection cases, immutable snapshot compatibility, concurrent SQL/idempotency/deletion invariants and session-cache policy. Retire a duplicated test only after its replacement has passed; do not replace hard-to-reach database failures with browser mocks.
+Browser tests own generation, retry/offline behavior, URL persistence, account switching, library paging, export, keyboard/mobile interactions and print output. The production-proxy contract checks live in the same Playwright harness. Focused tests retain algorithm budgets, JWT rejection cases, immutable snapshot compatibility, concurrent SQL/idempotency/deletion invariants and session-cache policy. Retire a duplicated test only after its replacement has passed; do not replace hard-to-reach database failures with browser mocks.
 
 Reuse browser fixtures for identity and saved-plan setup. Use Playwright's one-shot routes and JSON responses instead of custom flags and serialization. Keep failure artifacts and the print PDF; keep review recordings and pauses out of the test suite.
 

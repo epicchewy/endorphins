@@ -1,15 +1,13 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { getWorkout, listWorkouts, summarizeWorkouts } from '~/services/workouts'
-import { libraryFilters, type LibrarySearch } from '~/services/library-search'
 import { queryKeys } from '~/services/query-keys'
 import { retryAccountQuery, useAccountSession } from './use-account'
 
-export function useWorkouts(search: LibrarySearch, limit = 20) {
+export function useWorkouts(limit = 20) {
   const { userId, sessionId, getToken } = useAccountSession()
-  const filters = libraryFilters(search)
   return useInfiniteQuery({
-    queryKey: queryKeys.workoutList(sessionId, filters, limit),
-    queryFn: ({ pageParam, signal }) => listWorkouts(filters, pageParam, getToken, signal, limit),
+    queryKey: queryKeys.workoutList(sessionId, limit),
+    queryFn: ({ pageParam, signal }) => listWorkouts(pageParam, getToken, signal, limit),
     initialPageParam: '',
     getNextPageParam: (page) => page.nextCursor || undefined,
     enabled: Boolean(userId),
@@ -18,12 +16,11 @@ export function useWorkouts(search: LibrarySearch, limit = 20) {
   })
 }
 
-export function useWorkoutSummary(search: LibrarySearch) {
+export function useWorkoutSummary() {
   const { userId, sessionId, getToken } = useAccountSession()
-  const filters = libraryFilters(search)
   return useQuery({
-    queryKey: queryKeys.workoutSummary(sessionId, filters),
-    queryFn: ({ signal }) => summarizeWorkouts(filters, getToken, signal),
+    queryKey: queryKeys.workoutSummary(sessionId),
+    queryFn: ({ signal }) => summarizeWorkouts(getToken, signal),
     enabled: Boolean(userId),
     retry: retryAccountQuery,
     staleTime: 30_000,

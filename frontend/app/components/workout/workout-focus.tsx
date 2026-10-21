@@ -15,15 +15,7 @@ function moveStep(
   return { index, direction: index > state.index ? (1 as const) : (-1 as const) }
 }
 
-export function WorkoutFocus({
-  workout,
-  onExit,
-  children,
-}: {
-  workout: Workout
-  onExit: () => void
-  children: ReactNode
-}) {
+export function WorkoutFocus({ workout, children }: { workout: Workout; children: ReactNode }) {
   const [{ index, direction }, move] = useReducer(moveStep, { index: 0, direction: 1 })
   const focusRef = useRef<HTMLDivElement>(null)
   const steps = workoutSteps(workout)
@@ -117,9 +109,6 @@ export function WorkoutFocus({
           </div>
         )}
       </div>
-      <Button variant="ghost" className="mt-4" onClick={onExit}>
-        Back to plan
-      </Button>
       <p className="mt-6 text-xs leading-[1.8] text-muted">
         Follow each set in order. Use Previous and Next at your pace. Mark your workout complete
         after you finish.

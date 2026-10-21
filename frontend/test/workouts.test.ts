@@ -1,6 +1,5 @@
 import { afterEach, expect, mock, spyOn, test } from 'bun:test'
-import { generateWorkout, listWorkouts, summarizeWorkouts } from '../app/services/workouts'
-import { libraryFilters } from '../app/services/library-search'
+import { generateWorkout } from '../app/services/workouts'
 
 const input = { durationMinutes: 45, level: 2 }
 const getToken = async () => 'test-token'
@@ -53,20 +52,4 @@ test('a missing session never sends an anonymous generation request', async () =
   const fetchSpy = spyOn(globalThis, 'fetch')
   await expect(generateWorkout(input, async () => null)).rejects.toThrow('sign in again')
   expect(fetchSpy).not.toHaveBeenCalled()
-})
-
-test('lists and summaries share filters while cursor and sort apply only to lists', async () => {
-  const fetchSpy = spyOn(globalThis, 'fetch')
-    .mockResolvedValueOnce(Response.json({}))
-    .mockResolvedValueOnce(Response.json({}))
-  const filters = libraryFilters({ q: '  SQUAT  ', level: 3, sort: 'shortest' })
-  await listWorkouts(filters, 'next-page', getToken)
-  await summarizeWorkouts(filters, getToken)
-  const queries = fetchSpy.mock.calls.map(([path]) =>
-    Object.fromEntries(new URL(String(path), 'https://endorphins.test').searchParams),
-  )
-  expect(queries).toEqual([
-    { q: 'squat', level: '3', sort: 'shortest', limit: '20', cursor: 'next-page' },
-    { q: 'squat', level: '3' },
-  ])
 })

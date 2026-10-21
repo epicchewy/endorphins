@@ -1,6 +1,5 @@
 import type { components } from '~/types/api.gen'
 import { request, type GetToken } from './http'
-import { libraryFilterParams, type LibraryFilters } from './library-search'
 
 export type Workout = components['schemas']['Workout']
 export type WorkoutPage = components['schemas']['WorkoutPage']
@@ -21,25 +20,21 @@ export function generateWorkout(
 }
 
 export function listWorkouts(
-  filters: LibraryFilters,
   cursor: string,
   getToken: GetToken,
   signal?: AbortSignal,
   limit = 20,
 ): Promise<WorkoutPage> {
-  const params = libraryFilterParams(filters)
-  params.set('sort', filters.sort)
-  params.set('limit', String(limit))
+  const params = new URLSearchParams({ limit: String(limit) })
   if (cursor) params.set('cursor', cursor)
   return request(`/api/v1/workouts?${params}`, getToken, { signal })
 }
 
 export function summarizeWorkouts(
-  filters: LibraryFilters,
   getToken: GetToken,
   signal?: AbortSignal,
 ): Promise<WorkoutSummary> {
-  return request(`/api/v1/workouts/summary?${libraryFilterParams(filters)}`, getToken, { signal })
+  return request('/api/v1/workouts/summary', getToken, { signal })
 }
 
 export function getWorkout(id: string, getToken: GetToken, signal?: AbortSignal): Promise<Workout> {

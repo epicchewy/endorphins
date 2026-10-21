@@ -21,6 +21,6 @@ export async function cacheCreatedWorkout(
   client.setQueryData(queryKeys.workout(sessionId, workout.id), workout)
   await Promise.all([
     client.invalidateQueries({ queryKey: queryKeys.workoutLists(sessionId) }),
-    client.invalidateQueries({ queryKey: queryKeys.workoutSummaries(sessionId) }),
+    client.invalidateQueries({ queryKey: queryKeys.workoutSummary(sessionId) }),
   ])
 }
