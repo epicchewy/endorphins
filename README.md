@@ -2,7 +2,7 @@
 
 Home workouts built with TanStack Start, React, and Go/Echo. Choose 30–120 minutes and one of five levels. New plans need only floor space and a wall.
 
-The landing page is `/`; the signed-in app is `/app`. Signup leads through a welcome, default level choice, and workout setup. Plans save to Postgres. You can search, follow, shuffle, and print them. After you work out, confirm completion to update your dashboard. It shows completed workouts, active days, four weeks of activity, and milestones. Light, dark, and system themes are available. Billing and cloud media storage are deferred.
+The landing page is `/`; the signed-in app is `/app`. Signup leads through a welcome, default level choice, and workout setup. Plans save to Postgres. You can browse, follow, shuffle, and print them. After you work out, confirm completion to update your dashboard. It shows completed workouts, active days, four weeks of activity, and milestones. Light, dark, and system themes are available. Billing and cloud media storage are deferred.
 
 ## Run locally
 

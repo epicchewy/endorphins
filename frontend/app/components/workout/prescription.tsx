@@ -12,15 +12,15 @@ export function Prescription({
   return (
     <span
       className={cn(
-        'flex flex-col gap-1 whitespace-nowrap tabular-nums',
-        prominent ? 'mt-6 items-start' : 'items-end',
+        'flex flex-col whitespace-nowrap tabular-nums',
+        prominent ? 'mt-6 items-start gap-1' : 'items-end',
       )}
     >
       <strong
         className={
           prominent
             ? 'text-4xl font-extrabold tracking-[-1px]'
-            : 'text-base font-bold max-[600px]:text-sm'
+            : 'text-lg leading-snug font-bold print:text-sm'
         }
       >
         {exercise.duration ? (
@@ -30,7 +30,9 @@ export function Prescription({
             {exercise.reps}{' '}
             <span
               className={
-                prominent ? 'ml-1.5 text-sm font-medium tracking-normal' : 'text-xs font-medium'
+                prominent
+                  ? 'ml-1.5 text-sm font-medium tracking-normal'
+                  : 'text-[13px] font-medium text-muted'
               }
             >
               reps
@@ -39,8 +41,8 @@ export function Prescription({
         )}
       </strong>
       {exercise.duration && (
-        <small className={cn('text-muted', prominent ? 'text-[13px]' : 'text-xs')}>
-          {exercise.rest ?? 0}s rest per round
+        <small className="text-[13px] text-muted">
+          {exercise.rest ?? 0}s rest{prominent && ' per round'}
         </small>
       )}
     </span>

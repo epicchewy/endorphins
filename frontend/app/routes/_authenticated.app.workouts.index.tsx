@@ -1,4 +1,4 @@
-import { createFileRoute, Link, stripSearchParams } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { ArrowUpRight, Plus } from 'lucide-react'
 import { useWorkouts, useWorkoutSummary } from '~/hooks/use-workouts'
 import { WorkoutLibrary } from '~/components/workout/workout-library'
@@ -6,21 +6,15 @@ import { PageHeading } from '~/components/ui/page-heading'
 import { Button } from '~/components/ui/button'
 import { buttonClassName } from '~/components/ui/button-styles'
 import { EmptyState, Feedback, LoadingState } from '~/components/ui/feedback'
-import { librarySearch, librarySearchDefaults } from '~/services/library-search'
 
 export const Route = createFileRoute('/_authenticated/app/workouts/')({
-  validateSearch: librarySearch,
-  search: { middlewares: [stripSearchParams(librarySearchDefaults)] },
   component: History,
 })
 
 function History() {
-  const search = Route.useSearch()
-  const navigate = Route.useNavigate()
-  const history = useWorkouts(search)
-  const summary = useWorkoutSummary(search)
+  const history = useWorkouts()
+  const summary = useWorkoutSummary()
   const workouts = history.data?.pages.flatMap((page) => page.items) ?? []
-  const filtered = Boolean(search.q?.trim() || search.level)
   return (
     <>
       <PageHeading
@@ -34,14 +28,6 @@ function History() {
       />
       <WorkoutLibrary
         workouts={workouts}
-        search={search}
-        onSearchChange={(patch, replace = false) => {
-          void navigate({
-            search: (current) => ({ ...current, ...patch }),
-            replace,
-            resetScroll: false,
-          })
-        }}
         summary={summary.data}
         summaryState={
           summary.isError ? (
@@ -65,31 +51,18 @@ function History() {
             {history.error.message}
           </Feedback>
         )}
-        {history.isSuccess &&
-          workouts.length === 0 &&
-          (filtered ? (
-            <EmptyState
-              title="No matching plans."
-              action={
-                <Button onClick={() => void navigate({ search: {}, resetScroll: false })}>
-                  Clear filters
-                </Button>
-              }
-            >
-              Try another exercise or level. Search includes every workout in your library.
-            </EmptyState>
-          ) : (
-            <EmptyState
-              title="No saved workouts yet."
-              action={
-                <Link to="/app/new" className={buttonClassName({ variant: 'primary' })}>
-                  Create my first workout <ArrowUpRight size={18} aria-hidden="true" />
-                </Link>
-              }
-            >
-              Choose your time and level. We’ll save your plan here.
-            </EmptyState>
-          ))}
+        {history.isSuccess && workouts.length === 0 && (
+          <EmptyState
+            title="No saved workouts yet."
+            action={
+              <Link to="/app/new" className={buttonClassName({ variant: 'primary' })}>
+                Create my first workout <ArrowUpRight size={18} aria-hidden="true" />
+              </Link>
+            }
+          >
+            Choose your time and level. We’ll save your plan here.
+          </EmptyState>
+        )}
       </WorkoutLibrary>
       {history.hasNextPage && (
         <div className="flex justify-center pt-7">

@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { Settings } from 'lucide-react'
 import { UserButton } from '~/auth/client'
 import { Brand } from './brand'
 import { ThemeControl } from './theme'
@@ -10,7 +11,15 @@ export function AppHeader({ onboarding = false }: { onboarding?: boolean }) {
         <Brand app />
         <div className="flex items-center gap-3 min-[700px]:order-last min-[700px]:ml-auto">
           <ThemeControl />
-          <UserButton appearance={{ elements: { userButtonTrigger: { padding: '8px' } } }} />
+          <UserButton appearance={{ elements: { userButtonTrigger: { padding: '8px' } } }}>
+            <UserButton.MenuItems>
+              <UserButton.Link
+                label="Settings"
+                labelIcon={<Settings size={16} aria-hidden="true" />}
+                href="/app/account"
+              />
+            </UserButton.MenuItems>
+          </UserButton>
         </div>
         {!onboarding && (
           <nav
@@ -20,7 +29,6 @@ export function AppHeader({ onboarding = false }: { onboarding?: boolean }) {
             {[
               { to: '/app', label: 'Dashboard' },
               { to: '/app/workouts', label: 'Saved workouts' },
-              { to: '/app/account', label: 'Account' },
             ].map((item) => (
               <Link
                 key={item.to}

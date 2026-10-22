@@ -46,7 +46,7 @@ test('signup introduces home workouts, saves a level, and records real progress'
   await expect(page.getByTestId('completed-total')).toHaveText('2')
   await page.goto('/app/onboarding')
   await expect(page).toHaveURL(/\/app\/new$/)
-  await page.getByRole('link', { name: 'Account', exact: true }).click()
+  await page.getByRole('link', { name: 'Settings', exact: true }).click()
   await page.getByRole('combobox', { name: 'Default level' }).selectOption('1')
   await page.getByRole('button', { name: 'Save level' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Default level saved.' })).toBeVisible()

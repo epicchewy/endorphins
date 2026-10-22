@@ -44,11 +44,10 @@ The gallery is `frontend/app/components/design-system.tsx`. It owns demonstratio
 | `Button`           | Native button props, `variant="primary\|secondary\|ghost"`, `size="default\|small\|icon"`, `pending`. Defaults to `type="button"`. Pending disables and adds one decorative spinner. | Builder submit, shuffle, print, exercise navigation, retry    |
 | `buttonClassName`  | Presentation helper for native anchors and typed TanStack `Link`; accepts the same visual variants. Retains router types and link behavior.                                          | Landing calls to action, saved library navigation             |
 | `Field`            | Persistent label linked through explicit `htmlFor`, optional hint/error, arbitrary control children. Hint/error IDs are `${htmlFor}-hint` and `${htmlFor}-error`.                    | Custom workout duration; gallery validation examples          |
-| `Input` / `Select` | Native element props and shared chrome. Caller owns value, label, validity, and described-by relationships.                                                                          | Duration, library sorting/level, theme selector               |
-| `SearchInput`      | Native input props except type (always search), decorative icon, optional `wrapperClassName` for layout. Caller provides visible label or `aria-label`.                              | Full-library exercise/body-area search                        |
+| `Input` / `Select` | Native element props and shared chrome. Caller owns value, label, validity, and described-by relationships.                                                                          | Duration, default level, theme selector                       |
 | `RadioOption`      | Native radio props inside its label. Checked, disabled, and focus states derive from the input itself. Group with a native `fieldset`/`legend`.                                      | Workout duration and level choices                            |
 | `Feedback`         | Error/info tone, optional title, children, optional retry callback/label and id. Errors announce as alerts; information as status.                                                   | Generation/query failures and completion recovery      |
-| `EmptyState`       | Title, explanatory children, optional action. No data fetching or embedded routing policy.                                                                                           | Saved library and unmatched filters                           |
+| `EmptyState`       | Title, explanatory children, optional action. No data fetching or embedded routing policy.                                                                                           | Saved library                                                 |
 | `LoadingState`     | Status region with descriptive children and a decorative spinner. Retains useful vertical space.                                                                                     | Library/detail loading, lazy exercise view                    |
 | `Presence`         | Controlled `present`, `identity`, `direction`, className, and children. Uses one motion policy with reduced-motion support.                                                          | Custom-duration disclosure and changing exercise instructions |
 
@@ -86,13 +85,13 @@ For an invalid field, pass `error` to `Field` and `aria-invalid` plus `aria-desc
 - `PageHeading` shares the title/description/action layout. `SkipLink` owns hidden and focused skip navigation.
 - Direct Motion imports stay in `components/ui`; product components use `Presence`.
 
-Do not add page stylesheets or wrap old selectors in `@apply`. Keep unique layout in its page. Import checks enforce dependencies from product UI to primitives. Exercise disclosures stay workout-specific. See [frontend ownership](architecture.md#frontend-ownership) for URL state and input drafts.
+Do not add page stylesheets or wrap old selectors in `@apply`. Keep unique layout in its page. Import checks enforce dependencies from product UI to primitives. See [frontend ownership](architecture.md#frontend-ownership) for URL state and input drafts.
 
 ## Accessibility and visual verification
 
 Use native semantics before adding ARIA. Every input has a label, radio groups retain their legend and keyboard behavior, pending actions cannot be resubmitted, and icon-only controls need an accessible name. Keep one appropriate announcement for a failure; do not add a global toast announcing the same error again. A failed shuffle retains the previous plan and puts recovery feedback beside the action.
 
-Verify at 390px and 1,440px in light/dark modes. Inspect keyboard focus, form errors, loading/empty states, long workout names, and reduced motion. Confirm no horizontal overflow and no clipped controls. Print a workout while exercise view is active: the complete plan and expanded notes must remain available, with screen-only controls hidden.
+Verify at 390px and 1,440px in light/dark modes. Inspect keyboard focus, form errors, loading/empty states, long workout names, and reduced motion. Confirm no horizontal overflow and no clipped controls. Print a workout while exercise view is active: the complete plan and every note must remain available, with screen-only controls hidden.
 
 The [refinement report](history/architecture-refinement.md) records the change from 14 CSS files to one Tailwind theme, plus config and DTO changes. Its before/after captures are in `output/playwright/temper-improvements`; the baseline predates primitive extraction. The [Paper UI library](https://app.paper.design/file/01M3TVV9XXTXF2N7ZD43K3WH3V/p-3-0) keeps those studies and the light/dark control contracts. Gallery labels use the same 12px minimum as product metadata.
 
@@ -108,4 +107,13 @@ The landing page uses an asymmetric photo and text layout, followed by a compact
 
 Onboarding introduces the app before the level choice. Desktop uses a photo beside four short feature descriptions; mobile keeps the descriptions and next action together. The dashboard gives completed workouts the strongest numerical emphasis, then active days and milestones. The four-week chart uses recorded counts; zero counts have no filled track. Reached milestones have explicit screen-reader text.
 
-Themes apply before first paint and keep the browser theme color in sync with manual and system changes. Font files are preloaded. Layouts use balanced headings, touch-safe controls, and explicit mobile grids. Navigation uses links. Completion actions are composed into the saved plan and optional exercise view. The builder has one authenticated setup mode. Long saved-plan lists defer off-screen rendering with native CSS.
+Themes apply before first paint and keep the browser theme color in sync with manual and system changes. Font files are preloaded. Layouts use balanced headings, touch-safe controls, and explicit mobile grids. Navigation uses links. Completion actions end the saved plan and the optional exercise view. The builder has one authenticated setup mode. Long saved-plan lists defer off-screen rendering with native CSS.
+
+## Saved workout plan
+
+The saved plan answers one question: what do I do next, and how many? A person reads it from the floor, so the exercises take the most space and the summary takes one line.
+
+- The title row has the title, one line of level, estimated time, exercise count, and saved date, and the Start workout, Print, and Shuffle actions. There is no back link; the app navigation leads to the library.
+- Blocks sit in three columns from 900px and in one column, at most 720px wide, below that. Each row shows the name, the always-visible note, and the count right-aligned beside it. A block with more than one set marks its set count in `text-focus` with a repeat icon.
+- Orange appears on the set count and on **I finished**, which ends the plan. Start workout swaps in the exercise view and becomes Back to plan.
+- Print shows one compact column and hides the actions and the exercise view.

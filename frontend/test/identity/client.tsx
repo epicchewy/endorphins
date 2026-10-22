@@ -75,21 +75,28 @@ export function useClerk() {
   }
 }
 
-export function UserButton() {
+export function UserButton({ children }: { children?: ReactNode }) {
   return (
-    <button
-      type="button"
-      className="account-link"
-      onClick={() => {
-        document.cookie = `${cookieName}=; Path=/; Max-Age=0; SameSite=Strict`
-        window.dispatchEvent(new Event('endorphins:test-session'))
-        window.location.assign('/')
-      }}
-    >
-      Sign out
-    </button>
+    <>
+      {children}
+      <button
+        type="button"
+        className="account-link"
+        onClick={() => {
+          document.cookie = `${cookieName}=; Path=/; Max-Age=0; SameSite=Strict`
+          window.dispatchEvent(new Event('endorphins:test-session'))
+          window.location.assign('/')
+        }}
+      >
+        Sign out
+      </button>
+    </>
   )
 }
+UserButton.MenuItems = ({ children }: { children: ReactNode }) => children
+UserButton.Link = ({ href, label }: { href: string; label: string; labelIcon: ReactNode }) => (
+  <a href={href}>{label}</a>
+)
 
 export function SignIn({
   fallbackRedirectUrl = '/app',

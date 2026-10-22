@@ -27,8 +27,7 @@ test('sign-in returns to the chosen workout and native validation preserves cust
   await expect(page).toHaveURL(/minutes=60/)
   await page.getByRole('button', { name: 'Generate my workout', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Full-body workout' })).toBeVisible()
-  await expect(page.getByText('Level 4 · Full body', { exact: true })).toBeVisible()
-  await expect(page.getByRole('article')).toContainText('Built for 60 minutes')
+  await expect(page.getByText(/^Level 4 · About \d+ min · \d+ exercises/)).toBeVisible()
 })
 
 test('component gallery shares accessible light/dark controls and reduced-motion behavior', async ({
@@ -99,7 +98,7 @@ test('mobile layout, theme, keyboard navigation, and unsaved preferences stay us
   await page.getByRole('radio', { name: '30min', exact: true }).focus()
   await page.keyboard.press('ArrowRight')
   await expect(page.getByRole('radio', { name: '45min', exact: true })).toBeChecked()
-  await page.getByRole('link', { name: 'Account', exact: true }).click()
+  await page.getByRole('link', { name: 'Settings', exact: true }).click()
   await page.getByRole('combobox', { name: 'Default level' }).selectOption('5')
   page.once('dialog', (dialog) => void dialog.dismiss())
   await page.getByRole('link', { name: 'Dashboard', exact: true }).click()
@@ -150,34 +149,23 @@ test('shared action links show hover and pressed feedback', async ({ page }, inf
   await page.mouse.up()
 })
 
-test('printing includes closed exercise notes and restores interactive disclosure state', async ({
+test('printing from the exercise view outputs the full plan without screen controls', async ({
   savedWorkoutPage: page,
 }, info) => {
   test.skip(info.project.name !== 'desktop', 'PDF output requires desktop Chromium')
-  const details = page.getByRole('article').locator('details')
-  await details.first().locator('summary').click()
-  const before = await details.evaluateAll((nodes: HTMLDetailsElement[]) =>
-    nodes.map((node) => node.open),
-  )
-  await page.getByRole('button', { name: 'Exercise view', exact: true }).click()
+  await page.getByRole('button', { name: 'Start workout', exact: true }).click()
   await expect(page.getByRole('progressbar')).toBeVisible()
   await page.emulateMedia({ media: 'print' })
   await expect(page.getByTestId('workout-overview')).toBeVisible()
   await expect(page.getByTestId('workout-toolbar')).toBeHidden()
-  await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')))
-  expect(
-    await details.evaluateAll((nodes: HTMLDetailsElement[]) => nodes.every((node) => node.open)),
-  ).toBe(true)
+  await expect(page.getByTestId('exercise-view')).toBeHidden()
+  await expect(page.getByRole('link', { name: 'I finished', exact: true })).toBeHidden()
   const pdf = await page.pdf({
     path: info.outputPath('workout-print.pdf'),
     format: 'A4',
     printBackground: true,
   })
   expect(pdf.toString('ascii', 0, 4)).toBe('%PDF')
-  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')))
   await page.emulateMedia({ media: 'screen' })
-  expect(
-    await details.evaluateAll((nodes: HTMLDetailsElement[]) => nodes.map((node) => node.open)),
-  ).toEqual(before)
   await expect(page.getByRole('progressbar')).toBeVisible()
 })

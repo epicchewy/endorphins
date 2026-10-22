@@ -15,7 +15,7 @@ import roomToMoveLarge from '~/assets/images/room-to-move-1448.webp'
 export const Route = createFileRoute('/_authenticated/app/')({ component: Dashboard })
 function Dashboard() {
   const activity = useActivity()
-  const plans = useWorkouts({}, 1)
+  const plans = useWorkouts(1)
   const latest = plans.data?.pages[0]?.items[0]
   if (activity.isPending || plans.isPending)
     return <LoadingState>Loading your dashboard…</LoadingState>

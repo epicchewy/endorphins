@@ -11,14 +11,17 @@ test('generates, saves, reopens, and follows a workout', async ({ signedInPage: 
   )
   await page.getByRole('button', { name: 'Generate my workout', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Full-body workout' })).toBeVisible()
-  await expect(page.getByText('Level 3 · Full body', { exact: true })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'A little warm-up first' })).toBeVisible()
-  await page.getByRole('button', { name: 'Exercise view', exact: true }).click()
+  await expect(page.getByText(/^Level 3 · About \d+ min · \d+ exercises/)).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Warm-up', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Start workout', exact: true }).click()
   await expect(page.getByRole('progressbar')).toHaveAttribute('value', '1')
   await page.getByRole('button', { name: 'Next', exact: true }).click()
   await expect(page.getByRole('progressbar')).toHaveAttribute('value', '2')
   await page.getByRole('button', { name: 'Previous', exact: true }).click()
   await expect(page.getByRole('progressbar')).toHaveAttribute('value', '1')
+  await page.getByRole('button', { name: 'Back to plan', exact: true }).click()
+  await expect(page.getByRole('progressbar')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Start workout', exact: true })).toBeFocused()
   await page.getByRole('link', { name: 'Saved workouts', exact: true }).last().click()
   await expect(page.getByRole('heading', { name: 'Your saved plans', exact: true })).toBeVisible()
   await page.getByRole('link', { name: /View plan/ }).click()
@@ -36,15 +39,14 @@ test('generates, saves, reopens, and follows a workout', async ({ signedInPage: 
   )
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Full-body workout' })).toBeVisible()
-  await expect(page.getByText('Level 3 · Full body', { exact: true })).toBeVisible()
-  await expect(page.getByText('Saved 8 October 2026.', { exact: false })).toBeVisible()
+  await expect(page.getByText(/^Level 3 · About \d+ min · \d+ exercises/)).toBeVisible()
+  await expect(page.getByText('Saved 8 October 2026', { exact: true })).toBeVisible()
 })
 
 test('failed shuffle retains the saved plan and supports a retry', async ({
   savedWorkoutPage: page,
 }) => {
-  const article = page.getByRole('article')
-  const original = await article.locator('dl[aria-label="Workout statistics"]').innerText()
+  const original = await page.getByTestId('workout-overview').innerText()
   await page.route('**/api/v1/workouts', async (route) => {
     if (route.request().method() !== 'POST') return route.fallback()
     await route.fulfill({
@@ -58,7 +60,7 @@ test('failed shuffle retains the saved plan and supports a retry', async ({
   })
   await page.getByRole('button', { name: 'Shuffle', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('saved workout is unchanged')
-  await expect(article.locator('dl[aria-label="Workout statistics"]')).toHaveText(original, {
+  await expect(page.getByTestId('workout-overview')).toHaveText(original, {
     useInnerText: true,
   })
   await expect(page.getByRole('button', { name: 'Shuffle', exact: true })).toBeEnabled()
