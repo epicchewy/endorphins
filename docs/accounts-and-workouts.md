@@ -8,8 +8,6 @@ erDiagram
   USERS ||--o{ WORKOUTS : owns
   USERS ||--o{ WORKOUT_COMPLETIONS : records
   WORKOUTS ||--o{ WORKOUT_COMPLETIONS : uses
-  USERS ||--o{ WORKOUT_SEARCH_TERMS : owns
-  WORKOUTS ||--o{ WORKOUT_SEARCH_TERMS : projects
   USERS {
     uuid id PK
     text clerk_user_id UK
@@ -24,7 +22,6 @@ erDiagram
     smallint snapshot_version
     jsonb plan
     integer level
-    integer estimated_minutes
     text idempotency_key
     text input_fingerprint
   }
@@ -35,12 +32,6 @@ erDiagram
     timestamptz completed_at
     timestamptz undone_at
     text idempotency_key
-  }
-  WORKOUT_SEARCH_TERMS {
-    uuid user_id PK
-    text workout_id PK
-    integer position PK
-    text name
   }
   DELETED_ACCOUNTS {
     text subject_hash PK
@@ -84,23 +75,18 @@ The `plan` JSONB column preserves level, requested duration, warm-up, total and 
 
 Storage has an explicit version-1 encoder/decoder with its own structs. Every read selects `snapshot_version`; an unsupported version fails explicitly. Public request/response DTOs live in `internal/api/v1`, with resource-specific request/response conversions beside the DTOs. Changing an HTTP field or domain struct therefore does not silently change the historical storage format. `api/openapi.json` defines the public contract and generates frontend types.
 
-## Search, pagination, and summaries
+## Pagination and summary
 
-`GET /api/v1/workouts` returns `{ items, nextCursor }` and searches all matching records owned by the caller, independently of the pages already loaded in the browser. It accepts:
+`GET /api/v1/workouts` returns `{ items, nextCursor }`: the caller's saved plans, newest first. It accepts:
 
-| Parameter | Meaning                                                                                                                                                         |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `q`       | Trimmed, case-insensitive literal substring across focus, block names, and exercise names; at most 200 Unicode characters. `%` and `_` are ordinary characters. |
-| `level`   | Optional level 1–5; omission includes every level.                                                                                                              |
-| `sort`    | `newest` by default, or `shortest` by estimated minutes.                                                                                                        |
-| `limit`   | 1–50 records, default 20.                                                                                                                                       |
-| `cursor`  | Opaque continuation position for the same owner, normalized filters, and ordering.                                                                              |
+| Parameter | Meaning                                          |
+| --------- | ------------------------------------------------ |
+| `limit`   | 1–50 records, default 20.                        |
+| `cursor`  | Opaque continuation position for the same owner. |
 
-The GORM migration projects level and estimated minutes into workout columns for existing plans. An owned `workout_search_terms` table stores lowercased focus, block names, and exercise names. Saves write these projections with the immutable plan; retries retain the original fields. Search joins include both owner and workout ID and return each plan once.
+Ordering uses `(created_at DESC, id DESC)`. A cursor carries the last position and an owner digest, so another account's cursor is rejected. An empty `nextCursor` means the final page. Cursors are positions, not credentials: GORM queries still check the authenticated owner on every request.
 
-Newest ordering uses `(created_at DESC, id DESC)`. Shortest ordering uses estimated minutes ascending, then the same timestamp/ID tie-breakers. Cursors carry the relevant position and a scope digest; changing owner, filters, or order requires starting a new first page. An empty `nextCursor` means the final page. Cursors are positions, not credentials: GORM queries still check the authenticated owner on every request.
-
-`GET /api/v1/workouts/summary` applies the same `q` and `level` filters to the complete library. It returns matching `count`, total estimated `plannedMinutes`, `averageMinutes` (zero for an empty result), and five `{ level, count }` entries including zero counts. These totals describe generated plans. Completion records supply activity totals. Library filters and sorting live in validated route search, so refresh and browser navigation restore the view.
+`GET /api/v1/workouts/summary` returns `{ count }`, the number of plans the caller saved, independent of the pages loaded in the browser. The library shows it as "20 of 26 plans" while more pages remain. It counts generated plans. Completion records supply activity totals.
 
 `GET /api/v1/workouts/{id}` applies both owner and workout ID in its GORM query. Missing and other-account IDs both return `404`. There is no unscoped repository read method, public share link, or workout-edit endpoint.
 
@@ -108,7 +94,7 @@ Newest ordering uses `(created_at DESC, id DESC)`. Shortest ordering uses estima
 
 `GET /api/v1/me/export` returns a versioned JSON download containing the application user, all owned workout snapshots, completion logs (including undone records), and an export timestamp. Version 2 adds the completion array and account preferences. A read-only, repeatable-read transaction gives the export a consistent database view. It does not export Clerk-held credentials or profile information. The account screen fetches it with the captured session's bearer token, verifies the returned application owner, downloads a Blob, and discards the payload. Switching sessions suppresses a late download from the previous account.
 
-`POST /api/webhooks/clerk` verifies the signature and timestamp over the raw, size-bounded body before decoding. It needs no browser session. A `user.deleted` event records the subject digest and deletes completion logs, search terms, plans, and the user in one transaction. Duplicate deletions are harmless. A deletion received before initial provisioning still records a tombstone. Other verified event types are acknowledged without changing application data.
+`POST /api/webhooks/clerk` verifies the signature and timestamp over the raw, size-bounded body before decoding. It needs no browser session. A `user.deleted` event records the subject digest and deletes completion logs, plans, and the user in one transaction. Duplicate deletions are harmless. A deletion received before initial provisioning still records a tombstone. Other verified event types are acknowledged without changing application data.
 
 The receiver is implemented, but its external Clerk endpoint subscription and signing secret still need deployment configuration. Delivery is asynchronous; erasure occurs when a valid deletion event is processed. Erasure failures return an error so the provider can retry. There is no separate application-only deletion button: account deletion is managed through Clerk and synchronized by the verified event.
 
@@ -116,7 +102,7 @@ Tombstones currently have no automatic expiry. They retain only the subject dige
 
 ## Migrations
 
-`cmd/migrate` follows Temper: it runs GORM `AutoMigrate` over repository models with foreign key creation disabled. Schema and any data fixes share one transaction. The command has no statement timeout, so index builds on large tables can finish; the API bounds each statement to five seconds. There are no SQL files, migration versions, or automatic down migrations. API startup never applies migrations. See [architecture](architecture.md) for module ownership.
+`cmd/migrate` follows Temper: it runs GORM `AutoMigrate` over repository models with foreign key creation disabled. A repeatable fix drops the old library search table and estimated-minutes column, which `AutoMigrate` would leave behind. Schema and data fixes share one transaction. The command has no statement timeout, so index builds on large tables can finish; the API bounds each statement to five seconds. There are no SQL files, migration versions, or automatic down migrations. API startup never applies migrations. See [architecture](architecture.md) for module ownership.
 
 Run one migration process before starting the matching API binary. A failed migration rolls back and can be retried after fixing its cause. Startup and `/readyz` check database connectivity; `/healthz` reports process liveness. Future schema changes update model tags and add repeatable GORM data fixes when needed. Storage snapshot versions remain independent of schema setup.
 

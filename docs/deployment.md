@@ -51,9 +51,9 @@ Deployment sequence:
 2. Stop the old API and run one release `bin/migrate` process with `DATABASE_URL` set. It applies GORM models and repeatable data fixes in one transaction. API startup does not apply them.
 3. Start `bin/api` with the matching environment and catalogue. Startup fails if the catalogue is invalid or the database is unreachable.
 4. Start the Bun frontend/proxy and route traffic only after the Go readiness probe succeeds.
-5. Check a signed-in generation, saved detail/reload, library filters, and account export through the public origin. Check the configured Clerk lifecycle flow separately.
+5. Check a signed-in generation, saved detail/reload, library paging, and account export through the public origin. Check the configured Clerk lifecycle flow separately.
 
-The migration command follows Temper's model-driven `AutoMigrate` approach. Stored plans, accounts, completions, retry keys, and tombstones remain. The API writes derived fields in the save transaction and deletes them during account erasure. The command runs without the API's five-second statement timeout.
+The migration command follows Temper's model-driven `AutoMigrate` approach. It drops the old library search table and estimated-minutes column. Stored plans, accounts, completions, retry keys, and tombstones remain. The API writes the workout level in the save transaction, and account erasure deletes owned records explicitly. The command runs without the API's five-second statement timeout. Older binaries that write library search terms cannot use this schema.
 
 Serialize migration runs in the deployment platform. There is no version table, dirty flag, migration lock, or automatic down migration. A failed run rolls back schema and data together; fix its cause and rerun the same command. Readiness checks connectivity, so a successful migration command is a required deployment step.
 
