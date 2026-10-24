@@ -1,6 +1,5 @@
 import { Brand } from './brand'
 import { AccountControls } from './auth/account-controls'
-import { ThemeControl } from './theme'
 export function SiteHeader() {
   return (
     <header className="mx-auto flex h-20 w-[min(calc(100%-var(--page-gutter)*2),var(--page-width))] items-center justify-between gap-4 border-b border-line max-[600px]:h-18 print:hidden">
@@ -11,10 +10,7 @@ export function SiteHeader() {
       >
         How it works
       </a>
-      <div className="flex items-center gap-3">
-        <ThemeControl className="max-[600px]:hidden" />
-        <AccountControls />
-      </div>
+      <AccountControls />
     </header>
   )
 }

@@ -11,9 +11,7 @@ export function SiteFooter() {
       <p className="text-xs text-muted max-[600px]:order-3 max-[600px]:w-full">
         Home workouts. No equipment.
       </p>
-      <div className="hidden max-[600px]:block">
-        <ThemeControl compact={false} />
-      </div>
+      <ThemeControl compact={false} />
       <a
         className="inline-flex min-h-11 items-center text-xs text-muted hover:text-focus"
         href="#top"

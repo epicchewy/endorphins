@@ -99,6 +99,7 @@ test('mobile layout, theme, keyboard navigation, and unsaved preferences stay us
   await page.keyboard.press('ArrowRight')
   await expect(page.getByRole('radio', { name: '45min', exact: true })).toBeChecked()
   await page.getByRole('link', { name: 'Settings', exact: true }).click()
+  await expect(page.getByRole('combobox', { name: 'Color theme' })).toHaveValue('dark')
   await page.getByRole('combobox', { name: 'Default level' }).selectOption('5')
   page.once('dialog', (dialog) => void dialog.dismiss())
   await page.getByRole('link', { name: 'Dashboard', exact: true }).click()

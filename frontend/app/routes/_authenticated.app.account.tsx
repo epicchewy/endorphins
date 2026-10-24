@@ -9,6 +9,7 @@ import { useAccountExport } from '~/hooks/use-account-export'
 import { PageHeading } from '~/components/ui/page-heading'
 import { Button } from '~/components/ui/button'
 import { Feedback, LoadingState } from '~/components/ui/feedback'
+import { ThemeField } from '~/components/theme'
 
 export const Route = createFileRoute('/_authenticated/app/account')({
   component: Account,
@@ -34,7 +35,7 @@ function Account() {
       </Link>
       <PageHeading
         title="Your account."
-        description="Set your default level and manage your data."
+        description="Set your default level and theme, and manage your data."
       />
       {account.isPending && <LoadingState>Loading your account details…</LoadingState>}
       {account.isError && (
@@ -110,6 +111,14 @@ function Account() {
               {update.isError && <Feedback>{update.error.message}</Feedback>}
               {update.isSuccess && <Feedback tone="info">Default level saved.</Feedback>}
             </form>
+          </section>
+          <section className="border-t border-line py-8" aria-labelledby="appearance-title">
+            <h2 id="appearance-title" className="text-2xl">
+              Appearance
+            </h2>
+            <div className="mt-5 max-w-[420px]">
+              <ThemeField />
+            </div>
           </section>
           <section
             className="border-t border-line py-8 max-[600px]:py-6"

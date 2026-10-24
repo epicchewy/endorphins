@@ -1,6 +1,6 @@
 import { createContext, useContext, useId, useSyncExternalStore, type ReactNode } from 'react'
 import { Monitor, Moon, Sun } from 'lucide-react'
-import { Select } from '~/components/ui/field'
+import { Field, Select } from '~/components/ui/field'
 import { cn } from '~/components/ui/cn'
 
 type Theme = 'system' | 'light' | 'dark'
@@ -60,6 +60,32 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     </ThemeContext>
   )
 }
+function ThemeSelect(props: { id: string; className?: string; 'aria-describedby'?: string }) {
+  const theme = useContext(ThemeContext)
+  return (
+    <Select
+      {...props}
+      name="theme"
+      value={theme}
+      onChange={(event) => {
+        const value = event.target.value
+        if (value === 'system' || value === 'light' || value === 'dark') setTheme(value)
+      }}
+    >
+      <option value="system">System</option>
+      <option value="light">Light</option>
+      <option value="dark">Dark</option>
+    </Select>
+  )
+}
+export function ThemeField() {
+  const id = useId()
+  return (
+    <Field label="Color theme" htmlFor={id} hint="System follows your device setting.">
+      <ThemeSelect id={id} aria-describedby={`${id}-hint`} />
+    </Field>
+  )
+}
 export function ThemeControl({
   compact = true,
   className,
@@ -78,24 +104,14 @@ export function ThemeControl({
     >
       <Icon size={17} aria-hidden="true" />
       <span className="sr-only">Color theme</span>
-      <Select
+      <ThemeSelect
+        id={id}
         className={cn(
           'w-auto appearance-none border-0 bg-transparent px-0.5 py-2.5 text-xs text-muted focus-visible:outline-none',
           compact &&
             'max-[1150px]:absolute max-[1150px]:inset-0 max-[1150px]:w-11 max-[1150px]:opacity-0',
         )}
-        id={id}
-        name="theme"
-        value={theme}
-        onChange={(event) => {
-          const value = event.target.value
-          if (value === 'system' || value === 'light' || value === 'dark') setTheme(value)
-        }}
-      >
-        <option value="system">System</option>
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
-      </Select>
+      />
     </label>
   )
 }
