@@ -13,6 +13,8 @@
       "Bash(make db-up)",
       "Bash(make db-stop)",
       "Bash(make migrate)",
+      "Bash(make seed)",
+      "Bash(make migration-check)",
       "Bash(python3 scripts/check-layers.py)",
       "Bash(go test *)",
       "Bash(bun test *)",

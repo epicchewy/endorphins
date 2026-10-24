@@ -1,8 +1,10 @@
 import { defineConfig, devices } from '@playwright/test'
 
-// Real Clerk journeys against `make dev` and the Clerk development instance.
+// Real Clerk journeys against the Clerk development instance and `make dev`,
+// or a Railway preview when PLAYWRIGHT_TEST_BASE_URL is set.
 // The hermetic suite in ../playwright.config.ts covers everything else.
-const baseURL = 'http://127.0.0.1:3100'
+const preview = process.env.PLAYWRIGHT_TEST_BASE_URL
+const baseURL = preview ?? 'http://127.0.0.1:3100'
 
 export default defineConfig({
   testDir: '.',
@@ -20,10 +22,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  webServer: {
-    command: 'make -C ../.. dev',
-    url: baseURL,
-    reuseExistingServer: true,
-    timeout: 300_000,
-  },
+  webServer: preview
+    ? undefined
+    : { command: 'make -C ../.. dev', url: baseURL, reuseExistingServer: true, timeout: 300_000 },
 })

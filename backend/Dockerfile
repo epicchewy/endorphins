@@ -6,12 +6,13 @@ COPY backend/cmd ./cmd
 COPY backend/internal ./internal
 ARG GO_BUILD_TAGS=""
 RUN CGO_ENABLED=0 go build -tags="${GO_BUILD_TAGS}" -o /api ./cmd/api \
-    && CGO_ENABLED=0 go build -o /migrate ./cmd/migrate
+    && CGO_ENABLED=0 go build -o /migrate ./cmd/migrate \
+    && CGO_ENABLED=0 go build -o /seed ./cmd/seed
 
 FROM alpine:3.22
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
-COPY --from=build /api /migrate ./
+COPY --from=build /api /migrate /seed ./
 COPY exercises ./exercises
 USER 10001:10001
 ENV API_ADDRESS=0.0.0.0:8088 EXERCISE_DIR=/app/exercises
