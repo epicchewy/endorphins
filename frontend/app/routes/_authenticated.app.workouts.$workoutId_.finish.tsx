@@ -4,7 +4,8 @@ import { useWorkout } from '~/hooks/use-workouts'
 import { useActivity, useWorkoutCompletion } from '~/hooks/use-activity'
 import { completionMilestone } from '~/services/activity'
 import { Button } from '~/components/ui/button'
-import { buttonClassName } from '~/components/ui/button-styles'
+import { buttonVariants } from '~/components/ui/button-variants'
+import { cn } from '~/lib/utils'
 import { Feedback, LoadingState } from '~/components/ui/feedback'
 
 export const Route = createFileRoute('/_authenticated/app/workouts/$workoutId_/finish')({
@@ -32,12 +33,12 @@ function Finish() {
       )}
       {workout.data && (
         <section
-          className="rounded-panel border border-line bg-surface p-9 max-[600px]:p-6"
+          className="rounded-xl border border-border bg-card p-9 max-[600px]:p-6"
           aria-labelledby="finish-title"
         >
           {finish.completion ? (
             <>
-              <span className="mb-6 flex size-12 items-center justify-center rounded-full bg-accent-soft text-focus">
+              <span className="mb-6 flex size-12 items-center justify-center rounded-full bg-primary/15 text-emphasis">
                 <Check size={24} aria-hidden="true" />
               </span>
               <h1
@@ -46,7 +47,7 @@ function Finish() {
               >
                 Workout complete.
               </h1>
-              <p className="mt-4 text-sm leading-relaxed text-muted">
+              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
                 You made time to move. This workout is now part of your activity.
               </p>
               {activity.isFetching && <LoadingState>Updating your progress…</LoadingState>}
@@ -57,13 +58,13 @@ function Finish() {
                 <>
                   <dl className="my-8 grid grid-cols-2 gap-6">
                     <div>
-                      <dt className="text-xs text-muted">Completed workouts</dt>
+                      <dt className="text-xs text-muted-foreground">Completed workouts</dt>
                       <dd className="mt-2 text-4xl font-medium tabular-nums">
                         {activity.data.completedCount.toLocaleString()}
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-muted">Active days this week</dt>
+                      <dt className="text-xs text-muted-foreground">Active days this week</dt>
                       <dd className="mt-2 text-4xl font-medium tabular-nums">
                         {activity.data.activeDaysThisWeek}
                       </dd>
@@ -71,7 +72,7 @@ function Finish() {
                   </dl>
                   {completionMilestone(activity.data.completedCount) ===
                     activity.data.completedCount && (
-                    <p className="mb-7 border-t border-line pt-5 text-sm font-semibold">
+                    <p className="mb-7 border-t border-border pt-5 text-sm font-semibold">
                       {activity.data.completedCount === 1
                         ? 'Your first workout. A good start.'
                         : `You reached your ${activity.data.completedCount}-workout milestone.`}
@@ -79,10 +80,7 @@ function Finish() {
                   )}
                 </>
               )}
-              <Link
-                to="/app"
-                className={buttonClassName({ variant: 'primary', className: 'w-full' })}
-              >
+              <Link to="/app" className={cn(buttonVariants(), 'w-full')}>
                 Back to dashboard
               </Link>
               <Button
@@ -97,7 +95,7 @@ function Finish() {
             </>
           ) : (
             <>
-              <p className="mb-5 text-xs text-muted">
+              <p className="mb-5 text-xs text-muted-foreground">
                 Level {workout.data.level} · {workout.data.estimatedMinutes} min est.
               </p>
               <h1
@@ -106,7 +104,7 @@ function Finish() {
               >
                 Finished your workout?
               </h1>
-              <p className="mt-5 text-sm leading-relaxed text-muted">
+              <p className="mt-5 text-sm leading-relaxed text-muted-foreground">
                 Mark it complete to add it to your activity. You can use this saved plan again for
                 another workout.
               </p>
@@ -118,12 +116,7 @@ function Finish() {
                   {finish.error.message}
                 </Feedback>
               )}
-              <Button
-                variant="primary"
-                className="mt-8 w-full"
-                pending={finish.pending}
-                onClick={finish.confirm}
-              >
+              <Button className="mt-8 w-full" pending={finish.pending} onClick={finish.confirm}>
                 {finish.pending ? 'Saving completion…' : 'Mark workout complete'}
               </Button>
             </>

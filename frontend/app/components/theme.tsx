@@ -1,7 +1,15 @@
-import { createContext, useContext, useId, useSyncExternalStore, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useId,
+  useSyncExternalStore,
+  type ChangeEvent,
+  type ReactNode,
+} from 'react'
 import { Monitor, Moon, Sun } from 'lucide-react'
-import { Field, Select } from '~/components/ui/field'
-import { cn } from '~/components/ui/cn'
+import { Field, FieldDescription, FieldLabel } from '~/components/ui/field'
+import { NativeSelect, NativeSelectOption } from '~/components/ui/native-select'
+import { cn } from '~/lib/utils'
 
 type Theme = 'system' | 'light' | 'dark'
 const ThemeContext = createContext<Theme>('system')
@@ -60,29 +68,36 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     </ThemeContext>
   )
 }
-function ThemeSelect(props: { id: string; className?: string; 'aria-describedby'?: string }) {
-  const theme = useContext(ThemeContext)
-  return (
-    <Select
-      {...props}
-      name="theme"
-      value={theme}
-      onChange={(event) => {
-        const value = event.target.value
-        if (value === 'system' || value === 'light' || value === 'dark') setTheme(value)
-      }}
-    >
-      <option value="system">System</option>
-      <option value="light">Light</option>
-      <option value="dark">Dark</option>
-    </Select>
-  )
+const themes = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+] as const
+function chooseTheme(event: ChangeEvent<HTMLSelectElement>) {
+  const value = event.target.value
+  if (value === 'system' || value === 'light' || value === 'dark') setTheme(value)
 }
 export function ThemeField() {
   const id = useId()
+  const theme = useContext(ThemeContext)
   return (
-    <Field label="Color theme" htmlFor={id} hint="System follows your device setting.">
-      <ThemeSelect id={id} aria-describedby={`${id}-hint`} />
+    <Field>
+      <FieldLabel htmlFor={id}>Color theme</FieldLabel>
+      <NativeSelect
+        id={id}
+        className="w-full"
+        aria-describedby={`${id}-hint`}
+        name="theme"
+        value={theme}
+        onChange={chooseTheme}
+      >
+        {themes.map((item) => (
+          <NativeSelectOption key={item.value} value={item.value}>
+            {item.label}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+      <FieldDescription id={`${id}-hint`}>System follows your device setting.</FieldDescription>
     </Field>
   )
 }
@@ -96,7 +111,7 @@ export function ThemeControl({
   return (
     <label
       className={cn(
-        'relative inline-flex min-h-11 items-center gap-1.5 rounded-control focus-within:outline-3 focus-within:outline-offset-3 focus-within:outline-focus',
+        'relative inline-flex min-h-11 items-center gap-1.5 rounded-lg focus-within:outline-3 focus-within:outline-offset-3 focus-within:outline-ring',
         compact && 'max-[1150px]:w-11 max-[1150px]:justify-center',
         className,
       )}
@@ -104,14 +119,23 @@ export function ThemeControl({
     >
       <Icon size={17} aria-hidden="true" />
       <span className="sr-only">Color theme</span>
-      <ThemeSelect
-        id={id}
+      <select
         className={cn(
-          'w-auto appearance-none border-0 bg-transparent px-0.5 py-2.5 text-xs text-muted focus-visible:outline-none',
+          'min-h-11 w-auto cursor-pointer appearance-none border-0 bg-transparent px-0.5 py-2.5 text-xs text-muted-foreground focus-visible:outline-none [&_option]:bg-[Canvas] [&_option]:text-[CanvasText]',
           compact &&
             'max-[1150px]:absolute max-[1150px]:inset-0 max-[1150px]:w-11 max-[1150px]:opacity-0',
         )}
-      />
+        id={id}
+        name="theme"
+        value={theme}
+        onChange={chooseTheme}
+      >
+        {themes.map((item) => (
+          <option key={item.value} value={item.value}>
+            {item.label}
+          </option>
+        ))}
+      </select>
     </label>
   )
 }

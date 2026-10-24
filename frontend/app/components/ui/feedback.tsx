@@ -1,8 +1,12 @@
 import type { ReactNode } from 'react'
-import { AlertCircle, LoaderCircle } from 'lucide-react'
+import { AlertCircle, Info } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from './alert'
 import { Button } from './button'
-import { cn } from './cn'
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from './empty'
+import { Spinner } from './spinner'
+import { cn } from '~/lib/utils'
 
+// Errors announce as alerts and information as status. Recovery sits beside the message.
 export function Feedback({
   title,
   children,
@@ -20,33 +24,29 @@ export function Feedback({
   id?: string
   className?: string
 }) {
+  const error = tone === 'error'
   return (
-    <div
+    <Alert
       id={id}
-      role={tone === 'error' ? 'alert' : 'status'}
-      className={cn(
-        'my-4.5 flex items-start gap-3 rounded-control border p-4 text-sm leading-[1.7] print:hidden',
-        tone === 'error'
-          ? 'border-current bg-error-bg text-error'
-          : 'border-line-strong bg-accent-soft text-ink',
-        className,
-      )}
+      role={error ? 'alert' : 'status'}
+      variant={error ? 'destructive' : 'default'}
+      className={cn('my-4.5 px-4 py-3 print:hidden', error && 'border-destructive/40', className)}
     >
-      {tone === 'error' && <AlertCircle className="mt-0.5" size={19} aria-hidden="true" />}
-      <div className="min-w-0">
-        {title && <strong className="mb-1 block">{title}</strong>}
-        <div>{children}</div>
+      {error ? <AlertCircle aria-hidden="true" /> : <Info aria-hidden="true" />}
+      {title && <AlertTitle>{title}</AlertTitle>}
+      <AlertDescription>
+        {children}
         {retry && (
-          <Button size="small" className="mt-3" onClick={retry}>
+          <Button size="sm" variant="outline" className="mt-3 flex" onClick={retry}>
             {retryLabel}
           </Button>
         )}
-      </div>
-    </div>
+      </AlertDescription>
+    </Alert>
   )
 }
-const stateSurface =
-  'flex flex-col items-center justify-center gap-4 rounded-panel border border-line bg-surface px-6 py-16 text-center max-[600px]:px-5 max-[600px]:py-12'
+
+const stateSurface = 'border bg-card py-16 max-[600px]:px-5 max-[600px]:py-12'
 export function EmptyState({
   title,
   children,
@@ -59,13 +59,18 @@ export function EmptyState({
   className?: string
 }) {
   return (
-    <div className={cn(stateSurface, className)}>
-      <h3 className="text-2xl font-bold tracking-[-0.5px] max-[600px]:text-[22px]">{title}</h3>
-      {children && <div className="max-w-[45ch] text-sm leading-[1.8] text-muted">{children}</div>}
-      {action}
-    </div>
+    <Empty className={cn(stateSurface, className)}>
+      <EmptyHeader>
+        <EmptyTitle>
+          <h3 className="text-2xl font-bold max-[600px]:text-[22px]">{title}</h3>
+        </EmptyTitle>
+        {children && <EmptyDescription>{children}</EmptyDescription>}
+      </EmptyHeader>
+      {action && <EmptyContent>{action}</EmptyContent>}
+    </Empty>
   )
 }
+
 export function LoadingState({
   children = 'Loading…',
   className,
@@ -75,15 +80,15 @@ export function LoadingState({
 }) {
   return (
     <output
-      className={cn(stateSurface, 'min-h-[180px] text-sm text-muted', className)}
       aria-live="polite"
       aria-atomic="true"
+      className={cn(
+        'flex min-h-[180px] flex-col items-center justify-center gap-4 rounded-xl border border-dashed p-6 text-sm text-muted-foreground',
+        stateSurface,
+        className,
+      )}
     >
-      <LoaderCircle
-        className="animate-spin motion-reduce:animate-none"
-        size={22}
-        aria-hidden="true"
-      />
+      <Spinner className="size-5" />
       <span>{children}</span>
     </output>
   )

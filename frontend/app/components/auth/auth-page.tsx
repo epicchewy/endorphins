@@ -8,14 +8,14 @@ export function AuthPage({ children, signup = false }: { children: ReactNode; si
   return (
     <div className="min-h-svh">
       <SkipLink href="#auth-content" />
-      <header className="flex h-20 items-center justify-between border-b border-line px-(--page-gutter) max-[600px]:h-18">
+      <header className="flex h-20 items-center justify-between border-b border-border px-(--page-gutter) max-[600px]:h-18">
         <Brand />
       </header>
       <main
         id="auth-content"
         className="min-h-[calc(100svh-80px)] max-[600px]:min-h-[calc(100svh-72px)]"
       >
-        <div className="flex min-w-0 flex-col items-center px-6 pt-11 pb-16 max-[600px]:px-5 max-[600px]:pt-5 max-[600px]:pb-12 [&_.cl-rootBox]:w-[min(400px,100%)] [&_.cl-cardBox]:w-full [&_.cl-cardBox]:rounded-panel [&_.cl-cardBox]:border [&_.cl-cardBox]:border-line [&_.cl-cardBox]:shadow-none">
+        <div className="flex min-w-0 flex-col items-center px-6 pt-11 pb-16 max-[600px]:px-5 max-[600px]:pt-5 max-[600px]:pb-12 [&_.cl-rootBox]:w-[min(400px,100%)] [&_.cl-cardBox]:w-full [&_.cl-cardBox]:rounded-xl [&_.cl-cardBox]:border [&_.cl-cardBox]:border-border [&_.cl-cardBox]:shadow-none">
           <Link
             to="/"
             className="inline-flex min-h-11 w-[min(400px,100%)] items-center gap-2.5 text-[13px] font-semibold underline-offset-4 hover:underline"
@@ -26,14 +26,14 @@ export function AuthPage({ children, signup = false }: { children: ReactNode; si
             <h1 className="font-display text-[clamp(36px,3.1vw,44px)] leading-[1.15] font-normal tracking-tight max-[600px]:text-[38px]">
               {signup ? 'Create your account.' : 'Welcome back.'}
             </h1>
-            <p className="mt-3 text-sm leading-[1.8] text-muted">
+            <p className="mt-3 text-sm leading-[1.8] text-muted-foreground">
               {signup
                 ? 'Save your home workouts and track your progress.'
                 : 'Sign in and pick up where you left off.'}
             </p>
           </div>
           {children}
-          <p className="mt-6.5 flex items-center gap-[7px] text-xs text-muted">
+          <p className="mt-6.5 flex items-center gap-[7px] text-xs text-muted-foreground">
             <Check size={15} aria-hidden="true" /> Your workouts, saved in one place.
           </p>
         </div>

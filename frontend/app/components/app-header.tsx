@@ -5,7 +5,7 @@ import { Brand } from './brand'
 
 export function AppHeader({ onboarding = false }: { onboarding?: boolean }) {
   return (
-    <header className="border-b border-line print:hidden">
+    <header className="border-b border-border print:hidden">
       <div className="mx-auto flex w-[min(calc(100%-var(--page-gutter)*2),var(--page-width))] flex-wrap items-center justify-between gap-x-6 gap-y-1 py-4">
         <Brand app />
         <div className="flex items-center gap-3 min-[700px]:order-last min-[700px]:ml-auto">
@@ -32,8 +32,8 @@ export function AppHeader({ onboarding = false }: { onboarding?: boolean }) {
                 key={item.to}
                 to={item.to}
                 activeOptions={{ exact: item.to !== '/app/workouts' }}
-                activeProps={{ className: 'text-focus border-focus' }}
-                className="inline-flex min-h-11 items-center border-b-2 border-transparent hover:text-focus"
+                activeProps={{ className: 'text-emphasis border-emphasis' }}
+                className="inline-flex min-h-11 items-center border-b-2 border-transparent hover:text-emphasis"
               >
                 {item.label}
               </Link>
