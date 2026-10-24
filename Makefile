@@ -80,15 +80,16 @@ e2e: node-version
 
 smoke: e2e
 
-# Real Clerk sign-up and sign-in against `make dev` (started if not running). Creates and deletes Clerk test users.
+# Real Clerk sign-up and sign-in against `make dev` (started if not running), or a
+# preview with URL=https://... Creates and deletes Clerk test users.
 .PHONY: e2e-clerk
 e2e-clerk: node-version frontend/.env.local
-	cd e2e && bun --env-file=../frontend/.env.local run playwright test -c clerk/playwright.config.ts
+	cd e2e && $(if $(URL),PLAYWRIGHT_TEST_BASE_URL=$(URL)) bun --env-file=../frontend/.env.local run playwright test -c clerk/playwright.config.ts
 
 browsers: node-version
 	cd e2e && bunx playwright install chromium
 
-.PHONY: db-up db-stop migrate
+.PHONY: db-up db-stop migrate seed migration-check
 db-up:
 	docker compose up -d --wait postgres
 
@@ -97,3 +98,13 @@ db-stop:
 
 migrate:
 	cd backend && bun --env-file=../.env.example --env-file=../frontend/.env.local run go run ./cmd/migrate
+
+# Five weeks of plans and completions. SUBJECT=user_... seeds that Clerk user;
+# without it, every local account that has no saved plans is seeded.
+seed: frontend/.env.local
+	cd backend && bun --env-file=../.env.example --env-file=../frontend/.env.local run go run ./cmd/seed $(if $(SUBJECT),--subject=$(SUBJECT),--all-accounts)
+
+# Upgrade a seeded database from BASE to this checkout, then read it back.
+BASE ?= origin/master
+migration-check:
+	bash scripts/migration-check.sh $(BASE)

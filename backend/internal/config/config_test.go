@@ -13,6 +13,7 @@ import (
 var configEnvironment = []string{
 	"API_ADDRESS", "EXERCISE_DIR", "DATABASE_URL", "CLERK_SECRET_KEY",
 	"VITE_CLERK_PUBLISHABLE_KEY", "CLERK_WEBHOOK_SIGNING_SECRET", "APP_ORIGINS", "GO_FLAGS_COMPLETION",
+	"SEED_SUBJECTS",
 }
 
 func clearEnvironment(t *testing.T) {
@@ -175,5 +176,25 @@ func TestMigrationOnlyRequiresPostgres(t *testing.T) {
 	}
 	if _, err := LoadMigration([]string{"--database-url=private-password"}); err == nil || strings.Contains(err.Error(), "private-password") {
 		t.Fatal("migration must reject invalid URL safely")
+	}
+}
+
+func TestSeedRefusesLiveClerkAndTrimsSubjects(t *testing.T) {
+	validEnvironment(t)
+	t.Setenv("SEED_SUBJECTS", " user_a, ,user_b ")
+	cfg, err := LoadSeed(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(cfg.Seed.Subjects, []string{"user_a", "user_b"}) {
+		t.Fatalf("wrong subjects: %v", cfg.Seed.Subjects)
+	}
+	t.Setenv("SEED_SUBJECTS", "")
+	if cfg, err := LoadSeed(nil); err != nil || len(cfg.Seed.Subjects) != 0 {
+		t.Fatalf("empty SEED_SUBJECTS should select no subjects: %v %v", cfg.Seed.Subjects, err)
+	}
+	t.Setenv("VITE_CLERK_PUBLISHABLE_KEY", publishable("pk_live_", "clerk.example.com$"))
+	if _, err := LoadSeed(nil); err == nil || !strings.Contains(err.Error(), "pk_test_") {
+		t.Fatal("seeding accepted a live Clerk instance")
 	}
 }

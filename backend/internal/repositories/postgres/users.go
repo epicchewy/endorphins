@@ -191,3 +191,15 @@ func (s *Users) Update(ctx context.Context, userID string, level int, completeOn
 	}
 	return row.domain(), nil
 }
+
+// Subjects lists provisioned Clerk subjects, oldest account first.
+func (s *Users) Subjects(ctx context.Context) ([]string, error) {
+	var subjects []string
+	err := s.db.WithContext(ctx).Model(&userRow{}).
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "created_at"}}).
+		Pluck("clerk_user_id", &subjects).Error
+	if err != nil {
+		return nil, fmt.Errorf("list account subjects: %w", err)
+	}
+	return subjects, nil
+}

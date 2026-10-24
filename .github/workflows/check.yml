@@ -34,3 +34,17 @@ jobs:
             e2e/playwright-report
             output/playwright
           retention-days: 7
+  migration-check:
+    # Upgrade a database seeded by the base commit to this commit.
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - run: make migration-check BASE=${{ github.event.pull_request.base.sha || github.event.before }}

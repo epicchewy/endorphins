@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 
 	"github.com/epicchewy/endorphins/backend/internal/integrations/clerk"
 	"github.com/epicchewy/endorphins/backend/internal/repositories/catalogue"
@@ -28,6 +29,19 @@ type Config struct {
 // database does not require a Clerk instance or application listener.
 type MigrationConfig struct {
 	Postgres postgres.Options `group:"Postgres"`
+}
+
+// SeedOptions reads the publishable key only to refuse live Clerk instances.
+type SeedOptions struct {
+	PublishableKey string   `long:"clerk-publishable-key" env:"VITE_CLERK_PUBLISHABLE_KEY" required:"true" description:"Clerk publishable key; seeding needs a development (pk_test_) key"`
+	Subjects       []string `long:"subject" env:"SEED_SUBJECTS" env-delim:"," description:"Clerk user ID to seed; repeat or use comma-separated SEED_SUBJECTS"`
+	AllAccounts    bool     `long:"all-accounts" description:"Also seed every existing account that has no saved plans"`
+}
+
+type SeedConfig struct {
+	Catalogue catalogue.Options `group:"Catalogue"`
+	Postgres  postgres.Options  `group:"Postgres"`
+	Seed      SeedOptions       `group:"Seed"`
 }
 
 func Load(args []string) (Config, error) {
@@ -60,6 +74,27 @@ func LoadMigration(args []string) (MigrationConfig, error) {
 	if err := cfg.Postgres.Validate(); err != nil {
 		return MigrationConfig{}, err
 	}
+	return cfg, nil
+}
+
+func LoadSeed(args []string) (SeedConfig, error) {
+	var cfg SeedConfig
+	if err := parse(&cfg, "endorphins-seed", args); err != nil {
+		return SeedConfig{}, err
+	}
+	if err := cfg.Postgres.Validate(); err != nil {
+		return SeedConfig{}, err
+	}
+	if !strings.HasPrefix(cfg.Seed.PublishableKey, "pk_test_") {
+		return SeedConfig{}, fmt.Errorf("seeding needs a Clerk development key (pk_test_); it never runs against a live instance")
+	}
+	subjects := cfg.Seed.Subjects[:0]
+	for _, subject := range cfg.Seed.Subjects {
+		if subject = strings.TrimSpace(subject); subject != "" {
+			subjects = append(subjects, subject)
+		}
+	}
+	cfg.Seed.Subjects = subjects
 	return cfg, nil
 }
 
