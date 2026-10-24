@@ -6,6 +6,8 @@ import type { Workout } from '../app/services/workouts'
 const plan: Workout = {
   id: 'plan-1',
   createdAt: '2026-10-01T12:00:00Z',
+  completedCount: 0,
+  lastCompletedAt: null,
   level: 2,
   requestedMinutes: 45,
   estimatedMinutes: 43,

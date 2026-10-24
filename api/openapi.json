@@ -1109,6 +1109,17 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "completedCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Completions of this plan that were not undone."
+          },
+          "lastCompletedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Most recent completion that was not undone; null when completedCount is 0."
           }
         },
         "required": [
@@ -1119,7 +1130,9 @@
           "warmupMinutes",
           "focus",
           "blocks",
-          "createdAt"
+          "createdAt",
+          "completedCount",
+          "lastCompletedAt"
         ],
         "additionalProperties": false
       },

@@ -25,23 +25,39 @@ test('signup introduces home workouts, saves a level, and records real progress'
   const planURL = page.url()
   await page.getByRole('link', { name: 'Dashboard', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Your workout is ready.' })).toBeVisible()
-  await page.getByRole('link', { name: 'I finished', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Finished your workout?' })).toBeVisible()
-  await page.reload()
-  await expect(page.getByRole('heading', { name: 'Finished your workout?' })).toBeVisible()
-  await page.getByRole('button', { name: 'Mark workout complete' }).click()
-  await expect(page.getByRole('heading', { name: 'Workout complete.' })).toBeVisible()
+  await page.getByRole('link', { name: /^Open workout/ }).click()
+  await expect(page).toHaveURL(planURL)
+  await page.getByRole('button', { name: 'Mark complete', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Workout complete.' })).toBeFocused()
   await expect(page.getByText('Your first workout. A good start.')).toBeVisible()
-  await page.getByRole('link', { name: 'Back to dashboard' }).click()
+  // After a reload, the plan still knows it is done and offers no second Mark complete.
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Start again', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Mark complete', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Workout complete.' })).toHaveCount(0)
+  await page.getByRole('link', { name: 'Saved workouts', exact: true }).last().click()
+  await expect(page.getByText('Completed', { exact: true })).toBeVisible()
+  await page.getByRole('link', { name: 'Dashboard', exact: true }).click()
   await expect(page.getByTestId('completed-total')).toHaveText('1')
-  // A new confirmation is another workout, even when it uses the same plan.
-  await page.goto(planURL + '/finish')
-  await page.getByRole('button', { name: 'Mark workout complete' }).click()
-  await expect(page.getByRole('heading', { name: 'Workout complete.' })).toBeVisible()
+  // A repeat through the exercise view is another workout, even with the same plan.
+  await page.getByRole('region', { name: 'Recent workouts' }).getByRole('listitem').first().click()
+  await expect(page).toHaveURL(planURL)
+  await expect(page.getByRole('button', { name: 'Mark complete', exact: true })).toHaveCount(0)
+  const repeat = async () => {
+    await page.getByRole('button', { name: 'Start again', exact: true }).click()
+    await expect(page.getByRole('progressbar')).toHaveAttribute('value', '1')
+    const next = page.getByRole('button', { name: 'Next', exact: true })
+    while (await next.isVisible()) await next.click()
+    await page.getByRole('button', { name: 'Mark complete', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Workout complete.' })).toBeFocused()
+    await expect(page.getByRole('progressbar')).toHaveCount(0)
+  }
+  await repeat()
+  await expect(page.getByText(/^Completed 2 times · Last /)).toBeVisible()
   await page.getByRole('button', { name: 'Undo completion' }).click()
   await expect(page.getByText('Completion removed. Your plan is still saved.')).toBeVisible()
-  await page.getByRole('button', { name: 'Mark workout complete' }).click()
-  await expect(page.getByRole('heading', { name: 'Workout complete.' })).toBeVisible()
+  await expect(page.getByText(/^Completed 2 times/)).toHaveCount(0)
+  await repeat()
   await page.getByRole('link', { name: 'Back to dashboard' }).click()
   await expect(page.getByTestId('completed-total')).toHaveText('2')
   await page.goto('/app/onboarding')
@@ -62,7 +78,6 @@ test('signup introduces home workouts, saves a level, and records real progress'
 test('lost confirmation and Undo responses retry without adding a second workout', async ({
   savedWorkoutPage: page,
 }) => {
-  await page.getByRole('link', { name: 'I finished', exact: true }).click()
   await page.route(
     '**/api/v1/workouts/*/completions',
     async (route) => {
@@ -72,9 +87,9 @@ test('lost confirmation and Undo responses retry without adding a second workout
     },
     { times: 1 },
   )
-  await page.getByRole('button', { name: 'Mark workout complete' }).click()
+  await page.getByRole('button', { name: 'Mark complete', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('connection')
-  await page.getByRole('button', { name: 'Mark workout complete' }).click()
+  await page.getByRole('button', { name: 'Mark complete', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Workout complete.' })).toBeVisible()
   await expect(page.locator('dd').first()).toHaveText('1')
   await page.route(
@@ -91,7 +106,8 @@ test('lost confirmation and Undo responses retry without adding a second workout
   await expect(page.getByRole('heading', { name: 'Workout complete.' })).toBeVisible()
   await page.getByRole('button', { name: 'Undo completion' }).click()
   await expect(page.getByText('Completion removed. Your plan is still saved.')).toBeVisible()
-  await page.getByRole('button', { name: 'Mark workout complete' }).click()
+  // The plan is to do again, so it offers Mark complete again.
+  await page.getByRole('button', { name: 'Mark complete', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Workout complete.' })).toBeVisible()
   await page.getByRole('link', { name: 'Back to dashboard' }).click()
   await expect(page.getByTestId('completed-total')).toHaveText('1')
@@ -102,7 +118,6 @@ test('late completion results cannot appear in another account', async ({
   subject,
   signIn,
 }) => {
-  await page.getByRole('link', { name: 'I finished', exact: true }).click()
   const waiting = Promise.withResolvers<void>()
   const completed = Promise.withResolvers<void>()
   await page.route('**/api/v1/workouts/*/completions', async (route) => {
@@ -112,7 +127,7 @@ test('late completion results cannot appear in another account', async ({
     await waiting.promise
     await route.fulfill({ response })
   })
-  await page.getByRole('button', { name: 'Mark workout complete' }).click()
+  await page.getByRole('button', { name: 'Mark complete', exact: true }).click()
   await completed.promise
   await signIn(`other_${crypto.randomUUID()}`)
   waiting.resolve()
@@ -159,8 +174,7 @@ test('a saved completion stays confirmed while analytics are slow or fail', asyn
       json: { code: 'service_unavailable', message: 'Try again.' },
     })
   })
-  await page.getByRole('link', { name: 'I finished', exact: true }).click()
-  await page.getByRole('button', { name: 'Mark workout complete' }).click()
+  await page.getByRole('button', { name: 'Mark complete', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Workout complete.' })).toBeVisible()
   await expect(page.getByText('Updating your progress…', { exact: true })).toBeVisible()
   await expect(page.getByText('Completed workouts', { exact: true })).toHaveCount(0)

@@ -17,8 +17,8 @@ import (
 
 type completionRow struct {
 	ID             string     `gorm:"primaryKey;type:uuid;index:workout_completions_user_activity_idx,priority:4,sort:desc"`
-	UserID         string     `gorm:"type:uuid;not null;uniqueIndex:workout_completions_user_id_idempotency_key_key,priority:1;index:workout_completions_user_activity_idx,priority:1"`
-	WorkoutID      string     `gorm:"type:text;not null"`
+	UserID         string     `gorm:"type:uuid;not null;uniqueIndex:workout_completions_user_id_idempotency_key_key,priority:1;index:workout_completions_user_activity_idx,priority:1;index:workout_completions_user_workout_idx,priority:1"`
+	WorkoutID      string     `gorm:"type:text;not null;index:workout_completions_user_workout_idx,priority:2"`
 	CompletedAt    time.Time  `gorm:"not null;autoCreateTime;index:workout_completions_user_activity_idx,priority:3,sort:desc"`
 	UndoneAt       *time.Time `gorm:"index:workout_completions_user_activity_idx,priority:2"`
 	IdempotencyKey string     `gorm:"type:text;not null;uniqueIndex:workout_completions_user_id_idempotency_key_key,priority:2"`
@@ -71,6 +71,38 @@ func completionDomains(rows []completionRow) ([]domains.Completion, error) {
 		result = append(result, item)
 	}
 	return result, nil
+}
+
+// addHistory counts each active completion against its saved plan.
+func addHistory(items []domains.SavedWorkout, completions []completionRow) {
+	index := make(map[string]*domains.WorkoutHistory, len(items))
+	for i := range items {
+		index[items[i].ID] = &items[i].History
+	}
+	for _, row := range completions {
+		if history := index[row.WorkoutID]; history != nil && row.UndoneAt == nil {
+			history.Add(row.CompletedAt.UTC())
+		}
+	}
+}
+
+// withHistory reads the active completions of plans that one owner already holds.
+func withHistory(db *gorm.DB, userID string, items []domains.SavedWorkout) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	var rows []completionRow
+	err := db.Select("workout_id", "completed_at", "undone_at").
+		Where(map[string]any{"user_id": userID, "workout_id": ids, "undone_at": nil}).Find(&rows).Error
+	if err != nil {
+		return fmt.Errorf("read workout history: %w", err)
+	}
+	addHistory(items, rows)
+	return nil
 }
 
 func (s *Workouts) Complete(ctx context.Context, userID, workoutID, key string) (domains.Completion, error) {

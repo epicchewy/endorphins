@@ -42,7 +42,7 @@ export function WorkoutFocus({ workout, children }: { workout: Workout; children
         <div className="flex flex-col items-start">
           {step.kind === 'warmup' ? (
             <>
-              <span className="flex items-center gap-2.5 text-xs font-bold text-muted-foreground capitalize">
+              <span className="flex items-center gap-2.5 text-xs font-bold text-muted-foreground">
                 <Sunrise size={19} aria-hidden="true" /> Before you begin
               </span>
               <h2 className="mt-5 font-display text-[clamp(34px,3.4vw,50px)] leading-[1.16] font-normal tracking-tight [overflow-wrap:anywhere] max-[600px]:text-[clamp(30px,8.7vw,42px)]">
@@ -59,8 +59,9 @@ export function WorkoutFocus({ workout, children }: { workout: Workout; children
             </>
           ) : (
             <>
-              <span className="flex items-center gap-2.5 text-xs font-bold text-muted-foreground capitalize">
-                {step.blockName} <span>·</span> Set {step.set} of {step.sets}
+              <span className="flex items-center gap-2.5 text-xs font-bold text-muted-foreground">
+                <span className="first-letter:uppercase">{step.blockName}</span> <span>·</span> Set{' '}
+                {step.set} of {step.sets}
               </span>
               <h2 className="mt-5 font-display text-[clamp(34px,3.4vw,50px)] leading-[1.16] font-normal tracking-tight [overflow-wrap:anywhere] max-[600px]:text-[clamp(30px,8.7vw,42px)]">
                 {step.exercise.name}
@@ -70,7 +71,7 @@ export function WorkoutFocus({ workout, children }: { workout: Workout; children
                 {step.exercise.description ||
                   'No additional notes for this exercise. Move at a comfortable, controlled pace.'}
               </p>
-              <span className="mt-4 text-xs text-muted-foreground capitalize">
+              <span className="mt-4 text-xs text-muted-foreground first-letter:uppercase">
                 {step.exercise.difficulty} variation
               </span>
             </>
@@ -94,9 +95,7 @@ export function WorkoutFocus({ workout, children }: { workout: Workout; children
             Next <ArrowRight size={18} aria-hidden="true" />
           </Button>
         ) : (
-          <div className="min-w-[130px] max-[600px]:min-w-0 max-[600px]:flex-1 [&>a]:w-full">
-            {children}
-          </div>
+          <div className="min-w-[130px] max-[600px]:min-w-0 max-[600px]:flex-1">{children}</div>
         )}
       </div>
       <p className="mt-6 text-xs leading-[1.8] text-muted-foreground">

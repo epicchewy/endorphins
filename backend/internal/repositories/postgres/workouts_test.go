@@ -5,6 +5,7 @@ package postgres_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -175,6 +176,43 @@ func TestWorkoutsSummaryCoversAllMatchingRecords(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, got)
 		})
+	}
+}
+
+func TestWorkoutReadsCountEachPlansActiveCompletions(t *testing.T) {
+	db := setupRepositoryTest(t)
+	users, repo := store.NewUsers(db), store.NewWorkouts(db)
+	user, err := users.Ensure(t.Context(), "user_alice")
+	require.NoError(t, err)
+	_, err = repo.Create(t.Context(), user.ID, workoutSnapshot("fresh"), "", "")
+	require.NoError(t, err)
+	_, err = repo.Create(t.Context(), user.ID, workoutSnapshot("done"), "plan-key", strings.Repeat("a", 64))
+	require.NoError(t, err)
+	_, err = repo.Complete(t.Context(), user.ID, "done", "first")
+	require.NoError(t, err)
+	last, err := repo.Complete(t.Context(), user.ID, "done", "second")
+	require.NoError(t, err)
+	undone, err := repo.Complete(t.Context(), user.ID, "done", "undone")
+	require.NoError(t, err)
+	require.NoError(t, repo.Undo(t.Context(), user.ID, undone.ID))
+	done := domains.WorkoutHistory{CompletedCount: 2, LastCompletedAt: &last.CompletedAt}
+
+	got, err := repo.Get(t.Context(), user.ID, "done")
+	require.NoError(t, err)
+	assert.Equal(t, done, got.History)
+	replayed, err := repo.Create(t.Context(), user.ID, workoutSnapshot("done"), "plan-key", strings.Repeat("a", 64))
+	require.NoError(t, err)
+	assert.Equal(t, done, replayed.History)
+	items, err := repo.List(t.Context(), user.ID, domains.WorkoutFilter{}, nil, 20)
+	require.NoError(t, err)
+	exported, err := users.Export(t.Context(), user.ID)
+	require.NoError(t, err)
+	for _, plans := range [][]domains.SavedWorkout{items, exported.Workouts} {
+		histories := map[string]domains.WorkoutHistory{}
+		for _, plan := range plans {
+			histories[plan.ID] = plan.History
+		}
+		assert.Equal(t, map[string]domains.WorkoutHistory{"done": done, "fresh": {}}, histories)
 	}
 }
 

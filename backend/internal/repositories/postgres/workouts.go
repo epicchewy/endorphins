@@ -100,7 +100,12 @@ func (s *Workouts) Create(ctx context.Context, userID string, workout domains.Sa
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&terms).Error; err != nil {
 			return fmt.Errorf("save workout search terms: %w", err)
 		}
-		result = item
+		// A retry returns the plan as a read would, with any completions since.
+		items := []domains.SavedWorkout{item}
+		if err := withHistory(tx, userID, items); err != nil {
+			return err
+		}
+		result = items[0]
 		return nil
 	})
 	if err != nil {
@@ -148,7 +153,15 @@ func (s *Workouts) Get(ctx context.Context, userID, id string) (domains.SavedWor
 	if err != nil {
 		return domains.SavedWorkout{}, fmt.Errorf("get workout: %w", err)
 	}
-	return row.domain()
+	item, err := row.domain()
+	if err != nil {
+		return domains.SavedWorkout{}, err
+	}
+	items := []domains.SavedWorkout{item}
+	if err := withHistory(s.db.WithContext(ctx), userID, items); err != nil {
+		return domains.SavedWorkout{}, err
+	}
+	return items[0], nil
 }
 
 // Both list and summary use the same owner and search scope.
@@ -204,7 +217,11 @@ func (s *Workouts) List(ctx context.Context, userID string, filter domains.Worko
 	if err := query.Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("list workouts: %w", err)
 	}
-	return workoutDomains(rows)
+	items, err := workoutDomains(rows)
+	if err != nil {
+		return nil, err
+	}
+	return items, withHistory(s.db.WithContext(ctx), userID, items)
 }
 
 func (s *Workouts) Summary(ctx context.Context, userID string, filter domains.WorkoutFilter) (domains.WorkoutSummary, error) {

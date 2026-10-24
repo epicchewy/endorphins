@@ -72,7 +72,7 @@ Every authenticated API request resolves `sub` to `users.clerk_user_id`. An exis
 
 ## Workout ownership and retries
 
-`POST /api/v1/workouts` generates a plan and inserts it for the authenticated internal user. It returns `201 Created` with `Location` only after persistence succeeds. A successful new generate or shuffle action creates a separate saved workout.
+`POST /api/v1/workouts` generates a plan and inserts it for the authenticated internal user. It returns `201 Created` with `Location` only after persistence succeeds. Each successful new generation creates a separate saved workout.
 
 The optional `Idempotency-Key` header binds one save attempt to its owner and generation input. Keys contain 1–128 visible ASCII characters. Replaying the same owner/key/duration/level returns the exact original saved workout and the same resource location, also with `201`. Reusing that key with different input returns `409` and `idempotency_conflict`. A unique owner/key constraint and a conditional GORM upsert enforce this under concurrent requests; failed transactions do not reserve a key. Keys remain with their workout until account erasure.
 
@@ -101,6 +101,8 @@ The GORM migration projects level and estimated minutes into workout columns for
 Newest ordering uses `(created_at DESC, id DESC)`. Shortest ordering uses estimated minutes ascending, then the same timestamp/ID tie-breakers. Cursors carry the relevant position and a scope digest; changing owner, filters, or order requires starting a new first page. An empty `nextCursor` means the final page. Cursors are positions, not credentials: GORM queries still check the authenticated owner on every request.
 
 `GET /api/v1/workouts/summary` applies the same `q` and `level` filters to the complete library. It returns matching `count`, total estimated `plannedMinutes`, `averageMinutes` (zero for an empty result), and five `{ level, count }` entries including zero counts. These totals describe generated plans. Completion records supply activity totals. Library filters and sorting live in validated route search, so refresh and browser navigation restore the view.
+
+Workout reads (create, detail, list and export) also return `completedCount` and `lastCompletedAt`. They count the plan's completions that are not undone; a second owner-scoped query reads them by owner and plan IDs with the `workout_completions_user_workout_idx` index. These values are not part of the stored snapshot.
 
 `GET /api/v1/workouts/{id}` applies both owner and workout ID in its GORM query. Missing and other-account IDs both return `404`. There is no unscoped repository read method, public share link, or workout-edit endpoint.
 

@@ -34,7 +34,7 @@ export function useWorkout(id: string) {
     queryFn: ({ signal }) => getWorkout(id, getToken, signal),
     enabled: Boolean(userId),
     retry: retryAccountQuery,
-    // Saved snapshots are immutable. Session cache cleanup controls their lifetime.
-    staleTime: Infinity,
+    // The plan never changes, but its completion history does.
+    staleTime: 30_000,
   })
 }
