@@ -5,7 +5,7 @@ import { useWorkout } from '~/hooks/use-workouts'
 import { useActivity, useWorkoutCompletion, type WorkoutCompletion } from '~/hooks/use-activity'
 import { completionMilestone } from '~/services/activity'
 import { Button } from '~/components/ui/button'
-import { buttonClassName } from '~/components/ui/button-styles'
+import { buttonVariants } from '~/components/ui/button-variants'
 import { Feedback, LoadingState } from '~/components/ui/feedback'
 
 export const Route = createFileRoute('/_authenticated/app/workouts/$workoutId')({
@@ -46,10 +46,10 @@ function Completed({ finish }: { finish: WorkoutCompletion }) {
   return (
     <section
       aria-labelledby="complete-title"
-      className="mb-10 grid items-center gap-x-12 gap-y-7 rounded-panel border border-line bg-surface p-8 max-[600px]:p-5 min-[800px]:grid-cols-[minmax(0,1fr)_auto] print:hidden"
+      className="mb-10 grid items-center gap-x-12 gap-y-7 rounded-xl border border-border bg-card p-8 max-[600px]:p-5 min-[800px]:grid-cols-[minmax(0,1fr)_auto] print:hidden"
     >
       <div className="flex items-start gap-5 max-[600px]:gap-4">
-        <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-accent-soft text-focus">
+        <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/15 text-emphasis">
           <Check size={24} aria-hidden="true" />
         </span>
         <div>
@@ -61,14 +61,14 @@ function Completed({ finish }: { finish: WorkoutCompletion }) {
           >
             Workout complete.
           </h2>
-          <p className="mt-2 text-sm leading-relaxed text-muted">
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             You made time to move. This workout is now part of your activity.
           </p>
         </div>
       </div>
-      <div className="border-line max-[799px]:border-t max-[799px]:pt-6 min-[800px]:row-span-2 min-[800px]:min-w-[300px] min-[800px]:border-l min-[800px]:pl-12">
+      <div className="border-border max-[799px]:border-t max-[799px]:pt-6 min-[800px]:row-span-2 min-[800px]:min-w-[300px] min-[800px]:border-l min-[800px]:pl-12">
         {activity.isFetching && (
-          <LoadingState className="min-h-0 border-0 bg-transparent p-0 py-2">
+          <LoadingState className="min-h-0 border-0 bg-transparent p-0 py-2 max-[600px]:p-0 max-[600px]:py-2">
             Updating your progress…
           </LoadingState>
         )}
@@ -81,11 +81,11 @@ function Completed({ finish }: { finish: WorkoutCompletion }) {
           <>
             <dl className="grid grid-cols-2 gap-10">
               <div>
-                <dt className="text-xs text-muted">Completed workouts</dt>
+                <dt className="text-xs text-muted-foreground">Completed workouts</dt>
                 <dd className="mt-2 text-4xl font-medium tabular-nums">{count.toLocaleString()}</dd>
               </div>
               <div>
-                <dt className="text-xs text-muted">Active days this week</dt>
+                <dt className="text-xs text-muted-foreground">Active days this week</dt>
                 <dd className="mt-2 text-4xl font-medium tabular-nums">
                   {activity.data.activeDaysThisWeek}
                 </dd>
@@ -102,7 +102,7 @@ function Completed({ finish }: { finish: WorkoutCompletion }) {
         )}
       </div>
       <div className="flex flex-wrap gap-3 max-[600px]:grid min-[601px]:pl-17">
-        <Link to="/app" className={buttonClassName({ variant: 'primary' })}>
+        <Link to="/app" className={buttonVariants()}>
           Back to dashboard
         </Link>
         <Button variant="ghost" pending={finish.pending} onClick={finish.undo}>

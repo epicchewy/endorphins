@@ -1,7 +1,6 @@
 import { createContext, useContext, useId, useSyncExternalStore, type ReactNode } from 'react'
 import { Monitor, Moon, Sun } from 'lucide-react'
-import { Select } from '~/components/ui/field'
-import { cn } from '~/components/ui/cn'
+import { cn } from '~/lib/utils'
 
 type Theme = 'system' | 'light' | 'dark'
 const ThemeContext = createContext<Theme>('system')
@@ -70,7 +69,7 @@ export function ThemeControl({
   return (
     <label
       className={cn(
-        'relative inline-flex min-h-11 items-center gap-1.5 rounded-control focus-within:outline-3 focus-within:outline-offset-3 focus-within:outline-focus',
+        'relative inline-flex min-h-11 items-center gap-1.5 rounded-lg focus-within:outline-3 focus-within:outline-offset-3 focus-within:outline-ring',
         compact && 'max-[1150px]:w-11 max-[1150px]:justify-center',
         className,
       )}
@@ -78,9 +77,9 @@ export function ThemeControl({
     >
       <Icon size={17} aria-hidden="true" />
       <span className="sr-only">Color theme</span>
-      <Select
+      <select
         className={cn(
-          'w-auto appearance-none border-0 bg-transparent px-0.5 py-2.5 text-xs text-muted focus-visible:outline-none',
+          'min-h-11 w-auto cursor-pointer appearance-none border-0 bg-transparent px-0.5 py-2.5 text-xs text-muted-foreground focus-visible:outline-none [&_option]:bg-[Canvas] [&_option]:text-[CanvasText]',
           compact &&
             'max-[1150px]:absolute max-[1150px]:inset-0 max-[1150px]:w-11 max-[1150px]:opacity-0',
         )}
@@ -95,7 +94,7 @@ export function ThemeControl({
         <option value="system">System</option>
         <option value="light">Light</option>
         <option value="dark">Dark</option>
-      </Select>
+      </select>
     </label>
   )
 }

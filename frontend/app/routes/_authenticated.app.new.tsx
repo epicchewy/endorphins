@@ -19,27 +19,27 @@ function NewWorkout() {
   return (
     <div className="mx-auto grid max-w-[940px] grid-cols-[1fr_380px] items-start gap-16 max-[800px]:max-w-[480px] max-[800px]:grid-cols-1 max-[800px]:gap-8">
       <div className="pt-5 max-[800px]:pt-0">
-        <p className="mb-5 text-xs font-medium text-muted">At home · No equipment</p>
+        <p className="mb-5 text-xs font-medium text-muted-foreground">At home · No equipment</p>
         <h1 className="font-display text-[clamp(40px,5vw,56px)] leading-[1.1] tracking-tight">
           Make time
           <br className="max-[800px]:hidden" /> to move.
         </h1>
-        <p className="mt-5 max-w-[38ch] text-sm leading-relaxed text-muted">
+        <p className="mt-5 max-w-[38ch] text-sm leading-relaxed text-muted-foreground">
           Choose a time and level. Your full-body plan will save to your account, ready when you
           are.
         </p>
         <dl className="mt-8 space-y-5 text-sm">
           <div>
             <dt className="font-semibold">Floor space and a wall</dt>
-            <dd className="mt-1 text-muted">Bodyweight exercises for your home.</dd>
+            <dd className="mt-1 text-muted-foreground">Bodyweight exercises for your home.</dd>
           </div>
           <div>
             <dt className="font-semibold">Legs, upper body, and core</dt>
-            <dd className="mt-1 text-muted">Clear sets, reps, and exercise notes.</dd>
+            <dd className="mt-1 text-muted-foreground">Clear sets, reps, and exercise notes.</dd>
           </div>
           <div>
             <dt className="font-semibold">Go at your own pace</dt>
-            <dd className="mt-1 text-muted">Time estimates help you plan your day.</dd>
+            <dd className="mt-1 text-muted-foreground">Time estimates help you plan your day.</dd>
           </div>
         </dl>
       </div>

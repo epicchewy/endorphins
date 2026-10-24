@@ -5,7 +5,8 @@ import { useWorkouts } from '~/hooks/use-workouts'
 import type { Workout } from '~/services/workouts'
 import type { Activity } from '~/services/activity'
 import { completionMilestone, completionMilestones } from '~/services/activity'
-import { buttonClassName } from '~/components/ui/button-styles'
+import { buttonVariants } from '~/components/ui/button-variants'
+import { cn } from '~/lib/utils'
 import { PageHeading } from '~/components/ui/page-heading'
 import { Feedback, LoadingState } from '~/components/ui/feedback'
 import { LocalDate } from '~/components/ui/local-date'
@@ -37,7 +38,7 @@ function Dashboard() {
         }
         actions={
           (latest || data.completedCount > 0) && (
-            <Link to="/app/new" className={buttonClassName({ variant: 'primary' })}>
+            <Link to="/app/new" className={buttonVariants()}>
               <Plus size={18} aria-hidden="true" />
               New workout
             </Link>
@@ -59,11 +60,11 @@ function Dashboard() {
 function DashboardStart({ latest }: { latest?: Workout }) {
   return (
     <section
-      className="grid grid-cols-[1fr_.8fr] items-center gap-12 rounded-panel border border-line bg-surface p-10 max-[700px]:grid-cols-1 max-[700px]:gap-7 max-[600px]:p-6"
+      className="grid grid-cols-[1fr_.8fr] items-center gap-12 rounded-xl border border-border bg-card p-10 max-[700px]:grid-cols-1 max-[700px]:gap-7 max-[600px]:p-6"
       aria-labelledby="start-title"
     >
       <div>
-        <p className="mb-4 text-xs text-muted">
+        <p className="mb-4 text-xs text-muted-foreground">
           {latest ? 'Saved and ready' : 'At home · No equipment'}
         </p>
         <h2
@@ -72,7 +73,7 @@ function DashboardStart({ latest }: { latest?: Workout }) {
         >
           {latest ? 'Your workout is ready.' : 'Start with one workout.'}
         </h2>
-        <p className="mt-4 max-w-[40ch] text-sm leading-relaxed text-muted">
+        <p className="mt-4 max-w-[40ch] text-sm leading-relaxed text-muted-foreground">
           {latest
             ? 'Your plan is saved. Open it when you are ready, then mark it complete after you work out.'
             : 'Choose your time and level. We will save a full-body plan that you can use at home.'}
@@ -80,15 +81,15 @@ function DashboardStart({ latest }: { latest?: Workout }) {
         <Link
           to={latest ? '/app/workouts/$workoutId' : '/app/new'}
           params={{ workoutId: latest?.id ?? '' }}
-          className={buttonClassName({ variant: 'primary', className: 'mt-6' })}
+          className={cn(buttonVariants(), 'mt-6')}
         >
           {latest ? 'Open workout' : 'Create my first workout'}{' '}
           <ArrowUpRight size={18} aria-hidden="true" />
         </Link>
       </div>
       {latest ? (
-        <div className="border-l border-line pl-10 max-[700px]:border-t max-[700px]:border-l-0 max-[700px]:pt-6 max-[700px]:pl-0">
-          <p className="text-xs text-muted">Latest saved plan</p>
+        <div className="border-l border-border pl-10 max-[700px]:border-t max-[700px]:border-l-0 max-[700px]:pt-6 max-[700px]:pl-0">
+          <p className="text-xs text-muted-foreground">Latest saved plan</p>
           <p className="mt-3 font-display text-4xl">
             {latest.estimatedMinutes} <span className="text-xl">min est.</span>
           </p>
@@ -104,7 +105,7 @@ function DashboardStart({ latest }: { latest?: Workout }) {
           alt="Floor space and a wall are all you need"
           width="1448"
           height="1086"
-          className="aspect-[4/3] w-full rounded-control object-cover"
+          className="aspect-[4/3] w-full rounded-lg object-cover"
         />
       )}
     </section>
@@ -117,24 +118,20 @@ function UpNext({ workout }: { workout: Workout }) {
     <Link
       to="/app/workouts/$workoutId"
       params={{ workoutId: workout.id }}
-      className="group mb-8 flex items-center justify-between gap-6 rounded-panel border border-line bg-surface px-8 py-6 transition-colors duration-180 hover:border-line-strong max-[600px]:px-5 max-[600px]:py-5"
+      className="mb-8 flex items-center justify-between gap-6 rounded-xl border border-border bg-card px-8 py-6 transition-colors hover:border-input max-[600px]:px-5 max-[600px]:py-5"
     >
       <span className="min-w-0">
-        <span className="block text-xs text-muted">Ready when you are</span>
+        <span className="block text-xs text-muted-foreground">Ready when you are</span>
         <span className="mt-1 block text-lg font-semibold first-letter:uppercase">
           {workout.focus} focus
         </span>
-        <span className="mt-1 block text-sm text-muted">
+        <span className="mt-1 block text-sm text-muted-foreground">
           Level {workout.level} · About {workout.estimatedMinutes} min
         </span>
       </span>
       <span className="inline-flex shrink-0 items-center gap-2 text-sm font-bold">
         <span className="max-[600px]:sr-only">Open workout</span>
-        <ArrowUpRight
-          size={20}
-          aria-hidden="true"
-          className="transition-transform duration-180 group-hover:translate-x-[3px] group-hover:-translate-y-[3px]"
-        />
+        <ArrowUpRight size={20} aria-hidden="true" />
       </span>
     </Link>
   )
@@ -148,32 +145,32 @@ function DashboardActivity({ data }: { data: Activity }) {
     <>
       <section
         aria-label="Workout activity totals"
-        className="mb-10 grid grid-cols-[1.2fr_1fr_1.2fr] items-center gap-8 rounded-panel border border-line bg-surface p-8 max-[800px]:grid-cols-2 max-[600px]:gap-6 max-[600px]:p-5"
+        className="mb-10 grid grid-cols-[1.2fr_1fr_1.2fr] items-center gap-8 rounded-xl border border-border bg-card p-8 max-[800px]:grid-cols-2 max-[600px]:gap-6 max-[600px]:p-5"
       >
         <dl>
-          <dt className="text-sm text-muted">Completed workouts</dt>
+          <dt className="text-sm text-muted-foreground">Completed workouts</dt>
           <dd
             data-testid="completed-total"
             className="mt-2 text-[clamp(64px,7vw,92px)] leading-none font-medium tracking-tight tabular-nums"
           >
             {data.completedCount.toLocaleString()}
           </dd>
-          <dd className="mt-3 text-xs text-muted">Every workout you finish counts.</dd>
+          <dd className="mt-3 text-xs text-muted-foreground">Every workout you finish counts.</dd>
         </dl>
-        <dl className="border-l border-line pl-8 max-[600px]:pl-5">
-          <dt className="text-sm text-muted">Active days this week</dt>
+        <dl className="border-l border-border pl-8 max-[600px]:pl-5">
+          <dt className="text-sm text-muted-foreground">Active days this week</dt>
           <dd className="mt-3 text-5xl font-medium tracking-tight tabular-nums">
             {data.activeDaysThisWeek}
-            <span className="ml-2 text-base text-muted">/ 7</span>
+            <span className="ml-2 text-base text-muted-foreground">/ 7</span>
           </dd>
-          <dd className="mt-4 text-xs text-muted">Weeks start on Monday.</dd>
+          <dd className="mt-4 text-xs text-muted-foreground">Weeks start on Monday.</dd>
         </dl>
-        <div className="rounded-control bg-accent-soft p-5 max-[800px]:col-span-full">
-          <Trophy size={24} strokeWidth={1.5} className="mb-3 text-focus" aria-hidden="true" />
+        <div className="rounded-lg bg-primary/15 p-5 max-[800px]:col-span-full">
+          <Trophy size={24} strokeWidth={1.5} className="mb-3 text-emphasis" aria-hidden="true" />
           <p className="text-sm font-semibold">
             {milestone === 1 ? 'First workout complete' : `${milestone} workouts complete`}
           </p>
-          <p className="mt-2 text-sm leading-relaxed text-muted">
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             {nextMilestone
               ? `${nextMilestone - data.completedCount} more to your ${nextMilestone}-workout milestone.`
               : 'You reached 50 workouts. Keep going at your pace.'}
@@ -182,7 +179,7 @@ function DashboardActivity({ data }: { data: Activity }) {
             {completionMilestones.map((value) => (
               <li
                 key={value}
-                className={`flex size-9 items-center justify-center rounded-full text-xs font-semibold tabular-nums max-[360px]:size-8 ${data.completedCount >= value ? 'bg-accent text-accent-ink' : 'border border-line-strong text-muted'}`}
+                className={`flex size-9 items-center justify-center rounded-full text-xs font-semibold tabular-nums max-[360px]:size-8 ${data.completedCount >= value ? 'bg-primary text-primary-foreground' : 'border border-input text-muted-foreground'}`}
               >
                 {value}
                 <span className="sr-only">
@@ -197,12 +194,12 @@ function DashboardActivity({ data }: { data: Activity }) {
       <div className="grid grid-cols-[1fr_1.1fr] gap-8 max-[800px]:grid-cols-1">
         <section
           aria-labelledby="activity-title"
-          className="rounded-panel border border-line bg-surface p-7 max-[600px]:p-5"
+          className="rounded-xl border border-border bg-card p-7 max-[600px]:p-5"
         >
           <h2 id="activity-title" className="text-lg font-semibold">
             Your last four weeks
           </h2>
-          <p className="mt-2 text-xs leading-relaxed text-muted">
+          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
             Completed workouts · Weeks start on Monday
           </p>
           <ol className="mt-8 grid grid-cols-4 gap-5">
@@ -214,15 +211,15 @@ function DashboardActivity({ data }: { data: Activity }) {
                 </span>
                 <div
                   aria-hidden="true"
-                  className="flex h-32 w-full max-w-12 items-end border-b border-line"
+                  className="flex h-32 w-full max-w-12 items-end border-b border-border"
                 >
                   <div
-                    className={`w-full rounded-t-control ${index === 3 ? 'bg-accent' : 'bg-line-strong'}`}
+                    className={`w-full rounded-t-lg ${index === 3 ? 'bg-primary' : 'bg-input'}`}
                     style={{ height: `${(week.count / maxWeek) * 100}%` }}
                   />
                 </div>
-                <LocalDate value={week.start} className="mt-3 text-muted" />
-                {index === 3 && <span className="mt-1 text-muted">This week</span>}
+                <LocalDate value={week.start} className="mt-3 text-muted-foreground" />
+                {index === 3 && <span className="mt-1 text-muted-foreground">This week</span>}
               </li>
             ))}
           </ol>
@@ -239,23 +236,23 @@ function DashboardActivity({ data }: { data: Activity }) {
               Saved workouts
             </Link>
           </div>
-          <ul className="border-t border-line">
+          <ul className="border-t border-border">
             {data.recent.map((item) => (
               <li key={item.id}>
                 <Link
                   to="/app/workouts/$workoutId"
                   params={{ workoutId: item.workoutId }}
-                  className="flex min-h-20 items-center justify-between gap-4 border-b border-line py-4 hover:text-focus"
+                  className="flex min-h-20 items-center justify-between gap-4 border-b border-border py-4 hover:text-emphasis"
                 >
                   <span>
                     <span className="block text-sm font-semibold first-letter:uppercase">
                       {item.focus} focus
                     </span>
-                    <span className="mt-1 block text-xs text-muted">
+                    <span className="mt-1 block text-xs text-muted-foreground">
                       Level {item.level} · <LocalDate value={item.completedAt} />
                     </span>
                   </span>
-                  <span className="flex size-9 items-center justify-center rounded-full bg-accent-soft text-focus">
+                  <span className="flex size-9 items-center justify-center rounded-full bg-primary/15 text-emphasis">
                     <Check size={17} aria-hidden="true" />
                     <span className="sr-only">Completed</span>
                   </span>
