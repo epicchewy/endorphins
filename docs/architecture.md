@@ -30,10 +30,10 @@ Start renders pages; the browser calls Go through TanStack Query. Each router ha
 | Go             | 1.27.1, project toolchain; exact compiler also selected for the linter                        |
 | HTTP           | Echo v5.4.0, request IDs, recovery, structured request logs                                   |
 | React          | 19.3.0                                                                                        |
-| Routing        | TanStack Start 1.168.59 / Router 1.170.40                                                     |
+| Routing        | TanStack Start 1.168.60 / Router 1.170.41                                                     |
 | Remote state   | Query 5.104.0 / SSR bridge 1.167.3                                                            |
 | Styling        | Tailwind 4.3.3, shadcn/ui components on Base UI 1.9.0, our tokens and locally served fonts    |
-| Runtime/build  | Bun 1.4.2, Node 26.10.0, Vite 8.3.1                                                           |
+| Runtime/build  | Bun 1.4.2, Node 26.10.0, Vite 8.3.3                                                           |
 | Authentication | Clerk TanStack Start SDK 1.6.3 / Go SDK v2.7.0; Svix v1.99.1 for webhook verification         |
 | Persistence    | Postgres 17, GORM v1.31.2 / Postgres driver v1.6.3, pgx v5.11.0                               |
 | Database tests | Testcontainers Go v0.44.0                                                                     |
@@ -41,7 +41,7 @@ Start renders pages; the browser calls Go through TanStack Query. Each router ha
 | Contract       | OpenAPI 3.0.3, generated TypeScript with openapi-typescript 7.13.0                            |
 | Checks         | strict TypeScript, Oxlint, React Doctor 0.9.17, Prettier, Go race tests, golangci-lint 2.14.0 |
 
-The frontend versions follow the Postmaker migration at commit `ec8e694`. Shared primitives use native controls. The app does not need TanStack Form, Base UI, or Zustand.
+The frontend versions follow the Postmaker migration at commit `ec8e694`. Shared primitives are shadcn components on Base UI; the duration and level chips stay native radios. The app does not need TanStack Form or Zustand.
 
 Go 1.27.1 was verified against [official downloads](https://go.dev/dl/) and downloaded successfully during implementation. Echo’s [v5 quickstart](https://echo.labstack.com/docs/quick-start) was checked before setup. Lockfiles pin the resolved application dependencies.
 
