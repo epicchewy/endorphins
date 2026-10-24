@@ -1,33 +1,31 @@
-import type { ComponentProps } from 'react'
-import { LoaderCircle } from 'lucide-react'
-import { buttonClassName, type ButtonStyle } from './button-styles'
+import { Button as ButtonPrimitive } from '@base-ui/react/button'
+import type { VariantProps } from 'class-variance-authority'
+import { buttonVariants } from '~/components/ui/button-variants'
+import { cn } from '~/lib/utils'
+import { Spinner } from '~/components/ui/spinner'
 
-export function Button({
-  variant,
-  size,
+// `pending` disables the button and adds a spinner, so an action cannot be sent twice.
+function Button({
   className,
+  variant = 'default',
+  size = 'default',
   pending = false,
   disabled,
-  type = 'button',
   children,
   ...props
-}: ComponentProps<'button'> & ButtonStyle & { pending?: boolean }) {
+}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants> & { pending?: boolean }) {
   return (
-    <button
-      {...props}
-      type={type}
-      className={buttonClassName({ variant, size, className })}
+    <ButtonPrimitive
+      data-slot="button"
+      className={cn(buttonVariants({ variant, size, className }))}
       disabled={disabled || pending}
       aria-busy={pending || undefined}
+      {...props}
     >
       {children}
-      {pending && (
-        <LoaderCircle
-          className="animate-spin motion-reduce:animate-none"
-          size={18}
-          aria-hidden="true"
-        />
-      )}
-    </button>
+      {pending && <Spinner />}
+    </ButtonPrimitive>
   )
 }
+
+export { Button }

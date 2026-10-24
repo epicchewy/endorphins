@@ -1,31 +1,50 @@
 @import 'tailwindcss';
 
+/* shadcn components use `dark:`. Follow the app's data-theme, not only the OS.
+   A light region inside a dark page (the /design-system preview) stays light. */
+@custom-variant dark {
+  &:where([data-theme='dark'], [data-theme='dark'] *):not(
+      :where([data-theme='light']:not(:root), [data-theme='light']:not(:root) *)
+    ) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root[data-theme='system'] *):not(
+        :where([data-theme='light']:not(:root), [data-theme='light']:not(:root) *)
+      ) {
+      @slot;
+    }
+  }
+}
+
+/* Token names follow shadcn so its components work unchanged. The values are Endorphins'. */
 @theme inline {
   --color-background: var(--background);
-  --color-surface: var(--surface);
-  --color-surface-raised: var(--surface-raised);
-  --color-ink: var(--ink);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
-  --color-line: var(--line);
-  --color-line-strong: var(--line-strong);
+  --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
-  --color-accent-hover: var(--accent-hover);
-  --color-accent-ink: var(--accent-ink);
-  --color-accent-soft: var(--accent-soft);
-  --color-focus: var(--focus);
-  --color-error: var(--error);
-  --color-error-bg: var(--error-bg);
-  --color-inverse: var(--inverse);
-  --color-inverse-ink: var(--inverse-ink);
-  --color-inverse-muted: var(--inverse-muted);
-  --color-chart-upper: #e5b490;
-  --color-chart-core: #f2f3f3;
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-emphasis: var(--emphasis);
   --font-body: var(--body);
   --font-display: var(--display);
-  --radius-control: 8px;
-  --radius-panel: 12px;
-  --ease-standard: var(--motion-ease);
-  --animate-arrive: arrive var(--motion-arrive) var(--motion-ease) both;
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 2);
 }
 
 /* Preview outlines recovered from the supplied specimen; see docs/design-system.md. */
@@ -42,35 +61,36 @@
 :root,
 [data-theme] {
   --background: light-dark(#f2f3f3, #151819);
-  --surface: light-dark(#fafafa, #1d2123);
-  --surface-raised: light-dark(#fefefe, #252b2e);
-  --ink: light-dark(#181a1b, #f2f3f3);
-  --muted: light-dark(#5b6265, #adb5b9);
-  --line: light-dark(#d5d9da, #3b4448);
-  --line-strong: light-dark(#7e898f, #6e7b81);
-  --accent: #ec5633;
-  --accent-hover: #f36a49;
-  --accent-ink: #181a1b;
-  --accent-soft: light-dark(#fbe5df, #3a2723);
-  --focus: light-dark(#a93116, #ff8b6d);
-  --error: light-dark(#a72b24, #ffb4a8);
-  --error-bg: light-dark(#fceae7, #3c2423);
-  --inverse: #181a1b;
-  --inverse-ink: #fafafa;
-  --inverse-muted: #b5bdc0;
+  --foreground: light-dark(#181a1b, #f2f3f3);
+  --card: light-dark(#fafafa, #1d2123);
+  --card-foreground: var(--foreground);
+  --popover: light-dark(#fefefe, #252b2e);
+  --popover-foreground: var(--foreground);
+  --primary: #ec5633;
+  --primary-foreground: #181a1b;
+  --secondary: light-dark(#e9ebec, #2a3134);
+  --secondary-foreground: var(--foreground);
+  --muted: light-dark(#e9ebec, #2a3134);
+  --muted-foreground: light-dark(#5b6265, #adb5b9);
+  --accent: light-dark(#e9ebec, #2a3134);
+  --accent-foreground: var(--foreground);
+  --destructive: light-dark(#a72b24, #ffb4a8);
+  --border: light-dark(#d5d9da, #3b4448);
+  --input: light-dark(#7e898f, #6e7b81);
+  /* Orange text and icons that meet AA contrast. Primary orange is for fills. */
+  --emphasis: light-dark(#a93116, #ff8b6d);
+  --ring: var(--emphasis);
 }
 
 :root {
+  --radius: 0.5rem;
   --body: 'Inter Variable', sans-serif;
   --display: 'Sharp Serif Text PDF Preview', Georgia, serif;
   --page-width: 1320px;
   --page-gutter: clamp(20px, 4.1667vw, 80px);
-  --motion-standard: 180ms;
-  --motion-arrive: 650ms;
-  --motion-ease: cubic-bezier(0.2, 0.65, 0.3, 1);
   color-scheme: light dark;
   font-family: var(--body);
-  color: var(--ink);
+  color: var(--foreground);
   background: var(--background);
   font-synthesis: none;
   font-optical-sizing: auto;
@@ -92,6 +112,11 @@
 }
 
 @layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
   html {
     scroll-behavior: smooth;
     scroll-padding-top: 32px;
@@ -127,26 +152,16 @@
     flex-shrink: 0;
   }
   ::selection {
-    background: var(--accent);
-    color: var(--accent-ink);
+    background: var(--primary);
+    color: var(--primary-foreground);
   }
+  /* Links and other elements without their own focus ring. */
   :focus-visible {
-    outline: 3px solid var(--focus);
+    outline: 3px solid var(--ring);
     outline-offset: 4px;
   }
   [id] {
     scroll-margin-top: 32px;
-  }
-}
-
-@keyframes arrive {
-  from {
-    opacity: 0;
-    transform: translateY(16px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -168,12 +183,11 @@
   :root,
   :root[data-theme] {
     --background: white;
-    --surface: white;
-    --ink: #181a1b;
-    --muted: #454b4e;
-    --line: #b5bdc0;
-    --line-strong: #7e898f;
-    --accent-soft: #f3f3f3;
+    --card: white;
+    --foreground: #181a1b;
+    --muted-foreground: #454b4e;
+    --border: #b5bdc0;
+    --input: #7e898f;
     color-scheme: light;
   }
   body {

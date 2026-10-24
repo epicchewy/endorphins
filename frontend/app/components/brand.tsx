@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { cn } from './ui/cn'
+import { cn } from '~/lib/utils'
 
 export function BrandMark({ className = '' }: { className?: string }) {
   return (
@@ -31,12 +31,12 @@ export function Brand({
     >
       <BrandMark
         className={cn(
-          'size-[29px] text-accent max-[600px]:size-[25px] max-[360px]:w-[21px]',
+          'size-[29px] text-primary max-[600px]:size-[25px] max-[360px]:w-[21px]',
           markClassName,
         )}
       />
       <span>
-        endorphins<span className="text-accent">.</span>
+        endorphins<span className="text-primary">.</span>
       </span>
     </Link>
   )

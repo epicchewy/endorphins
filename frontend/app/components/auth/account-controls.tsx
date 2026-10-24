@@ -16,7 +16,7 @@ export function AccountControls() {
         <>
           <Link
             to="/app"
-            className="inline-flex min-h-11 items-center text-[13px] font-bold whitespace-nowrap hover:text-focus max-[600px]:text-xs"
+            className="inline-flex min-h-11 items-center text-[13px] font-bold whitespace-nowrap hover:text-emphasis max-[600px]:text-xs"
           >
             Dashboard
           </Link>
@@ -26,7 +26,7 @@ export function AccountControls() {
         <Link
           to="/sign-in/$"
           params={{ _splat: '' }}
-          className="inline-flex min-h-11 items-center text-[13px] font-bold whitespace-nowrap hover:text-focus max-[600px]:text-xs"
+          className="inline-flex min-h-11 items-center text-[13px] font-bold whitespace-nowrap hover:text-emphasis max-[600px]:text-xs"
         >
           Sign in
         </Link>

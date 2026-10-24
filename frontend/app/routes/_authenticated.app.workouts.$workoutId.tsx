@@ -4,7 +4,7 @@ import { WorkoutSheet } from '~/components/workout/workout-sheet'
 import { WorkoutStatus } from '~/components/workout/workout-status'
 import { useWorkout } from '~/hooks/use-workouts'
 import { Feedback, LoadingState } from '~/components/ui/feedback'
-import { buttonClassName } from '~/components/ui/button-styles'
+import { buttonVariants } from '~/components/ui/button-variants'
 import { useAccountSession } from '~/hooks/use-account'
 import { useGenerateWorkout } from '~/hooks/use-generate-workout'
 
@@ -50,7 +50,7 @@ function SavedWorkout() {
             <Link
               to="/app/workouts/$workoutId/finish"
               params={{ workoutId }}
-              className={buttonClassName({ variant: 'primary' })}
+              className={buttonVariants()}
             >
               <Check size={18} aria-hidden="true" /> I finished
             </Link>

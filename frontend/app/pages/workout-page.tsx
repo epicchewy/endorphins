@@ -4,7 +4,8 @@ import { useAuth } from '~/auth/client'
 import { SiteHeader } from '~/components/site-header'
 import { SiteFooter } from '~/components/site-footer'
 import { SkipLink } from '~/components/ui/skip-link'
-import { buttonClassName } from '~/components/ui/button-styles'
+import { buttonVariants } from '~/components/ui/button-variants'
+import { cn } from '~/lib/utils'
 import homeWorkout from '~/assets/images/home-workout-768.webp'
 import homeWorkoutLarge from '~/assets/images/home-workout-1122.webp'
 import roomToMove from '~/assets/images/room-to-move-768.webp'
@@ -22,22 +23,19 @@ export function WorkoutPage() {
       >
         <section className="grid grid-cols-[1fr_1fr] items-center gap-16 py-12 max-[768px]:grid-cols-1 max-[768px]:gap-8 max-[768px]:py-8">
           <div>
-            <p className="mb-6 text-sm text-muted">Home workouts. No equipment.</p>
+            <p className="mb-6 text-sm text-muted-foreground">Home workouts. No equipment.</p>
             <h1 className="font-display text-[clamp(42px,5.4vw,72px)] leading-[1.08] tracking-tight">
               Your workout.
               <br />
               Your living room.
             </h1>
-            <p className="mt-6 max-w-[35ch] text-lg leading-relaxed text-muted">
+            <p className="mt-6 max-w-[35ch] text-lg leading-relaxed text-muted-foreground">
               A full-body plan for your time and level. All you need is floor space and a wall.
             </p>
             <Link
               to={isSignedIn ? '/app' : '/sign-up/$'}
               params={{ _splat: '' }}
-              className={buttonClassName({
-                variant: 'primary',
-                className: 'mt-8 gap-8 max-[600px]:w-full max-[600px]:justify-between',
-              })}
+              className={cn(buttonVariants({ size: 'lg' }), 'mt-8 max-[600px]:w-full')}
             >
               {isSignedIn ? 'Open my dashboard' : 'Get started'}
               <ArrowUpRight size={20} aria-hidden="true" />
@@ -51,13 +49,13 @@ export function WorkoutPage() {
             width="1122"
             height="1402"
             fetchPriority="high"
-            className="aspect-[4/5] w-full max-w-[448px] justify-self-end rounded-panel object-cover max-[768px]:max-w-none max-[768px]:aspect-[4/3] max-[768px]:object-top"
+            className="aspect-[4/5] w-full max-w-[448px] justify-self-end rounded-xl object-cover max-[768px]:max-w-none max-[768px]:aspect-[4/3] max-[768px]:object-top"
           />
         </section>
         <section
           id="how-it-works"
           aria-labelledby="how-title"
-          className="border-t border-line py-14 max-[600px]:py-10"
+          className="border-t border-border py-14 max-[600px]:py-10"
         >
           <h2
             id="how-title"
@@ -75,7 +73,7 @@ export function WorkoutPage() {
               height="1086"
               loading="lazy"
               decoding="async"
-              className="aspect-[4/3] w-full rounded-panel object-cover"
+              className="aspect-[4/3] w-full rounded-xl object-cover"
             />
             <ol className="grid gap-7">
               {[
@@ -94,7 +92,7 @@ export function WorkoutPage() {
               ].map(([title, body]) => (
                 <li key={title} className="max-w-[42ch]">
                   <h3 className="text-lg font-semibold">{title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted">{body}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{body}</p>
                 </li>
               ))}
             </ol>

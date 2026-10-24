@@ -1,5 +1,5 @@
 import { Button } from '~/components/ui/button'
-import { buttonClassName } from '~/components/ui/button-styles'
+import { buttonVariants } from '~/components/ui/button-variants'
 import { ClerkProvider } from '~/auth/client'
 import type { ReactNode } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
@@ -42,8 +42,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       <h1 className="font-display text-[clamp(40px,6vw,56px)] font-normal leading-[1.12] tracking-[-0.025em]">
         Page not found
       </h1>
-      <p className="my-6 leading-[1.8] text-muted">That page doesn’t exist.</p>
-      <Link to="/" className={buttonClassName({ variant: 'primary' })}>
+      <p className="my-6 leading-[1.8] text-muted-foreground">That page doesn’t exist.</p>
+      <Link to="/" className={buttonVariants()}>
         Go home
       </Link>
     </main>
@@ -53,10 +53,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       <h1 className="font-display text-[clamp(40px,6vw,56px)] font-normal leading-[1.12] tracking-[-0.025em]">
         Could not load this page
       </h1>
-      <p className="my-6 leading-[1.8] text-muted">Something went wrong loading this page.</p>
-      <Button variant="primary" onClick={reset}>
-        Try again
-      </Button>
+      <p className="my-6 leading-[1.8] text-muted-foreground">
+        Something went wrong loading this page.
+      </p>
+      <Button onClick={reset}>Try again</Button>
     </main>
   ),
 })
@@ -76,16 +76,16 @@ function Document({ children }: { children: ReactNode }) {
           afterSignOutUrl="/"
           appearance={{
             variables: {
-              colorPrimary: 'var(--ink)',
-              colorPrimaryForeground: 'var(--surface)',
-              colorNeutral: 'var(--ink)',
-              colorBackground: 'var(--surface)',
-              colorInput: 'var(--surface)',
-              colorInputForeground: 'var(--ink)',
-              colorDanger: 'var(--error)',
-              colorRing: 'var(--focus)',
-              colorForeground: 'var(--ink)',
-              colorMutedForeground: 'var(--muted)',
+              colorPrimary: 'var(--foreground)',
+              colorPrimaryForeground: 'var(--card)',
+              colorNeutral: 'var(--foreground)',
+              colorBackground: 'var(--card)',
+              colorInput: 'var(--card)',
+              colorInputForeground: 'var(--foreground)',
+              colorDanger: 'var(--destructive)',
+              colorRing: 'var(--ring)',
+              colorForeground: 'var(--foreground)',
+              colorMutedForeground: 'var(--muted-foreground)',
               fontFamily: "'Inter Variable', sans-serif",
               borderRadius: '8px',
             },
