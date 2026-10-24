@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { Brand } from '~/components/brand'
-import { ThemeControl } from '~/components/theme'
 import { ArrowLeft, Check } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { SkipLink } from '~/components/ui/skip-link'
@@ -11,7 +10,6 @@ export function AuthPage({ children, signup = false }: { children: ReactNode; si
       <SkipLink href="#auth-content" />
       <header className="flex h-20 items-center justify-between border-b border-border px-(--page-gutter) max-[600px]:h-18">
         <Brand />
-        <ThemeControl />
       </header>
       <main
         id="auth-content"

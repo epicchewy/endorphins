@@ -1,5 +1,14 @@
-import { createContext, useContext, useId, useSyncExternalStore, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useId,
+  useSyncExternalStore,
+  type ChangeEvent,
+  type ReactNode,
+} from 'react'
 import { Monitor, Moon, Sun } from 'lucide-react'
+import { Field, FieldDescription, FieldLabel } from '~/components/ui/field'
+import { NativeSelect, NativeSelectOption } from '~/components/ui/native-select'
 import { cn } from '~/lib/utils'
 
 type Theme = 'system' | 'light' | 'dark'
@@ -59,6 +68,39 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     </ThemeContext>
   )
 }
+const themes = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+] as const
+function chooseTheme(event: ChangeEvent<HTMLSelectElement>) {
+  const value = event.target.value
+  if (value === 'system' || value === 'light' || value === 'dark') setTheme(value)
+}
+export function ThemeField() {
+  const id = useId()
+  const theme = useContext(ThemeContext)
+  return (
+    <Field>
+      <FieldLabel htmlFor={id}>Color theme</FieldLabel>
+      <NativeSelect
+        id={id}
+        className="w-full"
+        aria-describedby={`${id}-hint`}
+        name="theme"
+        value={theme}
+        onChange={chooseTheme}
+      >
+        {themes.map((item) => (
+          <NativeSelectOption key={item.value} value={item.value}>
+            {item.label}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+      <FieldDescription id={`${id}-hint`}>System follows your device setting.</FieldDescription>
+    </Field>
+  )
+}
 export function ThemeControl({
   compact = true,
   className,
@@ -86,14 +128,13 @@ export function ThemeControl({
         id={id}
         name="theme"
         value={theme}
-        onChange={(event) => {
-          const value = event.target.value
-          if (value === 'system' || value === 'light' || value === 'dark') setTheme(value)
-        }}
+        onChange={chooseTheme}
       >
-        <option value="system">System</option>
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
+        {themes.map((item) => (
+          <option key={item.value} value={item.value}>
+            {item.label}
+          </option>
+        ))}
       </select>
     </label>
   )
