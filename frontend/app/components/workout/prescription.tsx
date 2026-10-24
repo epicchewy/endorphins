@@ -1,5 +1,5 @@
 import type { Exercise } from '~/services/workouts'
-import { cn } from '~/components/ui/cn'
+import { cn } from '~/lib/utils'
 
 export function Prescription({
   exercise,
@@ -32,7 +32,7 @@ export function Prescription({
               className={
                 prominent
                   ? 'ml-1.5 text-sm font-medium tracking-normal'
-                  : 'text-[13px] font-medium text-muted'
+                  : 'text-[13px] font-medium text-muted-foreground'
               }
             >
               reps
@@ -41,7 +41,7 @@ export function Prescription({
         )}
       </strong>
       {exercise.duration && (
-        <small className="text-[13px] text-muted">
+        <small className="text-[13px] text-muted-foreground">
           {exercise.rest ?? 0}s rest{prominent && ' per round'}
         </small>
       )}

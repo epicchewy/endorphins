@@ -32,7 +32,7 @@ Start renders pages; the browser calls Go through TanStack Query. Each router ha
 | React          | 19.3.0                                                                                        |
 | Routing        | TanStack Start 1.168.59 / Router 1.170.40                                                     |
 | Remote state   | Query 5.104.0 / SSR bridge 1.167.3                                                            |
-| Styling        | Tailwind 4.3.3 utilities, semantic tokens and locally served fonts                            |
+| Styling        | Tailwind 4.3.3, shadcn/ui components on Base UI 1.9.0, our tokens and locally served fonts    |
 | Runtime/build  | Bun 1.4.2, Node 26.10.0, Vite 8.3.1                                                           |
 | Authentication | Clerk TanStack Start SDK 1.6.3 / Go SDK v2.7.0; Svix v1.99.1 for webhook verification         |
 | Persistence    | Postgres 17, GORM v1.31.2 / Postgres driver v1.6.3, pgx v5.11.0                               |
@@ -55,7 +55,7 @@ frontend/
     auth/                    # Production Clerk client/server adapters
     routes/                  # Routes, validated URL state, screen composition
     pages/                   # Public landing composition
-    components/ui/           # Controlled buttons, fields, feedback, presence
+    components/ui/           # shadcn components plus our radio chip and feedback
     components/workout/      # Workout-specific builder, library, plan, exercise view
     components/auth/         # Account controls, auth layout, session boundary
     server/auth.ts           # Private-route server auth check
@@ -63,7 +63,7 @@ frontend/
     services/                # HTTP, account/workout transport, keys, pure helpers
     types/api.gen.ts          # Generated from OpenAPI
     router.tsx               # Per-router QueryClient
-    app.css                  # Tailwind theme, fonts, base rules, keyframes, print setup
+    app.css                  # Theme tokens, dark variant, fonts, base rules, print setup
   test/                      # Focused unit tests and build-only identity fixtures
   scripts/check-boundaries.ts # Frontend dependency and primitive ownership checks
   server.ts                  # Bun SSR/static server and bounded same-origin proxy
@@ -103,7 +103,7 @@ Handlers declare small interfaces for the service methods they consume. Resource
 
 Services cannot import Echo, handlers, server, repositories, application setup, integrations, or configuration. Repositories cannot import services or HTTP layers. Handlers cannot construct storage or depend on the server. `scripts/check-layers.py` enforces these rules, including transitive imports, in `make check`.
 
-Frontend import rules also run as part of linting. UI primitives and pure services cannot depend on application hooks/routes; hooks own remote-state policy; product components compose primitives. Motion ownership stays in the UI library. The checks keep dependencies explicit.
+Frontend import rules also run as part of linting. UI primitives and pure services cannot depend on application hooks/routes; hooks own remote-state policy; product components compose primitives. The checks keep dependencies explicit.
 
 Frontend lint runs the pinned React Doctor full scan. CI fails on errors or warnings. The scan shares the generated-file exclusions in the Oxlint config and uses no remote score or supply-chain service.
 
@@ -138,9 +138,9 @@ The library fetches saved plans newest first, with a count across the account; i
 
 ## Design system
 
-`components/ui` is the controlled primitive library: native buttons and link presentation, fields/inputs/selects/radios, error/retry feedback, loading/empty states, local date display, and Presence transitions. Button styles live outside the component so Fast Refresh can preserve state. `LocalDate` uses TanStack's `ClientOnly` with a fixed date fallback before hydration. Presence uses `LazyMotion` with animation features. These components own presentation and interaction contracts; callers own application values, routing, and requests.
+`components/ui` is the controlled primitive library. Buttons, fields, inputs, native selects, alerts, empty states and spinners are shadcn components (`base-nova`, on Base UI), configured by `frontend/components.json`. Our own primitives are the native radio chip, error/retry feedback, loading/empty states, and local date display. Button variants live in `button-variants.ts` so Fast Refresh can preserve state. `LocalDate` uses TanStack's `ClientOnly` with a fixed date fallback before hydration. These components own presentation and interaction contracts; callers own application values, routing, and requests.
 
-`app.css` contains font loading, semantic Tailwind tokens, base rules, and keyframes. It is the only application stylesheet. Shared primitives own control styles and states through Tailwind utilities; layouts and responsive/print variants stay beside their markup. The palette supports light and dark schemes. Shared controls preserve readable text, keyboard focus, disabled/pending behavior, and touch targets. Motion follows the shared reduced-motion policy.
+`app.css` contains font loading, shadcn-named theme tokens, the `dark` variant, and base rules. It is the only application stylesheet. Shared primitives own control styles and states through Tailwind utilities; layouts and responsive/print variants stay beside their markup. The palette supports light and dark schemes. Shared controls preserve readable text, keyboard focus, disabled/pending behavior, and touch targets. Hover changes color only; reduced motion removes every transition.
 
 Successful generation focuses the plan title and scrolls to it at mobile widths, respecting reduced motion. The saved plan shows every exercise with its count and notes: three block columns from 900px, one column below, and one compact column in print. Completion is the plan's last action. Fonts and photography are served locally. The display face is the Sharp Serif Text PDF preview recovered from the supplied specimen, paired with Inter; the original font package is still needed for public release. [The design system](design-system.md) defines tokens and control contracts. Its development gallery is `/design-system`.
 

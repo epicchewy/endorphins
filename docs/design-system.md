@@ -6,84 +6,100 @@ The application is the current source of truth. The [Paper design file](https://
 
 ## Inspect the real components
 
-Start the development app and open `/design-system`. The development gallery renders shared controls on light and dark surfaces: fields, radios, disabled/pending buttons, validation, retry feedback, loading/empty states, and transitions. Resize to 390px and use the keyboard to inspect the same controls.
+Start the development app and open `/design-system`. The development gallery renders shared controls on light and dark surfaces: fields, radios, disabled/pending buttons, validation, retry feedback, and loading/empty states. Resize to 390px and use the keyboard to inspect the same controls.
 
 The gallery is `frontend/app/components/design-system.tsx`. It owns demonstration state. Primitives in `frontend/app/components/ui` never import application routes, account state, services, or query hooks.
 
 ## Foundations
 
-| Role            | Light     | Dark      |
-| --------------- | --------- | --------- |
-| Background      | `#F2F3F3` | `#151819` |
-| Surface         | `#FAFAFA` | `#1D2123` |
-| Raised surface  | `#FEFEFE` | `#252B2E` |
-| Text            | `#181A1B` | `#F2F3F3` |
-| Supporting text | `#5B6265` | `#ADB5B9` |
-| Border          | `#D5D9DA` | `#3B4448` |
-| Control border  | `#7E898F` | `#6E7B81` |
-| Action          | `#EC5633` | `#EC5633` |
-| Action text     | `#181A1B` | `#181A1B` |
-| Keyboard focus  | `#A93116` | `#FF8B6D` |
-| Error text      | `#A72B24` | `#FFB4A8` |
-| Error surface   | `#FCEAE7` | `#3C2423` |
+Token names follow [shadcn/ui](https://ui.shadcn.com/docs/theming), so its components work without edits. The values are ours.
 
-`app.css` defines semantic colors with scoped `light-dark()` variables and exposes them through Tailwind `@theme inline`. `color-scheme` chooses system, explicit light, or explicit dark. The gallery redeclares semantic tokens at `[data-theme]` scopes so `light-dark()` resolves locally. Use semantic colors, not raw hex values in new product components.
+| Role                         | Token                               | Light     | Dark      |
+| ---------------------------- | ----------------------------------- | --------- | --------- |
+| Page                         | `background`                        | `#F2F3F3` | `#151819` |
+| Panel                        | `card`                              | `#FAFAFA` | `#1D2123` |
+| Raised surface               | `popover`                           | `#FEFEFE` | `#252B2E` |
+| Text                         | `foreground`                        | `#181A1B` | `#F2F3F3` |
+| Supporting text              | `muted-foreground`                  | `#5B6265` | `#ADB5B9` |
+| Hover and subtle fill        | `muted`, `accent`, `secondary`      | `#E9EBEC` | `#2A3134` |
+| Border                       | `border`                            | `#D5D9DA` | `#3B4448` |
+| Control border               | `input`                             | `#7E898F` | `#6E7B81` |
+| Action fill                  | `primary`                           | `#EC5633` | `#EC5633` |
+| Action text                  | `primary-foreground`                | `#181A1B` | `#181A1B` |
+| Orange text and icons; focus | `emphasis` (ours), `ring`           | `#A93116` | `#FF8B6D` |
+| Error text                   | `destructive`                       | `#A72B24` | `#FFB4A8` |
+
+`primary` orange is for fills. It is too light for small text, so orange text and icons use `emphasis`, which meets AA contrast. For a soft orange fill, use `bg-primary/15`.
+
+`app.css` defines the values with scoped `light-dark()` and exposes them through Tailwind `@theme inline`. `color-scheme` chooses system, explicit light, or explicit dark. A custom `dark` variant follows the page's `data-theme`, so shadcn's `dark:` classes match the chosen theme, not only the OS. The gallery redeclares tokens at `[data-theme]` scopes so each preview resolves locally. Use tokens, not raw hex values, in product components.
 
 - **Type:** Sharp Serif Text PDF Preview regular for editorial headings; Inter Variable for body, controls, numbers, and metadata. Body/form inputs are 16px, control labels 14px, supporting metadata at least 12px on screen. Headings use responsive `clamp()` sizing. The brand wordmark remains Inter.
 - **Font asset:** the current Sharp Serif preview was recovered from the supplied PDF. It lacks the original kerning/OpenType tables. Replace it with the licensed original font package before public release.
 - **Spacing:** Use Tailwind’s 4px scale: `gap-2` is 8px, `p-6` is 24px. Keep the current larger layout values only where the design needs them.
-- **Shape:** 8px controls, 12px panels. Avoid adding a new radius for each component.
+- **Shape:** `--radius` is 8px. Controls use `rounded-lg` (8px) and panels `rounded-xl` (12px). Avoid adding a new radius for each component.
 - **Targets:** shared inputs, selects, and default buttons are 48px tall. Small buttons and navigation targets remain at least 44px. Inputs use 16px text to avoid mobile auto-zoom.
 - **Layout:** 1,320px maximum content width, fluid gutters with 20px on mobile. Existing responsive transitions are at 1,150px, 900px, 600px, and 360px; add breakpoints only for a demonstrated layout failure.
-- **Motion:** 120ms quick feedback, 180ms state changes, 650ms landing arrival; shared easing `cubic-bezier(0.2, 0.65, 0.3, 1)`. Reduced motion removes CSS transitions/animations and zeroes Presence transitions. Use motion to show a state change; keep actions immediate.
+- **Motion:** Hover and focus change color, border, or ring only. Nothing moves on hover. Buttons keep shadcn's 1px press. The pending spinner is the only animation. Content changes, such as the next exercise step, swap at once. Reduced motion removes every transition and animation.
 
 ## Component catalog
 
-| Component          | Contract                                                                                                                                                                             | Existing product consumers                                    |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| `Button`           | Native button props, `variant="primary\|secondary\|ghost"`, `size="default\|small\|icon"`, `pending`. Defaults to `type="button"`. Pending disables and adds one decorative spinner. | Builder submit, shuffle, print, exercise navigation, retry    |
-| `buttonClassName`  | Presentation helper for native anchors and typed TanStack `Link`; accepts the same visual variants. Retains router types and link behavior.                                          | Landing calls to action, saved library navigation             |
-| `Field`            | Persistent label linked through explicit `htmlFor`, optional hint/error, arbitrary control children. Hint/error IDs are `${htmlFor}-hint` and `${htmlFor}-error`.                    | Custom workout duration; gallery validation examples          |
-| `Input` / `Select` | Native element props and shared chrome. Caller owns value, label, validity, and described-by relationships.                                                                          | Duration, default level, theme selector                       |
-| `RadioOption`      | Native radio props inside its label. Checked, disabled, and focus states derive from the input itself. Group with a native `fieldset`/`legend`.                                      | Workout duration and level choices                            |
-| `Feedback`         | Error/info tone, optional title, children, optional retry callback/label and id. Errors announce as alerts; information as status.                                                   | Generation/query failures and completion recovery      |
-| `EmptyState`       | Title, explanatory children, optional action. No data fetching or embedded routing policy.                                                                                           | Saved library                                                 |
-| `LoadingState`     | Status region with descriptive children and a decorative spinner. Retains useful vertical space.                                                                                     | Library/detail loading, lazy exercise view                    |
-| `Presence`         | Controlled `present`, `identity`, `direction`, className, and children. Uses one motion policy with reduced-motion support.                                                          | Custom-duration disclosure and changing exercise instructions |
+`components/ui` holds shadcn components (`base-nova` style, built on [Base UI](https://base-ui.com)) and a few of our own. Import each file directly.
 
-Import the component’s file directly. Add a shared control when product views need the same behavior.
+| Component                               | Source | Contract                                                                                                                                       |
+| --------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Button`                                | shadcn | `variant="default\|outline\|ghost\|secondary\|destructive\|link"`, `size="default\|sm\|lg\|icon"`. Ours: 48/44/56px heights and `pending`, which disables the button and adds a spinner. |
+| `buttonVariants`                        | shadcn | Classes for a typed TanStack `Link` that looks like a button: `cn(buttonVariants({ variant: 'outline' }), 'mt-6')`. In `button-variants.ts`.    |
+| `Field`, `FieldLabel`, `FieldDescription`, `FieldError`, `FieldSet`, `FieldLegend` | shadcn | Label, hint, error and group layout. The caller owns `htmlFor`, `id` and `aria-describedby`.                         |
+| `Input`, `NativeSelect`                 | shadcn | Native elements with shared chrome, 48px tall, 16px text.                                                                                      |
+| `Alert`, `Empty`, `Spinner`, `Label`, `Separator` | shadcn | Used through the field and feedback components.                                                                                   |
+| `RadioOption`                           | ours   | A native radio drawn as a choice chip. shadcn has no native radio card, and the native input keeps arrow-key selection and form validation.   |
+| `Feedback`                              | ours   | Error or info tone on `Alert`, optional title, retry callback and label. Errors announce as alerts, information as status.                     |
+| `EmptyState`, `LoadingState`            | ours   | Built on `Empty` and `Spinner`. The empty title stays an `h3`.                                                                                 |
+| `PageHeading`, `SkipLink`, `LocalDate`  | ours   | Page title row, skip navigation, and dates in the reader's locale.                                                                             |
 
 ```tsx
-import { Button, buttonClassName } from '~/components/ui/button'
-import { Field, Input } from '~/components/ui/field'
+import { Button } from '~/components/ui/button'
+import { buttonVariants } from '~/components/ui/button-variants'
+import { Field, FieldDescription, FieldLabel } from '~/components/ui/field'
+import { Input } from '~/components/ui/input'
 
-<Button type="submit" variant="primary" pending={saving}>
+<Button type="submit" pending={saving}>
   {saving ? 'Saving…' : 'Save workout'}
 </Button>
 
-<Link to="/app/workouts" className={buttonClassName({ variant: 'secondary' })}>
+<Link to="/app/workouts" className={buttonVariants({ variant: 'outline' })}>
   Your workouts
 </Link>
 
-<Field label="Duration" htmlFor="duration" hint="30–120 minutes">
+<Field>
+  <FieldLabel htmlFor="duration">Duration</FieldLabel>
   <Input id="duration" type="number" min={30} max={120}
     aria-describedby="duration-hint" value={minutes}
     onChange={(event) => setMinutes(event.target.valueAsNumber)} />
+  <FieldDescription id="duration-hint">30–120 minutes</FieldDescription>
 </Field>
 ```
 
-For an invalid field, pass `error` to `Field` and `aria-invalid` plus `aria-describedby="duration-error"` to the input. Keep label and hint/error associations explicit.
+For an invalid field, set `data-invalid="true"` on `Field`, `aria-invalid` and `aria-describedby="duration-error"` on the input, and render `<FieldError id="duration-error">`.
+
+### Adding a shadcn component
+
+Run `npx shadcn@latest add <name>` in `frontend/`. Then:
+
+1. Run `bun run format` and `bun run lint`. Remove `import * as React from 'react'`; type-only `React.` references work without it.
+2. Raise control heights to the 48px targets above. Keep shadcn's colors, states and focus ring.
+3. The CLI may add the `cn` package. Remove it; `~/lib/utils` already provides `cn`.
+4. Overlay components (dialogs, menus) need `tw-animate-css` and `@import 'shadcn/tailwind.css'`. Add them with the first one.
 
 ## Styling ownership
 
-`app.css` is the only application stylesheet. It imports Tailwind and defines fonts, semantic theme values, base browser rules, shared keyframes, reduced motion, and the print page setup. It does not hold page selectors or control variants.
+`app.css` is the only application stylesheet. It imports Tailwind and defines fonts, theme tokens, the `dark` variant, base browser rules, reduced motion, and the print page setup. It does not hold page selectors or control variants.
 
-- `components/ui` owns reusable control appearance and states with Tailwind utilities. Use `Button`, `Field`, `Input`, `Select`, `RadioOption`, and feedback primitives instead of restyling native controls on each page.
+- `components/ui` owns reusable control appearance and states with Tailwind utilities. Use `Button`, `Field`, `Input`, `NativeSelect`, `RadioOption`, and feedback primitives instead of restyling native controls on each page.
 - Pages and product components own layout with Tailwind utilities. Keep responsive and `print:` variants beside the affected markup.
-- Use named tokens such as `bg-surface`, `text-muted`, `border-line`, `rounded-control`, and `font-display`. Do not repeat palette hex values in product layouts.
-- `cn` uses `tailwind-merge` so caller layout overrides replace conflicting utility classes. Keep interaction states in the primitive; do not override them from a page.
+- Use tokens such as `bg-card`, `text-muted-foreground`, `border-border`, `rounded-lg`, and `font-display`. Do not repeat palette hex values in product layouts.
+- `cn` in `~/lib/utils` is shadcn's `clsx` and `tailwind-merge` helper, so caller layout overrides replace conflicting utility classes. Keep interaction states in the primitive; do not override them from a page.
 - `PageHeading` shares the title/description/action layout. `SkipLink` owns hidden and focused skip navigation.
-- Direct Motion imports stay in `components/ui`; product components use `Presence`.
 
 Do not add page stylesheets or wrap old selectors in `@apply`. Keep unique layout in its page. Import checks enforce dependencies from product UI to primitives. See [frontend ownership](architecture.md#frontend-ownership) for URL state and input drafts.
 

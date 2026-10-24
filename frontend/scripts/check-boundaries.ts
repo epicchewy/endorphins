@@ -36,7 +36,7 @@ async function inspect(directory: string): Promise<void> {
           fail('Services must remain independent of UI, auth adapters, and route state.')
         if (
           !typeOnly &&
-          /^(react|@tanstack\/react-query|@tanstack\/react-router|motion|lucide-react)(\/|$)/.test(
+          /^(react|@tanstack\/react-query|@tanstack\/react-router|lucide-react)(\/|$)/.test(
             specifier,
           )
         )
@@ -50,8 +50,6 @@ async function inspect(directory: string): Promise<void> {
         /^(hooks|services|auth|routes|pages|server)\//.test(local)
       )
         fail('UI primitives must be controlled and application-independent.')
-      if (specifier.startsWith('motion/') && !name.startsWith('components/ui/'))
-        fail('Consume the shared UI motion primitives.')
       if (specifier.startsWith('@clerk/') && !name.startsWith('auth/'))
         fail('Identity SDK access belongs in the auth adapter.')
     }
@@ -90,4 +88,4 @@ if (failures.length) {
   console.error(failures.join('\n'))
   process.exit(1)
 }
-console.log('Frontend dependency and motion boundaries passed.')
+console.log('Frontend dependency boundaries passed.')
