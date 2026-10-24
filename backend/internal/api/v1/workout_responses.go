@@ -33,6 +33,8 @@ type WorkoutResponse struct {
 	WarmupMinutes    int                    `json:"warmupMinutes"`
 	Focus            string                 `json:"focus"`
 	Blocks           []WorkoutBlockResponse `json:"blocks"`
+	CompletedCount   int                    `json:"completedCount"`
+	LastCompletedAt  *time.Time             `json:"lastCompletedAt"`
 }
 
 func NewWorkoutResponse(workout domains.SavedWorkout) WorkoutResponse {
@@ -59,6 +61,8 @@ func NewWorkoutResponse(workout domains.SavedWorkout) WorkoutResponse {
 		WarmupMinutes:    workout.WarmupMinutes,
 		Focus:            workout.Focus,
 		Blocks:           blocks,
+		CompletedCount:   workout.History.CompletedCount,
+		LastCompletedAt:  workout.History.LastCompletedAt,
 	}
 }
 

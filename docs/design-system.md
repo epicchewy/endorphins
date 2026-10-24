@@ -41,7 +41,7 @@ The gallery is `frontend/app/components/design-system.tsx`. It owns demonstratio
 
 | Component          | Contract                                                                                                                                                                             | Existing product consumers                                    |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| `Button`           | Native button props, `variant="primary\|secondary\|ghost"`, `size="default\|small\|icon"`, `pending`. Defaults to `type="button"`. Pending disables and adds one decorative spinner. | Builder submit, shuffle, print, exercise navigation, retry    |
+| `Button`           | Native button props, `variant="primary\|secondary\|ghost"`, `size="default\|small\|icon"`, `pending`. Defaults to `type="button"`. Pending disables and adds one decorative spinner. | Builder submit, Mark complete, print, exercise navigation, retry |
 | `buttonClassName`  | Presentation helper for native anchors and typed TanStack `Link`; accepts the same visual variants. Retains router types and link behavior.                                          | Landing calls to action, saved library navigation             |
 | `Field`            | Persistent label linked through explicit `htmlFor`, optional hint/error, arbitrary control children. Hint/error IDs are `${htmlFor}-hint` and `${htmlFor}-error`.                    | Custom workout duration; gallery validation examples          |
 | `Input` / `Select` | Native element props and shared chrome. Caller owns value, label, validity, and described-by relationships.                                                                          | Duration, default level, theme selector                       |
@@ -89,7 +89,7 @@ Do not add page stylesheets or wrap old selectors in `@apply`. Keep unique layou
 
 ## Accessibility and visual verification
 
-Use native semantics before adding ARIA. Every input has a label, radio groups retain their legend and keyboard behavior, pending actions cannot be resubmitted, and icon-only controls need an accessible name. Keep one appropriate announcement for a failure; do not add a global toast announcing the same error again. A failed shuffle retains the previous plan and puts recovery feedback beside the action.
+Use native semantics before adding ARIA. Every input has a label, radio groups retain their legend and keyboard behavior, pending actions cannot be resubmitted, and icon-only controls need an accessible name. Keep one appropriate announcement for a failure; do not add a global toast announcing the same error again. A failed completion keeps the plan to do and puts recovery feedback beside **Mark complete**.
 
 Verify at 390px and 1,440px in light/dark modes. Inspect keyboard focus, form errors, loading/empty states, long workout names, and reduced motion. Confirm no horizontal overflow and no clipped controls. Print a workout while exercise view is active: the complete plan and every note must remain available, with screen-only controls hidden.
 
@@ -97,7 +97,7 @@ The [refinement report](history/architecture-refinement.md) records the change f
 
 ## App flow references
 
-The signup redesign keeps Sharp Serif, Inter, and the existing orange tokens. Public and app layouts are separate. The app uses direct page labels, a compact navigation bar, one primary action in the initial empty dashboard, native level radios, weekly activity bars, and a separate confirmation/success screen. Generated plans and completed workouts have separate counts.
+The signup redesign keeps Sharp Serif, Inter, and the existing orange tokens. Public and app layouts are separate. The app uses direct page labels, a compact navigation bar, one primary action in the initial empty dashboard, native level radios, weekly activity bars, and a completion result on the plan page. Generated plans and completed workouts have separate counts.
 
 Mobbin references informed the state structure: [Hevy's weekly activity](https://mobbin.com/screens/79a622bd-392f-4ab4-9eb7-18e3a85fcc5c), [Peloton's active days](https://mobbin.com/screens/821d8083-b310-488e-be2e-e0afc024398e), [Bevel's level descriptions](https://mobbin.com/screens/ca012035-d801-42fb-bf6b-89954314cfe6), and [Laravel Cloud's empty state](https://mobbin.com/screens/5a0b71b3-f06f-4b14-af43-b862c1550a8f). Browser tests verify welcome, levels, setup, saved plans, completion, and dashboard states. Failure captures are in `output/playwright/test-results`.
 
@@ -107,13 +107,15 @@ The landing page uses an asymmetric photo and text layout, followed by a compact
 
 Onboarding introduces the app before the level choice. Desktop uses a photo beside four short feature descriptions; mobile keeps the descriptions and next action together. The dashboard gives completed workouts the strongest numerical emphasis, then active days and milestones. The four-week chart uses recorded counts; zero counts have no filled track. Reached milestones have explicit screen-reader text.
 
-Themes apply before first paint and keep the browser theme color in sync with manual and system changes. Font files are preloaded. Layouts use balanced headings, touch-safe controls, and explicit mobile grids. Navigation uses links. Completion actions end the saved plan and the optional exercise view. The builder has one authenticated setup mode. Long saved-plan lists defer off-screen rendering with native CSS.
+Themes apply before first paint and keep the browser theme color in sync with manual and system changes. Font files are preloaded. Layouts use balanced headings, touch-safe controls, and explicit mobile grids. Navigation uses links. **Mark complete** ends a plan that is still to do and the optional exercise view. The builder has one authenticated setup mode. Long saved-plan lists defer off-screen rendering with native CSS.
 
 ## Saved workout plan
 
 The saved plan answers one question: what do I do next, and how many? A person reads it from the floor, so the exercises take the most space and the summary takes one line.
 
-- The title row has the title, one line of level, estimated time, exercise count, and saved date, and the Start workout, Print, and Shuffle actions. There is no back link; the app navigation leads to the library.
+- The title row has the title, one line of level, estimated time, exercise count, and saved date, and the Start workout and Print actions. A completed plan adds a line with a check and its last completion date, and Start workout becomes Start again. There is no back link; the app navigation leads to the library.
+- To get a different plan, use **New workout**. The plan page does not generate plans.
 - Blocks sit in three columns from 900px and in one column, at most 720px wide, below that. Each row shows the name, the always-visible note, and the count right-aligned beside it. A block with more than one set marks its set count in `text-focus` with a repeat icon.
-- Orange appears on the set count and on **I finished**, which ends the plan. Start workout swaps in the exercise view and becomes Back to plan.
+- Orange appears on the set count and on **Mark complete**, which ends a plan that is still to do and the last exercise step. A completed plan has no Mark complete below it. Start workout swaps in the exercise view and becomes Back to plan.
+- After Mark complete, a result panel appears above the plan. It takes focus and shows progress, any milestone, Back to dashboard and Undo.
 - Print shows one compact column and hides the actions and the exercise view.

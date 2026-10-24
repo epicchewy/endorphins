@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowUpRight, Check } from 'lucide-react'
 import { LocalDate } from '~/components/ui/local-date'
 import type { Workout, WorkoutSummary } from '~/services/workouts'
 
@@ -49,14 +49,25 @@ export function WorkoutLibrary({
                 </div>
                 <div className="min-w-0">
                   <span className="text-xs text-muted">Full body · Level {workout.level}</span>
-                  <h3 className="mt-[5px] text-[21px] font-bold tracking-[-0.5px] max-[600px]:text-[17px]">
-                    <span className="capitalize">{workout.focus}</span> focus
+                  <h3 className="mt-[5px] text-[21px] font-bold tracking-[-0.5px] first-letter:uppercase max-[600px]:text-[17px]">
+                    {workout.focus} focus
                   </h3>
                   <p className="mt-[7px] flex flex-wrap gap-2 text-xs leading-[1.8] text-muted max-[600px]:gap-[5px]">
                     <LocalDate value={workout.createdAt} year="numeric" />
                     <span>·</span>
                     {workout.blocks.reduce((sum, block) => sum + block.exercises.length, 0)}{' '}
                     exercises
+                    {workout.completedCount > 0 && (
+                      <>
+                        <span>·</span>
+                        <span className="inline-flex items-center gap-1 font-semibold text-ink">
+                          <Check size={13} className="text-focus" aria-hidden="true" />
+                          {workout.completedCount === 1
+                            ? 'Completed'
+                            : `Completed ${workout.completedCount} times`}
+                        </span>
+                      </>
+                    )}
                   </p>
                 </div>
                 <span className="ml-auto flex items-center gap-3.5 text-xs font-bold whitespace-nowrap max-[600px]:gap-0">

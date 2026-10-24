@@ -47,9 +47,9 @@ Use native controls until richer interaction needs an accessible primitive. Keep
 
 Keep simple editor reducers local and use typed field patches. Let native controls own values that no other control needs.
 
-Keep pending, error, and success states distinct. Failed shuffles keep the saved plan. Writes have no automatic retry. A manual retry keeps its key; changed inputs or a new action get a new key. Saved-plan input is immutable. Confirmation and Undo belong to one hook. Refresh analytics without delaying confirmation.
+Keep pending, error, and success states distinct. A failed completion keeps the plan to do. Writes have no automatic retry. A manual retry keeps its key; changed inputs or a new action get a new key. Saved-plan input is immutable. Confirmation and Undo belong to one hook. Refresh analytics without delaying confirmation.
 
-Workout generation uses Query's `networkMode: 'always'` so connectivity failures reach the bounded fetch/error path instead of leaving controls paused offline. Keep the generation status region outside the result's `aria-busy` container, and announce success only for the current mutation's successful state. Show a failed shuffle beside the retained plan, with one error announcement.
+Workout generation uses Query's `networkMode: 'always'` so connectivity failures reach the bounded fetch/error path instead of leaving controls paused offline. Show a failed completion beside the Mark complete action that started it, with one error announcement.
 
 Use Paper’s semantic tokens and locally served fonts. Use the shared `components/ui` library and its development `/design-system` gallery. Use Tailwind utilities in markup and shared primitive variants. Keep global theme/font/base rules in `app.css`; do not add page CSS or shared mapping dumping grounds. Keep motion inside the shared Presence component. Prefer readable copy, 48px controls (44px minimum targets), visible keyboard focus, and reduced-motion support. Check 320/390/768px layouts and desktop in a real browser when browser access is available. Verify the print dialog and actual PDF before asserting print QA has passed.
 

@@ -159,7 +159,7 @@ test('printing from the exercise view outputs the full plan without screen contr
   await expect(page.getByTestId('workout-overview')).toBeVisible()
   await expect(page.getByTestId('workout-toolbar')).toBeHidden()
   await expect(page.getByTestId('exercise-view')).toBeHidden()
-  await expect(page.getByRole('link', { name: 'I finished', exact: true })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Mark complete', exact: true })).toBeHidden()
   const pdf = await page.pdf({
     path: info.outputPath('workout-print.pdf'),
     format: 'A4',

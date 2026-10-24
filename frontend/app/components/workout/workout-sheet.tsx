@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, type ReactNode } from 'react'
-import { List, Play, Printer, Repeat, Shuffle } from 'lucide-react'
+import { Check, List, Play, Printer, Repeat } from 'lucide-react'
 import type { Workout } from '~/services/workouts'
+import type { WorkoutCompletion } from '~/hooks/use-activity'
 import { Button } from '~/components/ui/button'
 import { Feedback, LoadingState } from '~/components/ui/feedback'
 import { LocalDate } from '~/components/ui/local-date'
@@ -12,22 +13,38 @@ const WorkoutFocus = lazy(() =>
 )
 const actionButton = 'px-4 max-[600px]:px-3'
 
-// `finish` is the completion action. It ends the plan and the last exercise step.
+// The plan's completion history sets its actions. A plan to do ends with Mark complete.
+// A completed plan shows when it was done; the exercise view can record it again.
+// `result` is the outcome of a completion on this page, shown above the plan.
 export function WorkoutSheet({
   workout,
-  pending,
-  error,
-  onShuffle,
   finish,
+  result,
 }: {
   workout: Workout
-  pending: boolean
-  error?: string
-  onShuffle: () => void
-  finish: ReactNode
+  finish: WorkoutCompletion
+  result?: ReactNode
 }) {
-  const [focus, setFocus] = useState(false)
+  const [steps, setSteps] = useState(false)
   const count = workout.blocks.reduce((sum, block) => sum + block.exercises.length, 0)
+  const done = workout.completedCount > 0
+  const complete = (className: string, onSuccess?: () => void) => (
+    <Button
+      variant="primary"
+      className={className}
+      pending={finish.pending}
+      onClick={() => finish.confirm({ onSuccess })}
+    >
+      {!finish.pending && <Check size={18} aria-hidden="true" />}
+      {finish.pending ? 'Saving…' : 'Mark complete'}
+    </Button>
+  )
+  // Before a completion exists, any error belongs to the Mark complete action.
+  const error = !finish.completion && finish.error && (
+    <Feedback retry={finish.restart} retryLabel="Start a new confirmation">
+      {finish.error.message}
+    </Feedback>
+  )
   return (
     <article className="print:block print:w-full" aria-labelledby="workout-title">
       <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-5 pb-8 max-[600px]:pb-6 print:pb-4">
@@ -45,47 +62,46 @@ export function WorkoutSheet({
               Saved <LocalDate value={workout.createdAt} month="long" year="numeric" />
             </span>
           </p>
+          {workout.lastCompletedAt && (
+            <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold print:hidden">
+              <Check size={16} className="shrink-0 text-focus" aria-hidden="true" />
+              <span>
+                {workout.completedCount === 1
+                  ? 'Completed'
+                  : `Completed ${workout.completedCount} times · Last`}{' '}
+                <LocalDate value={workout.lastCompletedAt} month="long" year="numeric" />
+              </span>
+            </p>
+          )}
         </div>
         <div
           data-testid="workout-toolbar"
           className="flex gap-2 max-[600px]:grid max-[600px]:w-full max-[600px]:grid-cols-2 print:hidden"
         >
-          <Button
-            size="small"
-            className={cn(actionButton, 'max-[600px]:col-span-full')}
-            onClick={() => setFocus(!focus)}
-          >
-            {focus ? (
+          <Button size="small" className={actionButton} onClick={() => setSteps(!steps)}>
+            {steps ? (
               <>
                 <List size={17} aria-hidden="true" /> Back to plan
               </>
             ) : (
               <>
-                <Play size={17} aria-hidden="true" /> Start workout
+                <Play size={17} aria-hidden="true" /> {done ? 'Start again' : 'Start workout'}
               </>
             )}
           </Button>
           <Button size="small" className={actionButton} onClick={() => window.print()}>
             <Printer size={17} aria-hidden="true" /> Print
           </Button>
-          <Button
-            size="small"
-            className={actionButton}
-            pending={pending}
-            onClick={onShuffle}
-            aria-describedby={error ? 'workout-result-error' : undefined}
-          >
-            {!pending && <Shuffle size={17} aria-hidden="true" />} Shuffle
-          </Button>
         </div>
       </header>
-      {error && <Feedback id="workout-result-error">{error}</Feedback>}
-      {focus && (
+      {result}
+      {steps && (
         <Suspense fallback={<LoadingState>Opening exercise view…</LoadingState>}>
-          <WorkoutFocus workout={workout}>{finish}</WorkoutFocus>
+          <WorkoutFocus workout={workout}>{complete('w-full', () => setSteps(false))}</WorkoutFocus>
+          {error}
         </Suspense>
       )}
-      <div data-testid="workout-overview" className={cn(focus && 'hidden', 'print:block')}>
+      <div data-testid="workout-overview" className={cn(steps && 'hidden', 'print:block')}>
         {workout.warmupMinutes > 0 && (
           <section
             aria-labelledby="warmup-title"
@@ -151,7 +167,12 @@ export function WorkoutSheet({
             </section>
           ))}
         </div>
-        <div className="mt-8 flex justify-end max-[600px]:*:w-full print:hidden">{finish}</div>
+        {!done && (
+          <div className="mt-8 print:hidden">
+            {!steps && error}
+            <div className="flex justify-end">{complete('max-[600px]:w-full')}</div>
+          </div>
+        )}
       </div>
     </article>
   )

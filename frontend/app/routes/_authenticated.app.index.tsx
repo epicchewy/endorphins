@@ -47,7 +47,10 @@ function Dashboard() {
       {data.completedCount === 0 ? (
         <DashboardStart latest={latest} />
       ) : (
-        <DashboardActivity data={data} />
+        <>
+          {latest && latest.completedCount === 0 && <UpNext workout={latest} />}
+          <DashboardActivity data={data} />
+        </>
       )}
     </>
   )
@@ -89,16 +92,9 @@ function DashboardStart({ latest }: { latest?: Workout }) {
           <p className="mt-3 font-display text-4xl">
             {latest.estimatedMinutes} <span className="text-xl">min est.</span>
           </p>
-          <p className="mt-3 text-sm capitalize">
+          <p className="mt-3 text-sm">
             Level {latest.level} · {latest.focus} focus
           </p>
-          <Link
-            to="/app/workouts/$workoutId/finish"
-            params={{ workoutId: latest.id }}
-            className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold underline underline-offset-4"
-          >
-            I finished
-          </Link>
         </div>
       ) : (
         <img
@@ -112,6 +108,35 @@ function DashboardStart({ latest }: { latest?: Workout }) {
         />
       )}
     </section>
+  )
+}
+
+// The newest saved plan, while it is still to do.
+function UpNext({ workout }: { workout: Workout }) {
+  return (
+    <Link
+      to="/app/workouts/$workoutId"
+      params={{ workoutId: workout.id }}
+      className="group mb-8 flex items-center justify-between gap-6 rounded-panel border border-line bg-surface px-8 py-6 transition-colors duration-180 hover:border-line-strong max-[600px]:px-5 max-[600px]:py-5"
+    >
+      <span className="min-w-0">
+        <span className="block text-xs text-muted">Ready when you are</span>
+        <span className="mt-1 block text-lg font-semibold first-letter:uppercase">
+          {workout.focus} focus
+        </span>
+        <span className="mt-1 block text-sm text-muted">
+          Level {workout.level} · About {workout.estimatedMinutes} min
+        </span>
+      </span>
+      <span className="inline-flex shrink-0 items-center gap-2 text-sm font-bold">
+        <span className="max-[600px]:sr-only">Open workout</span>
+        <ArrowUpRight
+          size={20}
+          aria-hidden="true"
+          className="transition-transform duration-180 group-hover:translate-x-[3px] group-hover:-translate-y-[3px]"
+        />
+      </span>
+    </Link>
   )
 }
 
@@ -211,7 +236,7 @@ function DashboardActivity({ data }: { data: Activity }) {
               to="/app/workouts"
               className="inline-flex min-h-11 items-center text-xs font-semibold underline underline-offset-4"
             >
-              Saved plans
+              Saved workouts
             </Link>
           </div>
           <ul className="border-t border-line">
@@ -223,7 +248,7 @@ function DashboardActivity({ data }: { data: Activity }) {
                   className="flex min-h-20 items-center justify-between gap-4 border-b border-line py-4 hover:text-focus"
                 >
                   <span>
-                    <span className="block text-sm font-semibold capitalize">
+                    <span className="block text-sm font-semibold first-letter:uppercase">
                       {item.focus} focus
                     </span>
                     <span className="mt-1 block text-xs text-muted">

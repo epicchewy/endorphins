@@ -25,6 +25,21 @@ type SavedWorkout struct {
 	ID        string
 	CreatedAt time.Time
 	WorkoutPlan
+	// History comes from completion records. The plan snapshot never stores it.
+	History WorkoutHistory
+}
+
+// WorkoutHistory counts the active (not undone) completions of one saved plan.
+type WorkoutHistory struct {
+	CompletedCount  int
+	LastCompletedAt *time.Time
+}
+
+func (h *WorkoutHistory) Add(completedAt time.Time) {
+	h.CompletedCount++
+	if h.LastCompletedAt == nil || completedAt.After(*h.LastCompletedAt) {
+		h.LastCompletedAt = &completedAt
+	}
 }
 
 type WorkoutCursor struct {

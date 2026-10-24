@@ -20,6 +20,13 @@ export function useWorkoutCompletion(workoutId: string) {
   const { sessionId, getToken, isCurrentSession } = useAccountSession()
   const client = useQueryClient()
   const attempt = useRef<string | null>(null)
+  // The plan's own history changes with each write. Wait for it so the page
+  // switches between "to do" and "completed" in one step; analytics refresh later.
+  const refresh = async () => {
+    await client.invalidateQueries({ queryKey: queryKeys.workout(sessionId, workoutId) })
+    void client.invalidateQueries({ queryKey: queryKeys.workoutLists(sessionId) })
+    void client.invalidateQueries({ queryKey: queryKeys.activities(sessionId) })
+  }
   const confirmation = useMutation({
     mutationKey: queryKeys.completion(sessionId),
     mutationFn: () => {
@@ -28,9 +35,11 @@ export function useWorkoutCompletion(workoutId: string) {
     },
     retry: false,
     networkMode: 'always',
-    onSuccess: () => {
+    onSuccess: async () => {
       if (!isCurrentSession()) return
-      void client.invalidateQueries({ queryKey: queryKeys.activities(sessionId) })
+      // A later confirmation on this page is another workout, so it needs a new key.
+      attempt.current = null
+      await refresh()
     },
   })
   const removal = useMutation({
@@ -38,11 +47,11 @@ export function useWorkoutCompletion(workoutId: string) {
     mutationFn: (id: string) => undoCompletion(id, getToken),
     retry: false,
     networkMode: 'always',
-    onSuccess: () => {
+    onSuccess: async () => {
       if (!isCurrentSession()) return
+      await refresh()
       confirmation.reset()
       attempt.current = null
-      void client.invalidateQueries({ queryKey: queryKeys.activities(sessionId) })
     },
   })
   const completion = confirmation.data ?? null
@@ -51,9 +60,9 @@ export function useWorkoutCompletion(workoutId: string) {
     pending: confirmation.isPending || removal.isPending,
     error: confirmation.error ?? removal.error,
     undone: removal.isSuccess,
-    confirm: () => {
+    confirm: (options?: { onSuccess?: () => void }) => {
       removal.reset()
-      confirmation.mutate()
+      confirmation.mutate(undefined, options)
     },
     undo: () => {
       if (completion) removal.mutate(completion.id)
@@ -67,3 +76,4 @@ export function useWorkoutCompletion(workoutId: string) {
         : undefined,
   }
 }
+export type WorkoutCompletion = ReturnType<typeof useWorkoutCompletion>
