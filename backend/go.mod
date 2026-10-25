@@ -8,7 +8,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/jessevdk/go-flags v1.6.1
-	github.com/labstack/echo/v5 v5.4.0
+	github.com/labstack/echo/v5 v5.4.1
 	github.com/stretchr/testify v1.11.1
 	github.com/svix/svix-webhooks v1.99.1
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.44.0
