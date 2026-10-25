@@ -158,6 +158,7 @@ func (s *Users) Export(ctx context.Context, userID string) (domains.AccountExpor
 		if err := completionQuery(tx, userID).Find(&completions).Error; err != nil {
 			return fmt.Errorf("export completions: %w", err)
 		}
+		addHistory(result.Workouts, completions)
 		result.Completions, err = completionDomains(completions)
 		return err
 	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})

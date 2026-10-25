@@ -104,6 +104,6 @@ func seedAccount(ctx context.Context, users *postgres.Users, workouts *postgres.
 			last = completion.ID
 		}
 	}
-	// One voided completion, as left by the finish screen's Undo.
+	// One voided completion, as the undo endpoint leaves it.
 	return workouts.Undo(ctx, userID, last)
 }

@@ -2,7 +2,7 @@
 
 Home workouts built with TanStack Start, React, and Go/Echo. Choose 30–120 minutes and one of five levels. New plans need only floor space and a wall.
 
-The landing page is `/`; the signed-in app is `/app`. Signup leads through a welcome, default level choice, and workout setup. Plans save to Postgres. You can browse, follow, shuffle, and print them. After you work out, confirm completion to update your dashboard. It shows completed workouts, active days, four weeks of activity, and milestones. Light, dark, and system themes are available. Billing and cloud media storage are deferred.
+The landing page is `/`; the signed-in app is `/app`. Signup leads through a welcome, default level choice, and workout setup. Plans save to Postgres. You can browse, follow, and print them. After you work out, mark the plan complete. The plan then shows when you last completed it, and the dashboard shows completed workouts, active days, four weeks of activity, and milestones. Light, dark, and system themes are available. Billing and cloud media storage are deferred.
 
 ## Run locally
 
@@ -31,7 +31,7 @@ The Make targets use Bun’s CLI to load `.env.example` defaults and `frontend/.
 
 For separate terminals, run `make db-up`, `make migrate`, then `make api` and `make web`. Export `DATABASE_URL` to use a different database. Set `APP_ORIGINS` to comma-separated frontend origins when changing the frontend address; if changing `API_ADDRESS`, update `API_ORIGIN` too. `make db-stop` preserves your local database volume.
 
-Select **Get started** to create your first app account. Then run `make seed` to give every local account with no saved plans five weeks of plans, completions and activity. `make seed SUBJECT=user_...` seeds one Clerk user. The seed refuses non-`pk_test_` Clerk keys and never adds to an account that has plans. Signing in to the Clerk CLI only authenticates the CLI; it does not sign you into Endorphins. Your account menu provides profile and sign-out controls, and **Saved workouts** reopens saved plans. After working out, use **I finished** and confirm completion. A repeat of the same plan counts as another workout.
+Select **Get started** to create your first app account. Then run `make seed` to give every local account with no saved plans five weeks of plans, completions and activity. `make seed SUBJECT=user_...` seeds one Clerk user. The seed refuses non-`pk_test_` Clerk keys and never adds to an account that has plans. Signing in to the Clerk CLI only authenticates the CLI; it does not sign you into Endorphins. Your account menu provides profile and sign-out controls, and **Saved workouts** reopens saved plans. After working out, select **Mark complete** at the end of the plan or the exercise view. A completed plan shows its last completion date and offers **Start again**; finishing it again counts as another workout. Use **New workout** for a different plan.
 
 ### Codex local environment
 

@@ -15,7 +15,7 @@ export function PageHeading({
         <h1 className="font-display text-[clamp(36px,3.9vw,56px)] font-normal leading-[1.12] tracking-[-0.025em] max-[900px]:text-[46px] max-[600px]:text-[clamp(36px,10vw,50px)]">
           {title}
         </h1>
-        <p className="mt-3 text-[15px] leading-[1.7] text-muted max-[600px]:text-[13px]">
+        <p className="mt-3 text-[15px] leading-[1.7] text-muted-foreground max-[600px]:text-[13px]">
           {description}
         </p>
       </div>

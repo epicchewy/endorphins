@@ -231,6 +231,13 @@ export interface components {
             blocks: components["schemas"]["Block"][];
             /** Format: date-time */
             createdAt: string;
+            /** @description Completions of this plan that were not undone. */
+            completedCount: number;
+            /**
+             * Format: date-time
+             * @description Most recent completion that was not undone; null when completedCount is 0.
+             */
+            lastCompletedAt: string | null;
         };
         Error: {
             message: string;

@@ -205,6 +205,7 @@ test('preferences and completion contracts separate plans, repeats, retries and 
     headers: { ...authorization, 'Idempotency-Key': 'second-completion' },
   })
   expect(repeated.status()).toBe(201)
+  const second = await repeated.json()
   const activity = await request.get('/api/v1/activity?timezone=America%2FNew_York', {
     headers: authorization,
   })
@@ -217,6 +218,13 @@ test('preferences and completion contracts separate plans, repeats, retries and 
   expect((await request.post(url, { headers })).status()).toBe(409)
   const latest = await request.get('/api/v1/activity?timezone=UTC', { headers: authorization })
   expect((await latest.json()).completedCount).toBe(1)
+  // The plan reports its own completions; an undone one does not count.
+  const plan = await (
+    await request.get(`/api/v1/workouts/${saved.id}`, { headers: authorization })
+  ).json()
+  matches('Workout', plan)
+  expect(plan.completedCount).toBe(1)
+  expect(plan.lastCompletedAt).toBe(second.completedAt)
   expect(
     (await request.get('/api/v1/activity?timezone=invalid', { headers: authorization })).status(),
   ).toBe(400)

@@ -4,9 +4,9 @@ Updated October 21, 2026. This describes the current application. Earlier change
 
 ## Product
 
-Signed-in users generate home workouts from the Python tool’s five JSON catalogues. Inputs are an integer duration of 30–120 minutes and a level of 1–5. Plans contain legs, upper-body, and core blocks with sets, repetitions or timed rounds, rest, notes, and estimated duration. Plans save to the account. Users can reopen, shuffle with the same preferences, and print them.
+Signed-in users generate home workouts from the Python tool’s five JSON catalogues. Inputs are an integer duration of 30–120 minutes and a level of 1–5. Plans contain legs, upper-body, and core blocks with sets, repetitions or timed rounds, rest, notes, and estimated duration. Plans save to the account. Users can reopen and print them. Each plan reports how many times it was completed and when.
 
-The optional exercise view steps through a plan. A separate finish screen records completion after confirmation. Billing, Backblaze, guided timers, and offline installation are deferred. Hosting and the external Clerk webhook subscription need deployment setup.
+The optional exercise view steps through a plan. **Mark complete** records a completion on the plan page, with Undo. Billing, Backblaze, guided timers, and offline installation are deferred. Hosting and the external Clerk webhook subscription need deployment setup.
 
 ## Runtime
 
@@ -30,10 +30,10 @@ Start renders pages; the browser calls Go through TanStack Query. Each router ha
 | Go             | 1.27.1, project toolchain; exact compiler also selected for the linter                        |
 | HTTP           | Echo v5.4.0, request IDs, recovery, structured request logs                                   |
 | React          | 19.3.0                                                                                        |
-| Routing        | TanStack Start 1.168.59 / Router 1.170.40                                                     |
+| Routing        | TanStack Start 1.168.60 / Router 1.170.41                                                     |
 | Remote state   | Query 5.104.0 / SSR bridge 1.167.3                                                            |
-| Styling        | Tailwind 4.3.3 utilities, semantic tokens and locally served fonts                            |
-| Runtime/build  | Bun 1.4.2, Node 26.10.0, Vite 8.3.1                                                           |
+| Styling        | Tailwind 4.3.3, shadcn/ui components on Base UI 1.9.0, our tokens and locally served fonts    |
+| Runtime/build  | Bun 1.4.2, Node 26.10.0, Vite 8.3.3                                                           |
 | Authentication | Clerk TanStack Start SDK 1.6.3 / Go SDK v2.7.0; Svix v1.99.1 for webhook verification         |
 | Persistence    | Postgres 17, GORM v1.31.2 / Postgres driver v1.6.3, pgx v5.11.0                               |
 | Database tests | Testcontainers Go v0.44.0                                                                     |
@@ -41,7 +41,7 @@ Start renders pages; the browser calls Go through TanStack Query. Each router ha
 | Contract       | OpenAPI 3.0.3, generated TypeScript with openapi-typescript 7.13.0                            |
 | Checks         | strict TypeScript, Oxlint, React Doctor 0.9.17, Prettier, Go race tests, golangci-lint 2.14.0 |
 
-The frontend versions follow the Postmaker migration at commit `ec8e694`. Shared primitives use native controls. The app does not need TanStack Form, Base UI, or Zustand.
+The frontend versions follow the Postmaker migration at commit `ec8e694`. Shared primitives are shadcn components on Base UI; the duration and level chips stay native radios. The app does not need TanStack Form or Zustand.
 
 Go 1.27.1 was verified against [official downloads](https://go.dev/dl/) and downloaded successfully during implementation. Echo’s [v5 quickstart](https://echo.labstack.com/docs/quick-start) was checked before setup. Lockfiles pin the resolved application dependencies.
 
@@ -55,7 +55,7 @@ frontend/
     auth/                    # Production Clerk client/server adapters
     routes/                  # Routes, validated URL state, screen composition
     pages/                   # Public landing composition
-    components/ui/           # Controlled buttons, fields, feedback, presence
+    components/ui/           # shadcn components plus our radio chip and feedback
     components/workout/      # Workout-specific builder, library, plan, exercise view
     components/auth/         # Account controls, auth layout, session boundary
     server/auth.ts           # Private-route server auth check
@@ -63,7 +63,7 @@ frontend/
     services/                # HTTP, account/workout transport, keys, pure helpers
     types/api.gen.ts          # Generated from OpenAPI
     router.tsx               # Per-router QueryClient
-    app.css                  # Tailwind theme, fonts, base rules, keyframes, print setup
+    app.css                  # Theme tokens, dark variant, fonts, base rules, print setup
   test/                      # Focused unit tests and build-only identity fixtures
   scripts/check-boundaries.ts # Frontend dependency and primitive ownership checks
   server.ts                  # Bun SSR/static server and bounded same-origin proxy
@@ -105,7 +105,7 @@ Handlers declare small interfaces for the service methods they consume. Resource
 
 Services cannot import Echo, handlers, server, repositories, application setup, integrations, or configuration. Repositories cannot import services or HTTP layers. Handlers cannot construct storage or depend on the server. `scripts/check-layers.py` enforces these rules, including transitive imports, in `make check`.
 
-Frontend import rules also run as part of linting. UI primitives and pure services cannot depend on application hooks/routes; hooks own remote-state policy; product components compose primitives. Motion ownership stays in the UI library. The checks keep dependencies explicit.
+Frontend import rules also run as part of linting. UI primitives and pure services cannot depend on application hooks/routes; hooks own remote-state policy; product components compose primitives. The checks keep dependencies explicit.
 
 Frontend lint runs the pinned React Doctor full scan. CI fails on errors or warnings. The scan shares the generated-file exclusions in the Oxlint config and uses no remote score or supply-chain service.
 
@@ -134,17 +134,17 @@ Validated URL search owns builder minutes/level. The custom-duration input keeps
 
 Hooks own fetching, pagination, retries, and mutations. `services/http.ts` owns authenticated transport, cancellation/deadlines, and safe error parsing; account and workout transport are separate modules. One key factory scopes every private query and mutation to the Clerk session. Generating a workout seeds its detail cache and invalidates all list/summary variants only if the originating session remains current.
 
-Setup owns generation input. The saved-plan route owns the displayed plan; the plan sheet owns the local plan/exercise-view toggle. Postgres owns history. A failed shuffle keeps the previous plan; a successful shuffle saves a new plan with the same preferences. A generation or shuffle opens the new plan only if the reader is still on the page that started it; the router keeps that page mounted while the next route loads. Writes are not retried automatically. Manual retries keep one idempotency key until success, reset, or changed preferences. The completion hook owns confirmation, Undo, and key rotation. It shows a saved completion before refreshing analytics.
+Setup owns generation input. The saved-plan route owns the displayed plan and its completion result; the plan sheet owns the local plan/exercise-view toggle. Postgres owns history. A generation opens the new plan only if the reader is still on the page that started it; the router keeps that page mounted while the next route loads. Writes are not retried automatically. Manual retries keep one idempotency key until success, reset, or changed preferences. The completion hook owns confirmation, Undo, and key rotation; each success starts a new key. It waits for the plan's refreshed history, so the page changes from to-do to completed in one step, then refreshes lists and analytics without waiting.
 
 The library fetches saved plans newest first, with a count across the account; it has no search or filter controls. The Go API still accepts `q`, `level`, and `sort`. Loaded pages only determine which cards are currently displayed. Summary counts and estimated minutes never imply completed activity. The `/app/account` screen, linked as **Settings** from the account menu, shows application account details and downloads a consistent owner-scoped export; late downloads are suppressed after a session switch.
 
 ## Design system
 
-`components/ui` is the controlled primitive library: native buttons and link presentation, fields/inputs/selects/radios, error/retry feedback, loading/empty states, local date display, and Presence transitions. Button styles live outside the component so Fast Refresh can preserve state. `LocalDate` uses TanStack's `ClientOnly` with a fixed date fallback before hydration. Presence uses `LazyMotion` with animation features. These components own presentation and interaction contracts; callers own application values, routing, and requests.
+`components/ui` is the controlled primitive library. Buttons, fields, inputs, native selects, alerts, empty states and spinners are shadcn components (`base-nova`, on Base UI), configured by `frontend/components.json`. Our own primitives are the native radio chip, error/retry feedback, loading/empty states, and local date display. Button variants live in `button-variants.ts` so Fast Refresh can preserve state. `LocalDate` uses TanStack's `ClientOnly` with a fixed date fallback before hydration. These components own presentation and interaction contracts; callers own application values, routing, and requests.
 
-`app.css` contains font loading, semantic Tailwind tokens, base rules, and keyframes. It is the only application stylesheet. Shared primitives own control styles and states through Tailwind utilities; layouts and responsive/print variants stay beside their markup. The palette supports light and dark schemes. Shared controls preserve readable text, keyboard focus, disabled/pending behavior, and touch targets. Motion follows the shared reduced-motion policy.
+`app.css` contains font loading, shadcn-named theme tokens, the `dark` variant, and base rules. It is the only application stylesheet. Shared primitives own control styles and states through Tailwind utilities; layouts and responsive/print variants stay beside their markup. The palette supports light and dark schemes. Shared controls preserve readable text, keyboard focus, disabled/pending behavior, and touch targets. Hover changes color only; reduced motion removes every transition.
 
-Successful generation focuses the plan title and scrolls to it at mobile widths, respecting reduced motion. The saved plan shows every exercise with its count and notes: three block columns from 900px, one column below, and one compact column in print. Completion is the plan's last action. Fonts and photography are served locally. The display face is the Sharp Serif Text PDF preview recovered from the supplied specimen, paired with Inter; the original font package is still needed for public release. [The design system](design-system.md) defines tokens and control contracts. Its development gallery is `/design-system`.
+Successful generation focuses the plan title and scrolls to it at mobile widths, respecting reduced motion. The saved plan shows every exercise with its count and notes: three block columns from 900px, one column below, and one compact column in print. **Mark complete** is the last action of a plan that is still to do and of the exercise view. Fonts and photography are served locally. The display face is the Sharp Serif Text PDF preview recovered from the supplied specimen, paired with Inter; the original font package is still needed for public release. [The design system](design-system.md) defines tokens and control contracts. Its development gallery is `/design-system`.
 
 Mobbin informed information hierarchy; the [Paper file](https://app.paper.design/file/01M3TVV9XXTXF2N7ZD43K3WH3V) stores desktop/mobile studies. Reconcile Paper changes with the app’s tokens and control contracts.
 
@@ -170,7 +170,7 @@ Existing accounts resolve with one read. The unique deletion-digest key serializ
 
 The public `/` landing page has its own header and footer. `/app` uses compact app navigation and an activity dashboard. Private routes pass the requested app URL through the server auth guard. After signup, `/app/onboarding` introduces floor/wall home workouts and saves one of five default levels: Light, Steady, Lively, Tough, Fiery. The account stores the level and first onboarding timestamp. Profile errors show recovery rather than redirecting into onboarding. The first setup is `/app/new`; explicit URL settings override the saved level.
 
-Generation saves an immutable plan and opens `/app/workouts/{id}`. The optional exercise view and the direct **I finished** action open `/app/workouts/{id}/finish`. Only an explicit confirmation writes a completion. Reusing a plan with a new confirmation creates another completion. Network retries reuse the operation key. Undo voids that record and keeps the key, so a delayed retry cannot restore it. The saved plan remains available.
+Generation saves an immutable plan and opens `/app/workouts/{id}`. The plan's `completedCount` and `lastCompletedAt` set its state. A plan that is still to do offers **Start workout** and ends with **Mark complete**. A completed plan shows its last completion date, offers **Start again**, and has no finish action outside the exercise view. Only the **Mark complete** button writes a completion. The plan page then shows the result with progress, milestones and Undo, and moves focus to it. Reusing a plan with a new confirmation creates another completion. Network retries reuse the operation key. Undo voids that record and keeps the key, so a delayed retry cannot restore it. The saved plan remains available. The dashboard links to the newest plan while it is still to do; the library marks completed plans.
 
 `GET /api/v1/activity` uses the browser's IANA time zone. It returns completed-workout totals, distinct active days in the current Monday-start week, four weekly counts, and five recent completions. Queries use a consistent database snapshot and owner scope. Milestones are derived at 1, 5, 10, 25, and 50 completions. Empty dashboards explain the next action; charts appear after completion. Saved-plan counts stay in the library. No elapsed time, calorie estimate, streak, or exercise-level logging is inferred.
 

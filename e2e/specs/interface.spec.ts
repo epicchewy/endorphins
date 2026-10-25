@@ -9,7 +9,7 @@ test('sign-in returns to the chosen workout and native validation preserves cust
   await expect(page.getByRole('heading', { name: 'Welcome home.' })).toBeVisible()
   await page.getByRole('button', { name: 'Choose my level' }).click()
   await page.getByRole('button', { name: 'Set up my workout' }).click()
-  const duration = page.getByRole('spinbutton', { name: 'Duration' })
+  const duration = page.getByRole('spinbutton', { name: 'Custom duration' })
   await expect(duration).toHaveValue('75')
   await expect(page.getByRole('radio', { name: 'Level 4: Tough' })).toBeChecked()
   await duration.fill('')
@@ -44,7 +44,9 @@ test('component gallery shares accessible light/dark controls and reduced-motion
     'color',
     'rgb(21, 24, 25)',
   )
-  await expect(dark.getByRole('alert')).toHaveCSS('background-color', 'rgb(60, 36, 35)')
+  await expect(
+    dark.getByRole('alert').filter({ hasText: 'We couldn’t save your workout.' }),
+  ).toHaveCSS('background-color', 'rgb(29, 33, 35)')
   await expect(light.getByRole('button', { name: 'Unavailable' })).toBeDisabled()
   await expect(dark.getByRole('button', { name: 'Saving…' })).toBeDisabled()
   await light.getByRole('combobox', { name: 'Your level' }).selectOption('4')
@@ -55,12 +57,8 @@ test('component gallery shares accessible light/dark controls and reduced-motion
   await expect(dark.getByRole('combobox', { name: 'Your level' })).toHaveValue('2')
   await light.getByRole('button', { name: 'Try again' }).click()
   await expect(light.getByRole('status').filter({ hasText: 'Ready to try again.' })).toBeVisible()
-  await light.getByRole('button', { name: 'Next move' }).click()
-  await expect(light.getByText('Step 2. Make it count.')).toBeVisible()
-  const transform = await light
-    .getByText('Step 2. Make it count.')
-    .evaluate((node) => getComputedStyle(node.parentElement!).transform)
-  expect(transform).toBe('none')
+  const spinner = light.getByRole('button', { name: 'Saving…' }).locator('svg')
+  expect(await spinner.evaluate((node) => getComputedStyle(node).animationName)).toBe('none')
   await page.setViewportSize({ width: 320, height: 844 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
@@ -99,6 +97,7 @@ test('mobile layout, theme, keyboard navigation, and unsaved preferences stay us
   await page.keyboard.press('ArrowRight')
   await expect(page.getByRole('radio', { name: '45min', exact: true })).toBeChecked()
   await page.getByRole('link', { name: 'Settings', exact: true }).click()
+  await expect(page.getByRole('combobox', { name: 'Color theme' })).toHaveValue('dark')
   await page.getByRole('combobox', { name: 'Default level' }).selectOption('5')
   page.once('dialog', (dialog) => void dialog.dismiss())
   await page.getByRole('link', { name: 'Dashboard', exact: true }).click()
@@ -136,15 +135,17 @@ test('theme controls and browser color follow system and other-tab changes', asy
   }
 })
 
-test('shared action links show hover and pressed feedback', async ({ page }, info) => {
+test('shared action links change color on hover without lifting', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'Hover feedback requires a pointer')
   await page.goto('/')
   const buildLink = page.getByRole('link', { name: 'Get started' }).last()
+  const background = () => buildLink.evaluate((node) => getComputedStyle(node).backgroundColor)
+  const rest = await background()
   await buildLink.hover()
-  await expect(buildLink).toHaveCSS('background-color', 'rgb(243, 106, 73)')
-  await expect(buildLink).toHaveCSS('translate', '0px -2px')
+  await expect.poll(background).not.toBe(rest)
+  await expect(buildLink).toHaveCSS('translate', 'none')
   await page.mouse.down()
-  await expect(buildLink).toHaveCSS('translate', '0px')
+  await expect(buildLink).toHaveCSS('translate', '0px 1px')
   await page.mouse.move(0, 0)
   await page.mouse.up()
 })
@@ -159,7 +160,7 @@ test('printing from the exercise view outputs the full plan without screen contr
   await expect(page.getByTestId('workout-overview')).toBeVisible()
   await expect(page.getByTestId('workout-toolbar')).toBeHidden()
   await expect(page.getByTestId('exercise-view')).toBeHidden()
-  await expect(page.getByRole('link', { name: 'I finished', exact: true })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Mark complete', exact: true })).toBeHidden()
   const pdf = await page.pdf({
     path: info.outputPath('workout-print.pdf'),
     format: 'A4',

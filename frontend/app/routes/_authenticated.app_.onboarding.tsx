@@ -4,7 +4,7 @@ import { ArrowRight, Check, House } from 'lucide-react'
 import { useAccount, useUpdateAccount } from '~/hooks/use-account'
 import { AppHeader } from '~/components/app-header'
 import { Button } from '~/components/ui/button'
-import { RadioOption } from '~/components/ui/field'
+import { RadioOption } from '~/components/ui/radio-option'
 import { Feedback, LoadingState } from '~/components/ui/feedback'
 import { SkipLink } from '~/components/ui/skip-link'
 import { safeAppPath } from '~/services/app-navigation'
@@ -56,11 +56,11 @@ function OnboardingSetup({ defaultLevel }: { defaultLevel: number }) {
     >
       <ol
         aria-label="Getting started"
-        className="mb-8 flex items-center gap-3 text-xs font-medium text-muted"
+        className="mb-8 flex items-center gap-3 text-xs font-medium text-muted-foreground"
       >
         <li
           aria-current={step === 0 ? 'step' : undefined}
-          className={step === 0 ? 'text-ink' : undefined}
+          className={step === 0 ? 'text-foreground' : undefined}
         >
           Welcome
         </li>
@@ -69,7 +69,7 @@ function OnboardingSetup({ defaultLevel }: { defaultLevel: number }) {
         </li>
         <li
           aria-current={step === 1 ? 'step' : undefined}
-          className={step === 1 ? 'text-ink' : undefined}
+          className={step === 1 ? 'text-foreground' : undefined}
         >
           Your level
         </li>
@@ -77,7 +77,7 @@ function OnboardingSetup({ defaultLevel }: { defaultLevel: number }) {
       {step === 0 ? (
         <div className="grid grid-cols-[1.2fr_1fr] items-center gap-14 max-[900px]:grid-cols-1">
           <div>
-            <House size={32} strokeWidth={1.5} className="mb-6 text-focus" aria-hidden="true" />
+            <House size={32} strokeWidth={1.5} className="mb-6 text-emphasis" aria-hidden="true" />
             <h1
               ref={heading}
               tabIndex={-1}
@@ -109,13 +109,12 @@ function OnboardingSetup({ defaultLevel }: { defaultLevel: number }) {
               ].map(([title, body]) => (
                 <div key={title}>
                   <dt className="font-semibold">{title}</dt>
-                  <dd className="mt-2 leading-relaxed text-muted">{body}</dd>
+                  <dd className="mt-2 leading-relaxed text-muted-foreground">{body}</dd>
                 </div>
               ))}
             </dl>
             <Button
-              variant="primary"
-              className="w-full justify-between"
+              className="w-full"
               onClick={() => {
                 setStep(1)
                 setLevel(defaultLevel)
@@ -132,7 +131,7 @@ function OnboardingSetup({ defaultLevel }: { defaultLevel: number }) {
             width="1122"
             height="1402"
             alt="A simple stretch at home"
-            className="aspect-[4/5] w-full rounded-panel object-cover max-[900px]:hidden"
+            className="aspect-[4/5] w-full rounded-xl object-cover max-[900px]:hidden"
           />
         </div>
       ) : (
@@ -144,7 +143,7 @@ function OnboardingSetup({ defaultLevel }: { defaultLevel: number }) {
           >
             Find your starting level.
           </h1>
-          <p className="mt-4 mb-7 text-sm leading-relaxed text-muted">
+          <p className="mt-4 mb-7 text-sm leading-relaxed text-muted-foreground">
             Start with Light if you are new to exercise. You can change the level for any workout.
           </p>
           <form
@@ -181,12 +180,7 @@ function OnboardingSetup({ defaultLevel }: { defaultLevel: number }) {
               ))}
             </fieldset>
             {update.isError && <Feedback>{update.error.message}</Feedback>}
-            <Button
-              type="submit"
-              variant="primary"
-              pending={update.isPending}
-              className="mt-7 w-full justify-between"
-            >
+            <Button type="submit" pending={update.isPending} className="mt-7 w-full">
               {update.isPending ? 'Saving your level…' : 'Set up my workout'}{' '}
               <ArrowRight size={18} aria-hidden="true" />
             </Button>
