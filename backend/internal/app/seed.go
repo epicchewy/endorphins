@@ -28,6 +28,12 @@ var seedHistory = []struct{ daysAgo, minutes, level, done int }{
 // generator and stores. It never adds to an account that already has plans.
 // It reads every account back, so a schema or snapshot break fails here.
 func Seed(ctx context.Context, cfg config.SeedConfig, logger *slog.Logger) error {
+	// Previews copy production's variables, including SEED_SUBJECTS and the
+	// development Clerk key, so only the environment name keeps prod unseeded.
+	if cfg.Seed.Environment == "production" {
+		logger.Info("seed skipped: production never gets development data")
+		return nil
+	}
 	catalogue, err := catalogue.New(os.DirFS(cfg.Catalogue.Directory))
 	if err != nil {
 		return fmt.Errorf("initialize catalogue: %w", err)

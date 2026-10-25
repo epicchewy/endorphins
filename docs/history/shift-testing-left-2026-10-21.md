@@ -51,8 +51,9 @@ The first pass used web search because Exa was not connected. A second pass with
 | --- | --- | --- |
 | Seed data | `cmd/seed` writes five weeks of plans and completions through the real generator and stores. A GORM session clock backdates them. It refuses non-`pk_test_` Clerk keys and never adds to an account that has plans. | Raw SQL fixtures; reusing the e2e-only fixture package; Snaplet seed |
 | Migrations | Keep `AutoMigrate`. `make migration-check` seeds a database with the base commit, migrates it with the branch, reads every account back and seeds a new one. It then compares the upgraded columns and indexes with a fresh migration. CI runs it on PRs and `master`. | Versioned SQL with goose or Atlas: it breaks the raw SQL breakglass and the Temper convention, and Atlas lint is paid |
-| Previews | Railway project with `postgres`, `api` and `web`. `staging` deploys `master` and is the PR base. The `api` pre-deploy step migrates and seeds. | Vercel or Fly: Railway gives databases, private networking and environments in one place |
-| Identity | Reuse the Clerk development instance for local, staging and PR environments. | A second development instance |
+| Previews | Railway project with `postgres`, `api`, `web` and a `tailnet` forwarder. `production` deploys `master` and is the PR base; there is no staging. The `api` pre-deploy step migrates, then seeds everywhere except `production`. | Vercel or Fly: Railway gives databases, private networking and environments in one place. A persistent staging environment: production already is the long-lived populated database |
+| Access | No public domains. Each environment's Tailscale Forwarder serves HTTPS on its `ts.net` name, as Postmaker is reachable only over Tailscale. | A subnet router like Postmaker's: one per tailnet, already taken, and plain HTTP breaks Clerk. Railway Authentication: committed-spend plans only |
+| Identity | Reuse the Clerk development instance for local, PR and production environments. A Clerk production instance needs an owned domain, which `ts.net` is not. | A second development instance |
 | Realistic flows | `make e2e-clerk URL=...` runs the real-Clerk journeys against any preview. | Running them on every deploy: the deploy event has no URL yet |
 
 The upgrade check was proven against an injected `NOT NULL` column with no default. Postgres rejected it with `column "calories" of relation "workouts" contains null values`. The existing tests passed with the same change.
@@ -67,10 +68,19 @@ The drift comparison was added on October 23 after the user approved its one SQL
 
 The design did not change; the upgrade check gained the schema comparison.
 
+## Production behind Tailscale (October 24)
+
+The user dropped staging. The test environments are local, Railway PR previews and a persistent `production`, which stays private over Tailscale like Postmaker.
+
+- Postmaker's Railway project has no public domains and runs `tailscale/tailscale` as a subnet router (`TS_ROUTES`, state on a volume, hostname `<project>-<environment>`). Railway documents that only one subnet router per tailnet can carry its shared private range, so Endorphins uses the per-environment forwarder.
+- PR environments copy production's variables, and Railway sets no variable that marks a PR environment. Production therefore keeps `SEED_SUBJECTS` for previews, and the seed skips the environment named `production`. Because production also uses a `pk_test_` key, the key guard alone no longer protects it.
+- The SDK's `postgres()` helper now provisions Postgres 18. The configuration pins `postgres-ssl:17` through `database()` to match tests, local development and Postmaker.
+
 ## Deferred
 
 - **Pre-deploy timeout.** Set `preDeployTimeoutSeconds` so a migration stuck on a lock fails the deploy instead of holding it.
-- **Seeded personas and sign-in links.** Seed several account shapes (new, onboarded with no plans, active) and post Clerk Agent Task links on the PR. First confirm that Agent Task redirects accept Railway preview domains.
+- **Seeded personas and sign-in links.** Seed several account shapes (new, onboarded with no plans, active) and post Clerk Agent Task links on the PR. First confirm that Agent Task redirects accept the forwarders' `ts.net` names.
+- **Production snapshots.** Once production holds real data, restore a snapshot of it into local development and `make migration-check`, as Postmaker's `scripts/dev snapshot` does.
 - **Preview e2e on every deploy.** Add it when PR volume justifies a Railway token in CI. Resolve the URL with `railway domain list` or the GraphQL API after the `deployment_status` event.
 - **Playwright test agents.** Run the planner against a preview as exploratory testing. Fold reviewed generator output into the existing `e2e/specs` files. Never let the healer commit unreviewed changes.
 - **Agent workloads.** For generating personalized workouts with agents: a worker service beside `api` with River jobs in the same Postgres, and Railway Sandboxes for isolated agent runs, with private networking only when a run needs the API or database. Cloud agents can run Claude Code inside the project.

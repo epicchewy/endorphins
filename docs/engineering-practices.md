@@ -16,7 +16,7 @@ Read [architecture](architecture.md) for module ownership. Dated reviews and dec
 
 CI runs `make check` and `make e2e`, rejects generated route/API drift, checks release bundles for test-identity leakage, and uploads browser reports, traces, videos and stack logs. A parallel job runs `make migration-check` from the PR base (or the previous `master` commit). The external Clerk provider UI is replaced only in the explicit e2e build; real API authorization and SQL remain exercised. `make e2e-clerk` checks real Clerk sign-up and sessions against `make dev` or a preview (`URL=https://...`); it is not part of CI.
 
-Railway deploys `master` to `staging` and each pull request to its own [preview environment](preview-environments.md) with a migrated, seeded Postgres. `.railway/railway.ts` holds that configuration; preview it with `railway config plan` and apply it only after reading the plan.
+Railway deploys `master` to `production` and each pull request to its own [preview environment](preview-environments.md) with a migrated, seeded Postgres. Neither has a public domain; both are reached over Tailscale. `.railway/railway.ts` holds that configuration; preview it with `railway config plan` and apply it only after reading the plan.
 
 ## Go structure and discipline
 

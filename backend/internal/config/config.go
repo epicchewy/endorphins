@@ -36,6 +36,7 @@ type SeedOptions struct {
 	PublishableKey string   `long:"clerk-publishable-key" env:"VITE_CLERK_PUBLISHABLE_KEY" required:"true" description:"Clerk publishable key; seeding needs a development (pk_test_) key"`
 	Subjects       []string `long:"subject" env:"SEED_SUBJECTS" env-delim:"," description:"Clerk user ID to seed; repeat or use comma-separated SEED_SUBJECTS"`
 	AllAccounts    bool     `long:"all-accounts" description:"Also seed every existing account that has no saved plans"`
+	Environment    string   `long:"railway-environment" env:"RAILWAY_ENVIRONMENT_NAME" description:"Railway environment name; seeding is skipped in production"`
 }
 
 type SeedConfig struct {

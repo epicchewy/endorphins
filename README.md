@@ -60,7 +60,7 @@ cd frontend && bun run doctor # full React Doctor scan; errors and warnings fail
 
 `make migration-check` starts a throwaway Postgres container. It migrates and seeds it with `origin/master` (or `BASE=<ref>`), then migrates it with this checkout, reads every account back and seeds a new one. Last, it compares the upgraded columns and indexes with a fresh migration of this checkout. It catches schema changes that break or drift only in a populated database: a new `NOT NULL` column without a default, a column tightened to `NOT NULL`, a removed field whose column remains, or a changed index. Run it after you change repository models; CI runs it on pull requests.
 
-Each pull request also gets a Railway preview environment with its own seeded Postgres. See [preview environments](docs/preview-environments.md).
+Each pull request also gets a Railway preview environment with its own seeded Postgres, and `master` deploys to a persistent Railway `production`. Both are reachable only over Tailscale. See [Railway production and previews](docs/preview-environments.md).
 
 For a production-mode local preview, run these in separate terminals after `make check`:
 
@@ -82,7 +82,7 @@ The Bun server compresses built JavaScript and CSS once at startup and serves ca
 - [Engineering practices](docs/engineering-practices.md)
 - [OpenAPI contract](api/openapi.json)
 - [Deployment runbook](docs/deployment.md)
-- [Railway staging and PR preview environments](docs/preview-environments.md)
+- [Railway production and PR previews, private over Tailscale](docs/preview-environments.md)
 - [History: dated reviews, research, and decision records](docs/history/)
 
 Open `/design-system` in development to inspect the shared controls. `/app/account` provides an authenticated JSON data export.
