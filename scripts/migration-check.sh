@@ -16,7 +16,7 @@ cleanup() {
 }
 trap cleanup EXIT
 git worktree add --detach --quiet "$work/base" "$base"
-container=$(docker run -d -e POSTGRES_PASSWORD=check -e POSTGRES_DB=upgrade -p 127.0.0.1::5432 postgres:17-alpine)
+container=$(docker run -d -e POSTGRES_PASSWORD=check -e POSTGRES_DB=upgrade -p 127.0.0.1::5432 postgres:18-alpine)
 port=$(docker port "$container" 5432/tcp | head -n 1 | sed 's/.*://')
 # The image's init server listens on a socket only, so TCP readiness means the real server.
 until docker exec "$container" pg_isready -h 127.0.0.1 -U postgres -d upgrade >/dev/null 2>&1; do sleep 1; done

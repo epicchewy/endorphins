@@ -30,7 +30,7 @@ func TestMain(m *testing.M) {
 func runRepositoryTests(m *testing.M) (code int) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	container, err := tcpostgres.Run(ctx, "postgres:17-alpine",
+	container, err := tcpostgres.Run(ctx, "postgres:18-alpine",
 		tcpostgres.WithDatabase("endorphins_repositories_test"),
 		tcpostgres.WithUsername("test"), tcpostgres.WithPassword("test"),
 		tcpostgres.BasicWaitStrategies(),

@@ -7,7 +7,7 @@ Host: Playwright (desktop + mobile Chromium)
   → random published frontend port
     → Bun SSR / static files / API proxy     [container]
       → Go cmd/api                          [container]
-        → Postgres 17                       [container]
+        → Postgres 18                       [container]
         → ephemeral Clerk JWKS              [inside API container]
 ```
 

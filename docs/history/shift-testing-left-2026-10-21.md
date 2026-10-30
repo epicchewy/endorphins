@@ -74,7 +74,8 @@ The user dropped staging. The test environments are local, Railway PR previews a
 
 - Postmaker's Railway project has no public domains and runs `tailscale/tailscale` as a subnet router (`TS_ROUTES`, state on a volume, hostname `<project>-<environment>`). Railway documents that only one subnet router per tailnet can carry its shared private range, so Endorphins uses the per-environment forwarder.
 - PR environments copy production's variables, and Railway sets no variable that marks a PR environment. Production therefore keeps `SEED_SUBJECTS` for previews, and the seed skips the environment named `production`. Because production also uses a `pk_test_` key, the key guard alone no longer protects it.
-- The SDK's `postgres()` helper now provisions Postgres 18. The configuration pins `postgres-ssl:17` through `database()` to match tests, local development and Postmaker.
+- Railway provisions Postgres 18, and a pin to 17 would have swapped Railway's SSL template for the plain `postgres:17` image on a data folder 18 had created. Everything moved to 18 instead: Railway, `compose.yaml` (a new volume at `/var/lib/postgresql`, which 18 requires), the Go and e2e test containers, and `make migration-check`. Postmaker stays on 17.
+- The workspace default region is Singapore. Endorphins runs in `us-east4-eqdc4a`, beside Postmaker. `railway config plan` (CLI 5.71) moves databases and volumes between regions but drops a single-replica service's region change, so the services were moved with the Railway MCP's `update-service`.
 
 ## Deferred
 

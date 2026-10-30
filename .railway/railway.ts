@@ -1,25 +1,24 @@
 import {
-  database,
   defineRailway,
   github,
   image,
+  postgres,
   preserve,
   project,
   service,
   volume,
 } from 'railway/iac'
 
+// US East, beside Postmaker. Railway's workspace default is Singapore.
+const region = 'us-east4-eqdc4a'
+
 // `production` deploys master. Railway copies it into a PR environment for each
 // pull request, with its own empty Postgres. No service has a public domain:
 // people, agents and CI reach `web` only through the `tailnet` forwarder.
 export default defineRailway(() => {
   const repo = github('epicchewy/endorphins', { branch: 'master' })
-  // postgres() now provisions 18; tests, local dev and Postmaker run 17.
-  const db = database('postgres', 'postgres', {
-    image: 'ghcr.io/railwayapp-templates/postgres-ssl:17',
-    output: 'DATABASE_URL',
-    defaultMountPath: '/var/lib/postgresql/data',
-  })
+  // Railway's Postgres 18; local dev, tests and migration-check run 18 too.
+  const db = postgres('postgres', { region })
 
   const api = service('api', {
     source: repo,
@@ -32,6 +31,7 @@ export default defineRailway(() => {
     // seed fills a new PR database and skips production by itself.
     preDeploy: "sh -c '/app/migrate && /app/seed'",
     healthcheck: '/readyz',
+    replicas: { [region]: 1 },
     env: {
       DATABASE_URL: db.env.DATABASE_URL,
       // Dual-stack, so the private network reaches it over IPv4 or IPv6.
@@ -53,6 +53,7 @@ export default defineRailway(() => {
       watchPatterns: ['frontend/**'],
     },
     healthcheck: '/',
+    replicas: { [region]: 1 },
     env: {
       API_ORIGIN: 'http://${{api.RAILWAY_PRIVATE_DOMAIN}}:8088',
       // The forwarder dials web over the private network, which needs `::`.
@@ -81,7 +82,8 @@ export default defineRailway(() => {
       CONNECTION_MAPPING_01: 'https:443:${{web.RAILWAY_PRIVATE_DOMAIN}}:3100',
       CONNECTION_MAPPING_02: '5432:${{postgres.RAILWAY_PRIVATE_DOMAIN}}:5432',
     },
-    volumeMounts: { '/var/lib/tailscale': volume('tailscale-state') },
+    replicas: { [region]: 1 },
+    volumeMounts: { '/var/lib/tailscale': volume('tailscale-state', { region }) },
   })
 
   return project('endorphins', { resources: [db, api, web, tailnet] })

@@ -35,7 +35,7 @@ Start renders pages; the browser calls Go through TanStack Query. Each router ha
 | Styling        | Tailwind 4.3.3, shadcn/ui components on Base UI 1.9.0, our tokens and locally served fonts    |
 | Runtime/build  | Bun 1.4.2, Node 26.10.0, Vite 8.3.3                                                           |
 | Authentication | Clerk TanStack Start SDK 1.6.3 / Go SDK v2.7.0; Svix v1.99.1 for webhook verification         |
-| Persistence    | Postgres 17, GORM v1.31.2 / Postgres driver v1.6.3, pgx v5.11.0                               |
+| Persistence    | Postgres 18, GORM v1.31.2 / Postgres driver v1.6.3, pgx v5.11.0                               |
 | Database tests | Testcontainers Go v0.44.0                                                                     |
 | Browser tests  | Playwright 1.61.0, desktop Chromium and Pixel 7 mobile emulation                              |
 | Contract       | OpenAPI 3.0.3, generated TypeScript with openapi-typescript 7.13.0                            |
