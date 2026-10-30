@@ -34,6 +34,11 @@ icon = "tool"
 command = "make migrate"
 
 [[actions]]
+name = "Seed"
+icon = "tool"
+command = "make seed"
+
+[[actions]]
 name = "Stop Postgres"
 icon = "tool"
 command = "make db-stop"

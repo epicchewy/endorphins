@@ -42,7 +42,7 @@ export async function startStack() {
     cleanup.push(() => network.stop())
     await start(
       'postgres',
-      new PostgreSqlContainer('postgres:17-alpine')
+      new PostgreSqlContainer('postgres:18-alpine')
         .withDatabase('endorphins_e2e')
         .withUsername('test')
         .withPassword('test')

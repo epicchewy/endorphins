@@ -1,6 +1,6 @@
 # Endorphins architecture
 
-Updated October 14, 2026. This describes the current application. Earlier changes are recorded in the [Temper comparison](history/temper-architecture-comparison.md).
+Updated October 21, 2026. This describes the current application. Earlier changes are recorded in the [Temper comparison](history/temper-architecture-comparison.md).
 
 ## Product
 
@@ -35,7 +35,7 @@ Start renders pages; the browser calls Go through TanStack Query. Each router ha
 | Styling        | Tailwind 4.3.3, shadcn/ui components on Base UI 1.9.0, our tokens and locally served fonts    |
 | Runtime/build  | Bun 1.4.2, Node 26.10.0, Vite 8.3.3                                                           |
 | Authentication | Clerk TanStack Start SDK 1.6.3 / Go SDK v2.7.0; Svix v1.99.1 for webhook verification         |
-| Persistence    | Postgres 17, GORM v1.31.2 / Postgres driver v1.6.3, pgx v5.11.0                               |
+| Persistence    | Postgres 18, GORM v1.31.2 / Postgres driver v1.6.3, pgx v5.11.0                               |
 | Database tests | Testcontainers Go v0.44.0                                                                     |
 | Browser tests  | Playwright 1.61.0, desktop Chromium and Pixel 7 mobile emulation                              |
 | Contract       | OpenAPI 3.0.3, generated TypeScript with openapi-typescript 7.13.0                            |
@@ -77,6 +77,7 @@ backend/
   Dockerfile                 # Shared production/e2e image build
   cmd/api/main.go            # Signals, config, application entry point
   cmd/migrate/main.go        # Explicit GORM AutoMigrate command
+  cmd/seed/main.go           # Development-only account history (pk_test_ keys)
   internal/
     api/v1/                 # Public request/response DTOs and error envelope
     app/                    # Constructor wiring and shutdown ownership
@@ -92,7 +93,8 @@ backend/
     repositories/postgres/  # Stores, versioned snapshots, and query tests
     testfixtures/           # e2e-tag-only Clerk signing and workout seed helpers
 exercises/                  # Original catalogue, shared with Python
-scripts/                    # Development lifecycle and backend layer checks
+scripts/                    # Development lifecycle, layer checks, migration upgrade check
+.railway/railway.ts         # Railway production and PR preview services (IaC)
 ```
 
 `internal/services` groups use-case modules; it contains no Go package. Each package owns its behavior and the interfaces it consumes. Workout generation lives beside `Service`, `New`, and the small `Catalogue` interface.
@@ -156,11 +158,13 @@ Only the external Clerk adapters change in `e2e` builds. `internal/testfixtures`
 
 Postgres tests use one migrated container per package, created by `TestMain` in `repositories_test.go`. Serial resource tests reset rows before each case. Schema and migration tests use temporary databases within that same container. These tests call repositories directly and cover SQL behavior; browser tests own full HTTP journeys.
 
+`app.Seed` composes the real catalogue, generator and stores to give development accounts five weeks of plans and completions. A GORM session clock backdates them; the seed has no SQL of its own. It reads each account back with the export query. `scripts/migration-check.sh` seeds a database with the base commit, then migrates and seeds it with the branch, so upgrades of populated databases fail before merge. It then compares the upgraded columns and indexes with a fresh migration of the branch, which exposes changes `AutoMigrate` does not apply to existing tables. Railway `production` and PR environments run the same migrate-then-seed step before each API deploy; the seed skips `production`. A Tailscale forwarder is the only way into either, because no service has a public domain; see [Railway production and previews](preview-environments.md).
+
 Repositories use GORM for reads, writes, joins, filters, cursor ordering, row locks, and conditional upserts. Persistence rows stay inside the Postgres package; domains and services have no ORM dependency. List and summary share one owner/search filter. Completion joins include both owner and workout IDs. Go hooks generate account/completion UUIDs. GORM supplies creation/confirmation timestamps in UTC; repository mappings return stored timestamps in UTC. The API supplies UTC timestamps for the first onboarding and Undo operations under row locks. GORM runs explicit transactions for account lifecycle operations, child writes, exports, and activity snapshots.
 
 Saves write workout level, estimated minutes, and an owned search-term table and lowercased focus, block, and exercise names in the same transaction. Retries retain the original plan and its search terms. GORM filters and orders these columns, and joins search terms on both owner and workout ID. Distinct results prevent duplicate matches. Summary reads only matching IDs, levels, and minutes and folds totals in Go, because aggregates need SQL expressions. Activity counts all active completions in Postgres, then groups timestamps into four local calendar weeks in Go. Its timestamp query spans 30 UTC days to cover all zone offsets; only dates in those four weeks count.
 
-Existing accounts resolve with one read. The unique deletion-digest key serializes first provisioning and erasure. Provisioning inserts a transient guard and removes it before commit. Erasure keeps the tombstone and deletes owned search terms with the other child records. Application and test queries contain no SQL statements or expressions. Integration fixtures use GORM, callbacks for failure injection, and isolated databases for schema tests. Temporary databases use Postgres `createdb` and `dropdb` inside the test container. There are no SQL files or versioned schema migrations. GORM uses pgx through its Postgres driver. The separate `cmd/migrate` command runs `AutoMigrate` over repository models with foreign key creation disabled. It runs in one transaction without a statement timeout. Repeating the command preserves application records. API startup never calls `AutoMigrate`. UUIDs, timestamps, and value validation live in Go; model tags retain primary keys, unique keys, indexes, nullability, and literal defaults.
+Existing accounts resolve with one read. The unique deletion-digest key serializes first provisioning and erasure. Provisioning inserts a transient guard and removes it before commit. Erasure keeps the tombstone and deletes owned search terms with the other child records. Application and test queries contain no SQL statements or expressions. The one approved exception is the migration check's `psql` comparison of `information_schema.columns` and `pg_indexes`, which GORM cannot list. Integration fixtures use GORM, callbacks for failure injection, and isolated databases for schema tests. Temporary databases use Postgres `createdb` and `dropdb` inside the test container. There are no SQL files or versioned schema migrations. GORM uses pgx through its Postgres driver. The separate `cmd/migrate` command runs `AutoMigrate` over repository models with foreign key creation disabled. It runs in one transaction without a statement timeout. Repeating the command preserves application records. API startup never calls `AutoMigrate`. UUIDs, timestamps, and value validation live in Go; model tags retain primary keys, unique keys, indexes, nullability, and literal defaults.
 
 ## Signup, onboarding, and activity
 

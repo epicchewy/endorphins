@@ -43,7 +43,7 @@ docker build -f frontend/Dockerfile -t endorphins-web \
   --build-arg VITE_CLERK_PUBLISHABLE_KEY="$VITE_CLERK_PUBLISHABLE_KEY" .
 ```
 
-The public Clerk key is a frontend build argument. Supply secret keys and database credentials only at runtime. The backend image includes `/app/migrate` and `/app/api`; its default command starts only the API, so run migrations as a separate deployment step. Testcontainers uses these same images with explicit test build arguments and runs migrations before starting its disposable API.
+The public Clerk key is a frontend build argument. Supply secret keys and database credentials only at runtime. The backend image includes `/app/migrate`, `/app/seed` and `/app/api`; its default command starts only the API, so run migrations as a separate deployment step. `/app/seed` is for development data: it skips the Railway environment named `production` and refuses live Clerk keys. The Tailscale-only Railway production and PR previews are described in [Railway production and previews](preview-environments.md). Testcontainers uses these same images with explicit test build arguments and runs migrations before starting its disposable API.
 
 Deployment sequence:
 

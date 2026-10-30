@@ -31,11 +31,11 @@ The Make targets use Bun’s CLI to load `.env.example` defaults and `frontend/.
 
 For separate terminals, run `make db-up`, `make migrate`, then `make api` and `make web`. Export `DATABASE_URL` to use a different database. Set `APP_ORIGINS` to comma-separated frontend origins when changing the frontend address; if changing `API_ADDRESS`, update `API_ORIGIN` too. `make db-stop` preserves your local database volume.
 
-Select **Get started** to create your first app account. Signing in to the Clerk CLI only authenticates the CLI; it does not sign you into Endorphins. Your account menu provides profile and sign-out controls, and **Saved workouts** reopens saved plans. After working out, select **Mark complete** at the end of the plan or the exercise view. A completed plan shows its last completion date and offers **Start again**; finishing it again counts as another workout. Use **New workout** for a different plan.
+Select **Get started** to create your first app account. Then run `make seed` to give every local account with no saved plans five weeks of plans, completions and activity. `make seed SUBJECT=user_...` seeds one Clerk user. The seed refuses non-`pk_test_` Clerk keys and never adds to an account that has plans. Signing in to the Clerk CLI only authenticates the CLI; it does not sign you into Endorphins. Your account menu provides profile and sign-out controls, and **Saved workouts** reopens saved plans. After working out, select **Mark complete** at the end of the plan or the exercise view. A completed plan shows its last completion date and offers **Start again**; finishing it again counts as another workout. Use **New workout** for a different plan.
 
 ### Codex local environment
 
-The checked-in [Codex environment](.codex/environments/environment.toml) installs Go/Bun dependencies and Playwright Chromium when Codex sets up a new worktree. Its toolbar actions call the root Make targets: **Run app**, **API**, **Frontend**, **Start Postgres**, **Migrate**, **Stop Postgres**, **Check**, and **E2E**.
+The checked-in [Codex environment](.codex/environments/environment.toml) installs Go/Bun dependencies and Playwright Chromium when Codex sets up a new worktree. Its toolbar actions call the root Make targets: **Run app**, **API**, **Frontend**, **Start Postgres**, **Migrate**, **Seed**, **Stop Postgres**, **Check**, and **E2E**.
 
 Actions that need Node use `npx` to select the version in `.nvmrc`. This caches the project version without changing your global Node default. npm/npx, Bun, Go, Python 3, and Docker must already be installed; Docker must run for the app and database tests.
 
@@ -49,11 +49,18 @@ make check       # formatting, boundaries, lint, React Doctor, race and frontend
 make browsers    # install pinned Chromium once
 make e2e         # hermetic desktop/mobile browser tests on dynamic ports
 make e2e-clerk   # real Clerk sign-up and sign-in against make dev
+                 # (add URL=https://... to target a preview)
+make seed        # five weeks of plans and completions for local accounts
+make migration-check # upgrade a database seeded by origin/master to this checkout
 make format      # apply Go and frontend formatting
 cd frontend && bun run doctor # full React Doctor scan; errors and warnings fail
 ```
 
 `make test` runs real Postgres tests and needs Docker. `make e2e` runs desktop/mobile journeys against disposable Postgres, Go API, and Bun frontend containers. Only the external Clerk UI/session adapter is replaced. `make e2e-clerk` covers real Clerk sign-up and sessions with `@clerk/testing`; webhook delivery still needs a separate check. See [browser tests and artifacts](e2e/README.md). `make smoke` is an alias for `make e2e`. Do not run a frontend build while E2E images are building; both use `frontend/build`.
+
+`make migration-check` starts a throwaway Postgres container. It migrates and seeds it with `origin/master` (or `BASE=<ref>`), then migrates it with this checkout, reads every account back and seeds a new one. Last, it compares the upgraded columns and indexes with a fresh migration of this checkout. It catches schema changes that break or drift only in a populated database: a new `NOT NULL` column without a default, a column tightened to `NOT NULL`, a removed field whose column remains, or a changed index. Run it after you change repository models; CI runs it on pull requests.
+
+Each pull request also gets a Railway preview environment with its own seeded Postgres, and `master` deploys to a persistent Railway `production`. Both are reachable only over Tailscale. See [Railway production and previews](docs/preview-environments.md).
 
 For a production-mode local preview, run these in separate terminals after `make check`:
 
@@ -75,6 +82,7 @@ The Bun server compresses built JavaScript and CSS once at startup and serves ca
 - [Engineering practices](docs/engineering-practices.md)
 - [OpenAPI contract](api/openapi.json)
 - [Deployment runbook](docs/deployment.md)
+- [Railway production and PR previews, private over Tailscale](docs/preview-environments.md)
 - [History: dated reviews, research, and decision records](docs/history/)
 
 Open `/design-system` in development to inspect the shared controls. `/app/account` provides an authenticated JSON data export.

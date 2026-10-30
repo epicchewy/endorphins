@@ -1,19 +1,21 @@
 name: endorphins
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_DB: endorphins
       POSTGRES_USER: endorphins
       POSTGRES_PASSWORD: endorphins_local
     ports:
       - "127.0.0.1:5548:5432"
+    # Postgres 18 keeps data under /var/lib/postgresql/18 and refuses the old
+    # .../data mount, so it starts on a new volume. postgres_data keeps 17's data.
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres18_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U endorphins -d endorphins"]
       interval: 2s
       timeout: 3s
       retries: 20
 volumes:
-  postgres_data:
+  postgres18_data:
