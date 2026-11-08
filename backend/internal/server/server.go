@@ -33,7 +33,7 @@ func New(workouts *handlers.Workout, accounts *handlers.Account, authenticate fu
 			c.Request().Header.Set("X-Request-ID", requestID)
 			return next(c)
 		}
-	}, middleware.RequestLogger(), middleware.Recover())
+	}, requestLogger(logger), middleware.Recover())
 	e.GET("/healthz", func(c *echo.Context) error { return c.JSON(http.StatusOK, map[string]string{"status": "ok"}) })
 	e.GET("/readyz", func(c *echo.Context) error {
 		c.Response().Header().Set("Cache-Control", "no-store")
@@ -72,4 +72,41 @@ func New(workouts *handlers.Workout, accounts *handlers.Account, authenticate fu
 	api.DELETE("/completions/:id", workouts.Undo)
 	api.GET("/activity", workouts.Activity)
 	return e
+}
+
+// requestLogger writes one line per request. Expected 4xx responses are not
+// errors, and errorHandler alone logs the cause of a 5xx.
+func requestLogger(logger *slog.Logger) echo.MiddlewareFunc {
+	return middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogLatency:       true,
+		LogRemoteIP:      true,
+		LogHost:          true,
+		LogMethod:        true,
+		LogURI:           true,
+		LogRequestID:     true,
+		LogUserAgent:     true,
+		LogStatus:        true,
+		LogContentLength: true,
+		LogResponseSize:  true,
+		HandleError:      true,
+		LogValuesFunc: func(c *echo.Context, v middleware.RequestLoggerValues) error {
+			level := slog.LevelInfo
+			if v.Status >= http.StatusInternalServerError {
+				level = slog.LevelWarn
+			}
+			logger.LogAttrs(c.Request().Context(), level, "request",
+				slog.String("method", v.Method),
+				slog.String("uri", v.URI),
+				slog.Int("status", v.Status),
+				slog.Duration("latency", v.Latency),
+				slog.String("host", v.Host),
+				slog.String("bytes_in", v.ContentLength),
+				slog.Int64("bytes_out", v.ResponseSize),
+				slog.String("user_agent", v.UserAgent),
+				slog.String("remote_ip", v.RemoteIP),
+				slog.String("request_id", v.RequestID),
+			)
+			return nil
+		},
+	})
 }

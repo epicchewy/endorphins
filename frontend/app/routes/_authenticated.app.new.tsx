@@ -60,8 +60,14 @@ function NewWorkout() {
         onGenerate={() =>
           generator.mutate(preferences, {
             onSuccess: (workout) => {
-              if (isCurrentSession())
-                void navigate({ to: '/app/workouts/$workoutId', params: { workoutId: workout.id } })
+              if (!isCurrentSession()) return
+              // The builder unmounts, so move focus to the new plan's title.
+              void navigate({
+                to: '/app/workouts/$workoutId',
+                params: { workoutId: workout.id },
+              }).then(() =>
+                requestAnimationFrame(() => document.getElementById('workout-title')?.focus()),
+              )
             },
           })
         }

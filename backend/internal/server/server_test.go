@@ -59,6 +59,32 @@ func TestHealthAndReadinessAreIndependent(t *testing.T) {
 	}
 }
 
+func TestOnlyServerFailuresLogOneError(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name   string
+		err    error
+		errors int
+	}{
+		{name: "expected", err: domains.ErrNotFound, errors: 0},
+		{name: "unknown route", errors: 0},
+		{name: "internal", err: errors.New("database detail"), errors: 1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var logs strings.Builder
+			router := New(nil, nil, nil, slog.New(slog.NewTextHandler(&logs, nil)), Options{})
+			path := "/missing"
+			if tt.err != nil {
+				path = "/failure"
+				router.GET(path, func(*echo.Context) error { return tt.err })
+			}
+			router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
+			assert.Equal(t, tt.errors, strings.Count(logs.String(), "level=ERROR"), logs.String())
+			assert.Contains(t, logs.String(), "msg=request")
+		})
+	}
+}
+
 func TestSafeErrorsAndRequestIDs(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -71,6 +97,8 @@ func TestSafeErrorsAndRequestIDs(t *testing.T) {
 		{code: "idempotency_conflict", err: domains.ErrIdempotencyConflict, status: 409},
 		{code: "invalid_page", err: library.ErrInvalidPage, status: 400},
 		{code: "rate_limited", err: middleware.ErrRateLimitExceeded, status: 429},
+		{code: "not_found", err: echo.ErrNotFound, status: 404},
+		{code: "method_not_allowed", err: echo.ErrMethodNotAllowed, status: 405},
 	} {
 		t.Run(tt.code, func(t *testing.T) {
 			router := New(nil, nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{})
