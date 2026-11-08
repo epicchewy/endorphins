@@ -1,5 +1,3 @@
-DURATION ?= 45
-LEVEL ?= 2
 export GOTOOLCHAIN := go1.27.1
 VERSION ?= dev
 REVISION := $(shell git rev-parse --short HEAD)
@@ -13,19 +11,7 @@ ifneq ($(NVM_NODE_BIN),)
 export PATH := $(NVM_NODE_BIN):$(PATH)
 endif
 
-.PHONY: workout
-workout:
-	@bash build/update.sh
-	$(eval ID = $(shell ls -1 ./workouts | wc -l ))
-	@python3 main.py $(DURATION) $(LEVEL) $(ID)
-	@echo "Opening today's workout pdf"
-	@bash build/open.sh
-
-.PHONY: install
-install:
-	@bash build/install.sh
-
-# Full-stack app. The original Python targets above remain available.
+# The original Python targets live in legacy/Makefile.
 .PHONY: node-version setup dev api web check test lint build format
 # Another Node on PATH breaks Vite and the e2e harness in confusing ways.
 node-version:

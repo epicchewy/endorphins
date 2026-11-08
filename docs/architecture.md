@@ -93,6 +93,7 @@ backend/
     repositories/postgres/  # Stores, versioned snapshots, and query tests
     testfixtures/           # e2e-tag-only Clerk signing and workout seed helpers
 exercises/                  # Original catalogue, shared with Python
+legacy/                     # Original Python script, sample PDFs and Make targets
 scripts/                    # Development lifecycle, layer checks, migration upgrade check
 .railway/railway.ts         # Railway production and PR preview services (IaC)
 ```
