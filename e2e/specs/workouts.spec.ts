@@ -10,7 +10,7 @@ test('generates, saves, reopens, and follows a workout', async ({ signedInPage: 
     (url) => url.searchParams.get('minutes') === '60' && url.searchParams.get('level') === '3',
   )
   await page.getByRole('button', { name: 'Generate my workout', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Full-body workout' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Full-body workout' })).toBeFocused()
   await expect(page.getByText(/^Level 3 · About \d+ min · \d+ exercises/)).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Warm-up', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Start workout', exact: true }).click()

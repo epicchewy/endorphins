@@ -3,7 +3,13 @@ import { buttonVariants } from '~/components/ui/button-variants'
 import { ClerkProvider } from '~/auth/client'
 import type { ReactNode } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
-import { createRootRouteWithContext, HeadContent, Link, Scripts } from '@tanstack/react-router'
+import {
+  createRootRouteWithContext,
+  HeadContent,
+  Link,
+  Scripts,
+  useRouter,
+} from '@tanstack/react-router'
 import '@fontsource-variable/inter/standard.css'
 import '~/app.css'
 import sharpSerif from '~/assets/fonts/sharp-serif-text-pdf-preview-regular.woff2?url'
@@ -48,7 +54,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       </Link>
     </main>
   ),
-  errorComponent: ({ reset }) => (
+  errorComponent: LoadError,
+})
+function LoadError() {
+  const router = useRouter()
+  return (
     <main className="mx-auto my-[10vh] max-w-[640px] px-6 py-20 text-center">
       <h1 className="font-display text-[clamp(40px,6vw,56px)] font-normal leading-[1.12] tracking-[-0.025em]">
         Could not load this page
@@ -56,10 +66,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       <p className="my-6 leading-[1.8] text-muted-foreground">
         Something went wrong loading this page.
       </p>
-      <Button onClick={reset}>Try again</Button>
+      {/* invalidate re-runs the failed guards and loaders, then resets this boundary. */}
+      <Button onClick={() => void router.invalidate()}>Try again</Button>
     </main>
-  ),
-})
+  )
+}
 function Document({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
