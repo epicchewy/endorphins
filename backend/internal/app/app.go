@@ -20,6 +20,7 @@ import (
 	"github.com/epicchewy/endorphins/backend/internal/services/account"
 	"github.com/epicchewy/endorphins/backend/internal/services/library"
 	"github.com/epicchewy/endorphins/backend/internal/services/workout"
+	"github.com/getsentry/sentry-go"
 )
 
 // Version and Revision are set by release build ldflags and included in startup logs.
@@ -36,6 +37,12 @@ type clerkEnvironment struct {
 }
 
 func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
+	if cfg.Sentry.DSN != "" {
+		if err := sentry.Init(sentry.ClientOptions{Dsn: cfg.Sentry.DSN, Environment: cfg.Sentry.Environment, Release: cfg.Sentry.Release}); err != nil {
+			return fmt.Errorf("initialize Sentry: %w", err)
+		}
+		defer sentry.Flush(2 * time.Second)
+	}
 	catalogue, err := catalogue.New(os.DirFS(cfg.Catalogue.Directory))
 	if err != nil {
 		return fmt.Errorf("initialize catalogue: %w", err)

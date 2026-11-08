@@ -1,7 +1,7 @@
 import { Button } from '~/components/ui/button'
 import { buttonVariants } from '~/components/ui/button-variants'
 import { ClerkProvider } from '~/auth/client'
-import type { ReactNode } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { createRootRouteWithContext, HeadContent, Link, Scripts } from '@tanstack/react-router'
 import '@fontsource-variable/inter/standard.css'
@@ -10,6 +10,11 @@ import sharpSerif from '~/assets/fonts/sharp-serif-text-pdf-preview-regular.woff
 import inter from '@fontsource-variable/inter/files/inter-latin-standard-normal.woff2?url'
 import { ThemeProvider, themeScript } from '~/components/theme'
 import { SessionBoundary } from '~/components/auth/session-boundary'
+
+// Release builds replace import.meta.env.DEV with false and drop the devtools chunk.
+const Devtools = import.meta.env.DEV
+  ? lazy(() => import('~/components/devtools').then((module) => ({ default: module.Devtools })))
+  : null
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
@@ -92,6 +97,11 @@ function Document({ children }: { children: ReactNode }) {
           }}
         >
           <ThemeProvider>{children}</ThemeProvider>
+          {Devtools && (
+            <Suspense>
+              <Devtools />
+            </Suspense>
+          )}
           <Scripts />
         </ClerkProvider>
       </body>

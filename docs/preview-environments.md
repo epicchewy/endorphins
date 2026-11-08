@@ -59,6 +59,16 @@ From the repository root, with the Railway CLI 5.42 or newer:
 
    `make frontend/.env.local` pulls the Clerk development keys into a new checkout or worktree. After the `read` line, paste the auth key and press Enter. Use your tailnet's DNS suffix from the admin console's DNS page. `SEED_SUBJECTS` holds your Clerk user ID; previews seed it and production skips it.
 
+   Sentry is optional; see [Configure Sentry](deployment.md#configure-sentry). To turn it on, also set these. PR environments copy them and report under their own environment name. After the `read` line, paste the Sentry auth token and press Enter.
+
+   ```bash
+   railway variable set SENTRY_DSN=<go-project-dsn> --service api --environment production --skip-deploys
+   railway variable set VITE_SENTRY_DSN=<react-project-dsn> --service web --environment production --skip-deploys
+   railway variable set SENTRY_ORG=<org-slug> --service web --environment production --skip-deploys
+   railway variable set SENTRY_PROJECT=<react-project-slug> --service web --environment production --skip-deploys
+   read -rs SENTRY_TOKEN && printf %s "$SENTRY_TOKEN" | railway variable set SENTRY_AUTH_TOKEN --stdin --service web --environment production; unset SENTRY_TOKEN
+   ```
+
 4. In the Railway dashboard, connect the GitHub repository to `api` and `web`. Open **Project Settings → Environments** and turn on **PR Environments**; the base environment is `production`. Do not generate a domain for any service.
 
 ## Use an environment

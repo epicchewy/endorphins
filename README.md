@@ -27,6 +27,8 @@ Open [Endorphins](http://127.0.0.1:3100). The Go API listens on `127.0.0.1:8088`
 
 Get keys with `clerk env pull` only. `clerk init` rewrites `frontend/app/start.ts`.
 
+The dev server shows TanStack Devtools at the bottom right, with Router and Query panels; release builds leave them out. Sentry error reporting is optional and off until a DSN is set; see [Configure Sentry](docs/deployment.md#configure-sentry).
+
 The Make targets use Bun’s CLI to load `.env.example` defaults and `frontend/.env.local`, then run Go directly. Exported variables take precedence.
 
 For separate terminals, run `make db-up`, `make migrate`, then `make api` and `make web`. Export `DATABASE_URL` to use a different database. Set `APP_ORIGINS` to comma-separated frontend origins when changing the frontend address; if changing `API_ADDRESS`, update `API_ORIGIN` too. `make db-stop` preserves your local database volume.
