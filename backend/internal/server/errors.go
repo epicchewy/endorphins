@@ -10,6 +10,7 @@ import (
 	"github.com/epicchewy/endorphins/backend/internal/services/account"
 	"github.com/epicchewy/endorphins/backend/internal/services/library"
 	"github.com/epicchewy/endorphins/backend/internal/services/workout"
+	"github.com/getsentry/sentry-go"
 	"github.com/labstack/echo/v5"
 )
 
@@ -20,7 +21,11 @@ func errorHandler(logger *slog.Logger) echo.HTTPErrorHandler {
 		}
 		status, code, message := publicError(err)
 		if status >= 500 {
-			logger.ErrorContext(c.Request().Context(), "request failed", "request_id", c.Response().Header().Get("X-Request-ID"), "error", err)
+			requestID := c.Response().Header().Get("X-Request-ID")
+			logger.ErrorContext(c.Request().Context(), "request failed", "request_id", requestID, "error", err)
+			if status == http.StatusInternalServerError {
+				report(c, requestID, err)
+			}
 		}
 		if status == http.StatusUnauthorized {
 			c.Response().Header().Set("WWW-Authenticate", "Bearer")
@@ -32,6 +37,20 @@ func errorHandler(logger *slog.Logger) echo.HTTPErrorHandler {
 		v1.WriteError(c.Response(), status, code, message)
 	}
 }
+
+// report sends an unexpected failure to Sentry. Deliberate 503s, such as an
+// unready database, stay in the logs. Without sentry.Init this does nothing.
+func report(c *echo.Context, requestID string, err error) {
+	hub := sentry.GetHubFromContext(c.Request().Context())
+	if hub == nil {
+		hub = sentry.CurrentHub()
+	}
+	hub = hub.Clone()
+	hub.Scope().SetTag("request_id", requestID)
+	hub.Scope().SetTag("route", c.Request().Method+" "+c.Path())
+	hub.CaptureException(err)
+}
+
 func publicError(err error) (int, string, string) {
 	switch {
 	case errors.Is(err, account.ErrInvalidLevel):

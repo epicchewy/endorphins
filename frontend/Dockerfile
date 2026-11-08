@@ -8,7 +8,16 @@ RUN bun install --frozen-lockfile
 COPY frontend .
 ARG BUILD_MODE=production
 ARG VITE_CLERK_PUBLISHABLE_KEY
-RUN bun run build --mode "${BUILD_MODE}" --outDir build \
+ARG VITE_SENTRY_DSN
+# Source map upload. Only this discarded build stage sees the token.
+ARG SENTRY_AUTH_TOKEN
+ARG SENTRY_ORG
+ARG SENTRY_PROJECT
+# Railway passes its own variables when declared: Sentry's environment and release.
+ARG RAILWAY_ENVIRONMENT_NAME
+ARG RAILWAY_GIT_COMMIT_SHA
+RUN VITE_SENTRY_ENVIRONMENT="${RAILWAY_ENVIRONMENT_NAME:-production}" \
+    bun run build --mode "${BUILD_MODE}" --outDir build \
     && if [ "${BUILD_MODE}" = production ]; then bun scripts/check-release.ts; fi
 
 FROM bun

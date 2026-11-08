@@ -6,17 +6,21 @@ Deploy the frontend and Go API behind one public origin. Bun serves the frontend
 
 Use the deployment platform's secret store. Local Clerk CLI credentials in `frontend/.env.local` are for development. Never copy them into images or commit them.
 
-| Variable                       | Consumer and purpose                                                                                                                         |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                 | Go API/migration process; use the managed Postgres connection and its required TLS configuration. The local Compose URL is development-only. |
-| `VITE_CLERK_PUBLISHABLE_KEY`   | Frontend build and server configuration; also lets Go derive the exact expected Clerk issuer. Use the key for the intended instance.         |
-| `CLERK_SECRET_KEY`             | Server-only Clerk credentials for the Go/Start processes that need them. Never place this value in a `VITE_*` variable.                      |
-| `CLERK_WEBHOOK_SIGNING_SECRET` | Go's verifier for the specific Clerk webhook endpoint. Required when using a live publishable key.                                           |
-| `APP_ORIGINS`                  | Comma-separated public application origins accepted in session tokens, such as `https://endorphins.example`. No paths or wildcard defaults.  |
-| `EXERCISE_DIR`                 | Go; an existing directory containing the five shipped exercise catalogues. Include these files in the deployment.                            |
-| `API_ADDRESS`                  | Go listener; defaults to `127.0.0.1:8088`. Choose an appropriate internal interface when separate containers need connectivity.              |
-| `API_ORIGIN`                   | Bun proxy target, normally an internal Go service address; defaults to `http://127.0.0.1:8088`.                                              |
-| `HOST`, `PORT`                 | Bun listener; defaults to `127.0.0.1` and `3100`.                                                                                            |
+| Variable                                             | Consumer and purpose                                                                                                                         |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                       | Go API/migration process; use the managed Postgres connection and its required TLS configuration. The local Compose URL is development-only. |
+| `VITE_CLERK_PUBLISHABLE_KEY`                         | Frontend build and server configuration; also lets Go derive the exact expected Clerk issuer. Use the key for the intended instance.         |
+| `CLERK_SECRET_KEY`                                   | Server-only Clerk credentials for the Go/Start processes that need them. Never place this value in a `VITE_*` variable.                      |
+| `CLERK_WEBHOOK_SIGNING_SECRET`                       | Go's verifier for the specific Clerk webhook endpoint. Required when using a live publishable key.                                           |
+| `APP_ORIGINS`                                        | Comma-separated public application origins accepted in session tokens, such as `https://endorphins.example`. No paths or wildcard defaults.  |
+| `EXERCISE_DIR`                                       | Go; an existing directory containing the five shipped exercise catalogues. Include these files in the deployment.                            |
+| `API_ADDRESS`                                        | Go listener; defaults to `127.0.0.1:8088`. Choose an appropriate internal interface when separate containers need connectivity.              |
+| `API_ORIGIN`                                         | Bun proxy target, normally an internal Go service address; defaults to `http://127.0.0.1:8088`.                                              |
+| `HOST`, `PORT`                                       | Bun listener; defaults to `127.0.0.1` and `3100`.                                                                                            |
+| `SENTRY_DSN`                                         | Go API; optional. Reports unexpected 500 responses to the Go Sentry project. Unset turns reporting off.                                      |
+| `VITE_SENTRY_DSN`                                    | Frontend build (browser SDK) and Bun server (SSR middleware); optional. Use a separate frontend Sentry project.                              |
+| `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`  | Frontend build only; upload hidden source maps. Without the token the build skips the Sentry plugin.                                         |
+| `RAILWAY_ENVIRONMENT_NAME`, `RAILWAY_GIT_COMMIT_SHA` | Set by Railway. Sentry environment and release for Go, Bun and the browser build.                                                            |
 
 Use an externally reachable HTTPS origin for the application and webhook, terminating TLS in the hosting platform or reverse proxy. Health probes should target the Go service directly: Bun only forwards paths under `/api/`.
 
@@ -43,7 +47,7 @@ docker build -f frontend/Dockerfile -t endorphins-web \
   --build-arg VITE_CLERK_PUBLISHABLE_KEY="$VITE_CLERK_PUBLISHABLE_KEY" .
 ```
 
-The public Clerk key is a frontend build argument. Supply secret keys and database credentials only at runtime. The backend image includes `/app/migrate`, `/app/seed` and `/app/api`; its default command starts only the API, so run migrations as a separate deployment step. `/app/seed` is for development data: it skips the Railway environment named `production` and refuses live Clerk keys. The Tailscale-only Railway production and PR previews are described in [Railway production and previews](preview-environments.md). Testcontainers uses these same images with explicit test build arguments and runs migrations before starting its disposable API.
+The public Clerk key is a frontend build argument. To report browser errors, also pass `--build-arg VITE_SENTRY_DSN`, and the source map variables in [Configure Sentry](#configure-sentry). Supply secret keys and database credentials only at runtime. The backend image includes `/app/migrate`, `/app/seed` and `/app/api`; its default command starts only the API, so run migrations as a separate deployment step. `/app/seed` is for development data: it skips the Railway environment named `production` and refuses live Clerk keys. The Tailscale-only Railway production and PR previews are described in [Railway production and previews](preview-environments.md). Testcontainers uses these same images with explicit test build arguments and runs migrations before starting its disposable API.
 
 Deployment sequence:
 
@@ -66,6 +70,19 @@ Serialize migration runs in the deployment platform. There is no version table, 
 - Each account can create about 10 workouts per minute after a burst of 30; more return `429`. The limit is per API process, so several instances multiply it.
 - Bun adds `Content-Security-Policy: frame-ancestors 'none'`, `nosniff`, `Referrer-Policy`, and HSTS to every response. A full script CSP would need Clerk's hosts and the inline theme script.
 - API failures use `{message, code, requestId}`. Match the returned `X-Request-ID` to structured logs to inspect an unexpected cause. Internal database errors and secrets are not returned to clients. A proxy connection failure produces its own safe request ID.
+- With `SENTRY_DSN` set, each unexpected `500` also reaches Sentry, tagged with `request_id` and the route. Search Sentry for the request ID a user reports.
+
+## Configure Sentry
+
+Sentry is optional. Without DSNs, nothing is reported and the build skips the Sentry plugin.
+
+1. Create two Sentry projects: a Go project for the API and a React project for the frontend.
+2. Set the Go project's DSN as `SENTRY_DSN` on the API.
+3. Set the React project's DSN as `VITE_SENTRY_DSN` on the frontend. It is a build argument for the browser SDK and a runtime variable for the Bun server. A DSN is not a secret.
+4. For readable browser stack traces, also give the frontend build `SENTRY_AUTH_TOKEN` (an organization token that can upload source maps), `SENTRY_ORG` and `SENTRY_PROJECT`. `frontend/Dockerfile` passes them only to its build stage. The build uploads hidden source maps, then deletes them.
+5. After a deploy, run `setTimeout(() => { throw new Error('Sentry check') })` in the browser console and confirm that the event arrives with the expected environment and release. The API reports only real `500` responses.
+
+On Railway, events carry `RAILWAY_ENVIRONMENT_NAME`, so PR previews stay apart from `production`, and `RAILWAY_GIT_COMMIT_SHA` as the release. Outside Railway, the API reports `development` unless you set `--sentry-environment`, the Bun server reports Sentry's default `production`, and the browser reports its Vite mode.
 
 ## Configure Clerk account deletion
 

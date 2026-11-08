@@ -21,7 +21,7 @@ flowchart LR
   Files[Existing exercises/*.json] -->|startup| Catalogue
 ```
 
-Start renders pages; the browser calls Go through TanStack Query. Each router has one QueryClient. SSR loaders do not fetch relative API URLs. Vite proxies `/api` in development; Bun serves production assets and the same proxy. Go binds to loopback by default. Private pages fetch on the client after a server auth guard. Each API request carries a Clerk bearer token, which Go verifies. The proxy forwards the client IP and user agent, and Bun adds framing, MIME-sniffing, referrer, and HSTS headers. Workout creation is rate limited per account. Clerk serves its own identity requests. The public deletion webhook verifies the raw-body Svix signature and timestamp.
+Start renders pages; the browser calls Go through TanStack Query. Each router has one QueryClient. SSR loaders do not fetch relative API URLs. Vite proxies `/api` in development; Bun serves production assets and the same proxy. Go binds to loopback by default. Private pages fetch on the client after a server auth guard. Each API request carries a Clerk bearer token, which Go verifies. The proxy forwards the client IP and user agent, and Bun adds framing, MIME-sniffing, referrer, and HSTS headers. Workout creation is rate limited per account. Clerk serves its own identity requests. The public deletion webhook verifies the raw-body Svix signature and timestamp. When DSNs are set, Sentry receives browser errors, Bun SSR middleware failures and Go's unexpected 500 responses; see [error reporting](#error-reporting).
 
 ## Stack
 
@@ -30,16 +30,18 @@ Start renders pages; the browser calls Go through TanStack Query. Each router ha
 | Go             | 1.27.1, project toolchain; exact compiler also selected for the linter                        |
 | HTTP           | Echo v5.4.0, request IDs, recovery, structured request logs                                   |
 | React          | 19.3.0                                                                                        |
-| Routing        | TanStack Start 1.168.60 / Router 1.170.41                                                     |
-| Remote state   | Query 5.104.0 / SSR bridge 1.167.3                                                            |
+| Routing        | TanStack Start 1.169.5 / Router 1.170.46                                                      |
+| Remote state   | Query 5.107.1 / SSR bridge 1.167.3                                                            |
 | Styling        | Tailwind 4.3.3, shadcn/ui components on Base UI 1.9.0, our tokens and locally served fonts    |
 | Runtime/build  | Bun 1.4.2, Node 26.10.0, Vite 8.3.3                                                           |
-| Authentication | Clerk TanStack Start SDK 1.6.3 / Go SDK v2.7.0; Svix v1.99.1 for webhook verification         |
+| Authentication | Clerk TanStack Start SDK 1.7.11 / Go SDK v2.7.0; Svix v1.99.1 for webhook verification        |
+| Monitoring     | Sentry TanStack Start SDK 11.11.0 / sentry-go v0.50.0; off without a DSN                      |
 | Persistence    | Postgres 18, GORM v1.31.2 / Postgres driver v1.6.3, pgx v5.11.0                               |
 | Database tests | Testcontainers Go v0.44.0                                                                     |
 | Browser tests  | Playwright 1.61.0, desktop Chromium and Pixel 7 mobile emulation                              |
 | Contract       | OpenAPI 3.0.3, generated TypeScript with openapi-typescript 7.13.0                            |
 | Checks         | strict TypeScript, Oxlint, React Doctor 0.9.17, Prettier, Go race tests, golangci-lint 2.14.0 |
+| Development    | TanStack Devtools 0.10.14 in the Vite dev server only; TanStack Intent 0.5.6 skills           |
 
 The frontend versions follow the Postmaker migration at commit `ec8e694`. Shared primitives are shadcn components on Base UI; the duration and level chips stay native radios. The app does not need TanStack Form or Zustand.
 
@@ -57,6 +59,7 @@ frontend/
     pages/                   # Public landing composition
     components/ui/           # shadcn components plus our radio chip and feedback
     components/workout/      # Workout-specific builder, library, plan, exercise view
+    components/devtools.tsx  # TanStack Devtools, loaded only by the Vite dev server
     components/auth/         # Account controls, auth layout, session boundary
     server/auth.ts           # Private-route server auth check
     hooks/                   # Query/mutation policy, export
@@ -138,6 +141,12 @@ Hooks own fetching, pagination, retries, and mutations. `services/http.ts` owns 
 Setup owns generation input. The saved-plan route owns the displayed plan and its completion result; the plan sheet owns the local plan/exercise-view toggle. Postgres owns history. A generation opens the new plan only if the reader is still on the page that started it; the router keeps that page mounted while the next route loads. Writes are not retried automatically. Manual retries keep one idempotency key until success, reset, or changed preferences. The completion hook owns confirmation, Undo, and key rotation; each success starts a new key. It waits for the plan's refreshed history, so the page changes from to-do to completed in one step, then refreshes lists and analytics without waiting.
 
 The library fetches saved plans newest first, with a count across the account; it has no search or filter controls. The Go API still accepts `q`, `level`, and `sort`. Loaded pages only determine which cards are currently displayed. Summary counts and estimated minutes never imply completed activity. The `/app/account` screen, linked as **Settings** from the account menu, shows application account details and downloads a consistent owner-scoped export; late downloads are suppressed after a session switch.
+
+The Vite dev server adds TanStack Devtools with Router and Query panels at the bottom right. `__root.tsx` loads them lazily behind `import.meta.env.DEV`, so release and e2e builds contain no devtools code. `frontend/AGENTS.md` tells agents to load the TanStack Intent skill for a package before they change it; `package.json` allows only `@tanstack/*` skill sources.
+
+## Error reporting
+
+Sentry stays off until a DSN is set. `router.tsx` starts the browser SDK with router tracing at a 10% sample; route error boundaries report what they catch through `defaultOnCatch`. `server.ts` starts the server SDK on Bun before it loads the SSR handler. Start's global request and function middleware in `start.ts` then report server failures. Go's central error handler reports unexpected 500 responses with the request ID and route. Deliberate 503s and client errors stay in the logs. The SDKs keep `sendDefaultPii` off, and nothing attaches request bodies, tokens or exports. Each event carries the Railway environment and commit. Release builds with a Sentry token upload hidden source maps and delete them, so Bun never serves them. See [deployment](deployment.md#configure-sentry).
 
 ## Design system
 
