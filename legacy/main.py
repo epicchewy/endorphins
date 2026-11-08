@@ -48,7 +48,7 @@ def validate_input(duration, level):
 def generate_workout(duration, level):
     logger.info('Choosing exercises ...')
     curr_dir = os.path.dirname(__file__)
-    rel_path = 'exercises/level-{}.json'.format(level)
+    rel_path = '../exercises/level-{}.json'.format(level)
     abs_file_path = os.path.join(curr_dir, rel_path)
 
     with open(abs_file_path) as ef:

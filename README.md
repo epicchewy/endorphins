@@ -93,12 +93,13 @@ The generator retains the script’s difficulty-based time estimates, three body
 
 ## Original Python script
 
-`main.py`, the JSON exercise files, sample PDFs, and the original Make targets remain available. The Python path is separate from the web app:
+The original script, its sample PDFs, and its Make targets are in [`legacy/`](legacy/). It reads the shared `exercises/` catalogue at the repository root. The Python path is separate from the web app:
 
 ```sh
+cd legacy
 python3 -m pip install -r requirements.txt
 mkdir -p workouts
 python3 main.py 45 2 0
 ```
 
-This creates a workout PDF using the original algorithm. The existing `make workout` target also runs the original repository update script before generation.
+This creates a workout PDF in `legacy/workouts/` using the original algorithm. In `legacy/`, `make workout` also runs the original repository update script before generation.
