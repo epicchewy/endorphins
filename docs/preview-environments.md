@@ -47,24 +47,30 @@ From the repository root, with the Railway CLI 5.42 or newer:
    railway config apply
    ```
 
-3. Set the variables. Secrets go through stdin, not the command line. `--stdin` reads only piped input, so `read -rs` holds the auth key without echoing it. PR environments copy all of these; never seal them, because Railway does not copy sealed values.
+3. Set the variables. Secrets go through stdin, not the command line, and `--stdin` reads only piped input; it never prompts. Copy the Tailscale auth key first: the `TS_AUTHKEY` line reads it from the macOS clipboard, then clears the clipboard. PR environments copy all of these; never seal them, because Railway does not copy sealed values.
 
    ```bash
    make frontend/.env.local
    for service in api web; do for key in CLERK_SECRET_KEY VITE_CLERK_PUBLISHABLE_KEY; do grep "^$key=" frontend/.env.local | cut -d= -f2- | tr -d '"' | railway variable set "$key" --stdin --service "$service" --environment production --skip-deploys; done; done
-   read -rs TS_KEY && printf %s "$TS_KEY" | railway variable set TS_AUTHKEY --stdin --service tailnet --environment production --skip-deploys; unset TS_KEY
+   pbpaste | tr -d '\n' | railway variable set TS_AUTHKEY --stdin --service tailnet --environment production --skip-deploys && pbcopy < /dev/null
    railway variable set TAILNET_DNS=<your-tailnet>.ts.net --service tailnet --environment production --skip-deploys
    railway variable set SEED_SUBJECTS=user_... --service api --environment production
+   railway redeploy --from-source --service web --environment production --yes
+   railway redeploy --service tailnet --environment production --yes
    ```
 
-   `make frontend/.env.local` pulls the Clerk development keys into a new checkout or worktree. After the `read` line, paste the auth key and press Enter. Use your tailnet's DNS suffix from the admin console's DNS page. `SEED_SUBJECTS` holds your Clerk user ID; previews seed it and production skips it.
+   `make frontend/.env.local` pulls the Clerk development keys into a new checkout or worktree. Use your tailnet's DNS suffix from the admin console's DNS page. `SEED_SUBJECTS` holds your Clerk user ID; previews seed it and production skips it.
+
+   `railway config apply` deploys the services before these variables exist. Setting `SEED_SUBJECTS` redeploys `api`. `web` builds the publishable key into its bundle, so it needs a fresh build from source; a plain redeploy reuses the old build. `tailnet` needs a redeploy to join your tailnet. Its first HTTPS requests can fail for a few seconds while it gets its certificate.
 
 4. In the Railway dashboard, connect the GitHub repository to `api` and `web`. Open **Project Settings → Environments** and turn on **PR Environments**; the base environment is `production`. Do not generate a domain for any service.
+
+   Railway creates a preview only when a pull request opens. A pull request that opened before you turned this on gets no preview from new pushes; close and reopen it.
 
 ## Use an environment
 
 - Production: `https://endorphins-production.<your-tailnet>.ts.net`.
-- A preview: open the pull request and wait for the Railway bot to report the environment. Then open `https://endorphins-<environment>.<your-tailnet>.ts.net`. `tailscale status | grep endorphins` lists the machines. The bot's own link does not work, because no service has a Railway domain.
+- A preview: open the pull request and wait for the Railway bot to report the environment. Then open `https://endorphins-<environment>.<your-tailnet>.ts.net`. PR environment names already start with the project name, so pull request 16 is `https://endorphins-endorphins-pr-16.<your-tailnet>.ts.net`. `tailscale status | grep endorphins` lists the machines. The bot's own link does not work, because no service has a Railway domain.
 - Sign in with your Clerk development account. Accounts in `SEED_SUBJECTS` start with plans, completions and activity in previews.
 - Run the real-Clerk journeys against an environment: `make e2e-clerk URL=https://endorphins-<environment>.<your-tailnet>.ts.net`.
 - Agents on a tailnet device reach the same URLs, for example with Playwright MCP. CI joins the tailnet with `tailscale/github-action` and `tag:ci`.
