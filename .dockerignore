@@ -1,13 +1,13 @@
-# Only application sources enter the image build context.
+# Only application sources enter the image build context. Do not re-include a whole
+# folder such as `!frontend/`: it also brings host node_modules, .env files and build
+# output, and `COPY frontend .` then overwrites the image's own install.
 **
-!backend/
 !backend/go.mod
 !backend/go.sum
 !backend/Dockerfile
 !backend/cmd/**
 !backend/internal/**
 !exercises/**
-!frontend/
 !frontend/package.json
 !frontend/bun.lock
 !frontend/tsconfig.json
