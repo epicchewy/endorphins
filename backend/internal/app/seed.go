@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/epicchewy/endorphins/backend/internal/config"
-	"github.com/epicchewy/endorphins/backend/internal/domains"
 	"github.com/epicchewy/endorphins/backend/internal/repositories/catalogue"
 	"github.com/epicchewy/endorphins/backend/internal/repositories/postgres"
 	"github.com/epicchewy/endorphins/backend/internal/services/library"
@@ -71,11 +70,11 @@ func Seed(ctx context.Context, cfg config.SeedConfig, logger *slog.Logger) error
 		if err != nil {
 			return fmt.Errorf("seed %s: %w", subject, err)
 		}
-		summary, err := workouts.Summary(ctx, user.ID, domains.WorkoutFilter{})
+		saved, err := workouts.Count(ctx, user.ID)
 		if err != nil {
 			return fmt.Errorf("seed %s: %w", subject, err)
 		}
-		if summary.Count == 0 {
+		if saved == 0 {
 			if err := seedAccount(ctx, users, workouts, plans, user.ID, start, &now); err != nil {
 				return fmt.Errorf("seed %s: %w", subject, err)
 			}
@@ -84,7 +83,7 @@ func Seed(ctx context.Context, cfg config.SeedConfig, logger *slog.Logger) error
 		if err != nil {
 			return fmt.Errorf("read back %s: %w", subject, err)
 		}
-		logger.Info("account ready", "subject", subject, "seeded", summary.Count == 0,
+		logger.Info("account ready", "subject", subject, "seeded", saved == 0,
 			"workouts", len(account.Workouts), "completions", len(account.Completions))
 	}
 	return nil

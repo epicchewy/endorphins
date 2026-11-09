@@ -106,24 +106,23 @@ func TestCompletionConcurrentRetriesCountOnce(t *testing.T) {
 		require.NoError(t, got.err)
 		assert.Equal(t, received[0].item.ID, got.item.ID)
 	}
-	summary, err := repo.Activity(t.Context(), user.ID, "UTC")
+	summary, err := repo.Activity(t.Context(), user.ID, time.UTC)
 	require.NoError(t, err)
 	assert.Equal(t, 1, summary.CompletedCount)
 }
 
-func TestActivityUsesLocalDaysAndMondayWeeksAcrossAllLogs(t *testing.T) {
+// Calendar rules have pure tests in domains. This checks the store reads every
+// active log for the total and the padded window for the weeks.
+func TestActivityCountsAllLogsAndFoldsTheWindow(t *testing.T) {
+	location, err := time.LoadLocation("America/New_York")
+	require.NoError(t, err)
+	monday := time.Date(2026, 3, 9, 0, 0, 0, 0, location)
 	db := setupRepositoryTest(t)
-	repo := store.NewWorkouts(db)
+	repo := store.NewWorkouts(db.Session(&gorm.Session{NowFunc: func() time.Time { return monday.Add(57 * time.Hour).UTC() }}))
 	user, err := store.NewUsers(db).Ensure(t.Context(), "activity")
 	require.NoError(t, err)
 	_, err = repo.Create(t.Context(), user.ID, workoutSnapshot("plan"), "", "")
 	require.NoError(t, err)
-	location, err := time.LoadLocation("America/New_York")
-	require.NoError(t, err)
-	now := time.Now().In(location)
-	monday := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location).AddDate(0, 0, -(int(now.Weekday())+6)%7)
-	// Two confirmations on Monday count as one active day. One second before
-	// local Monday belongs to the previous week, even when its UTC day is Monday.
 	dates := []time.Time{monday, monday.Add(time.Hour), monday.AddDate(0, 0, 1), monday.Add(-time.Second), monday.AddDate(0, 0, -7), monday.AddDate(0, 0, -14), monday.AddDate(0, 0, -21), monday.AddDate(0, 0, -28)}
 	for i, date := range dates {
 		item, err := repo.Complete(t.Context(), user.ID, "plan", fmt.Sprintf("log-%d", i))
@@ -131,43 +130,16 @@ func TestActivityUsesLocalDaysAndMondayWeeksAcrossAllLogs(t *testing.T) {
 		err = db.WithContext(t.Context()).Table("workout_completions").Where(map[string]any{"id": item.ID}).Update("completed_at", date).Error
 		require.NoError(t, err)
 	}
-	activity, err := repo.Activity(t.Context(), user.ID, "America/New_York")
+	undone, err := repo.Complete(t.Context(), user.ID, "plan", "undone")
+	require.NoError(t, err)
+	require.NoError(t, repo.Undo(t.Context(), user.ID, undone.ID))
+	activity, err := repo.Activity(t.Context(), user.ID, location)
 	require.NoError(t, err)
 	assert.Equal(t, 8, activity.CompletedCount)
 	assert.Equal(t, 2, activity.ActiveDaysThisWeek)
-	assert.Equal(t, []domains.ActivityWeek{{Start: monday.AddDate(0, 0, -21).Format("2006-01-02"), Count: 1}, {Start: monday.AddDate(0, 0, -14).Format("2006-01-02"), Count: 1}, {Start: monday.AddDate(0, 0, -7).Format("2006-01-02"), Count: 2}, {Start: monday.Format("2006-01-02"), Count: 3}}, activity.Weeks)
+	assert.Equal(t, []domains.ActivityWeek{{Start: "2026-02-16", Count: 1}, {Start: "2026-02-23", Count: 1}, {Start: "2026-03-02", Count: 2}, {Start: "2026-03-09", Count: 3}}, activity.Weeks)
 	assert.Len(t, activity.Recent, 5)
-	assert.Equal(t, monday.AddDate(0, 0, 1).UTC(), activity.Recent[0].CompletedAt.UTC())
-}
-
-func TestActivityCountsCompletionsWhenLocalMidnightIsSkipped(t *testing.T) {
-	for _, tt := range []struct {
-		zone, confirmation, monday string
-	}{
-		{"America/Santiago", "2026-09-06T12:00:00-03:00", "2026-08-31"},
-		{"America/Havana", "2026-03-08T12:00:00-04:00", "2026-03-02"},
-		{"Asia/Tehran", "2010-03-21T23:30:00+03:30", "2010-03-15"},
-	} {
-		t.Run(tt.zone, func(t *testing.T) {
-			db := setupRepositoryTest(t)
-			now, err := time.Parse(time.RFC3339, tt.confirmation)
-			require.NoError(t, err)
-			repo := store.NewWorkouts(db.Session(&gorm.Session{NowFunc: func() time.Time { return now }}))
-			user, err := store.NewUsers(db).Ensure(t.Context(), "midnight-gap")
-			require.NoError(t, err)
-			_, err = repo.Create(t.Context(), user.ID, workoutSnapshot("plan"), "", "")
-			require.NoError(t, err)
-			item, err := repo.Complete(t.Context(), user.ID, "plan", "confirmation")
-			require.NoError(t, err)
-			require.NoError(t, db.WithContext(t.Context()).Table("workout_completions").
-				Where(map[string]any{"id": item.ID}).Update("completed_at", now).Error)
-			activity, err := repo.Activity(t.Context(), user.ID, tt.zone)
-			require.NoError(t, err)
-			assert.Equal(t, 1, activity.CompletedCount)
-			assert.Equal(t, 1, activity.ActiveDaysThisWeek)
-			assert.Equal(t, domains.ActivityWeek{Start: tt.monday, Count: 1}, activity.Weeks[3])
-		})
-	}
+	assert.Equal(t, monday.AddDate(0, 0, 1).UTC(), activity.Recent[0].CompletedAt)
 }
 
 func TestCompletionConcurrentDifferentPlansWithOneKeyKeepOneWinner(t *testing.T) {

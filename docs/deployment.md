@@ -55,7 +55,7 @@ Deployment sequence:
 2. Stop the old API and run one release `bin/migrate` process with `DATABASE_URL` set. It applies GORM models and repeatable data fixes in one transaction. API startup does not apply them.
 3. Start `bin/api` with the matching environment and catalogue. Startup fails if the catalogue is invalid or the database is unreachable.
 4. Start the Bun frontend/proxy and route traffic only after the Go readiness probe succeeds.
-5. Check a signed-in generation, saved detail/reload, library filters, and account export through the public origin. Check the configured Clerk lifecycle flow separately.
+5. Check a signed-in generation, saved detail/reload, library paging, and account export through the public origin. Check the configured Clerk lifecycle flow separately.
 
 The migration command follows Temper's model-driven `AutoMigrate` approach. Stored plans, accounts, completions, retry keys, and tombstones remain. The API writes derived fields in the save transaction and deletes them during account erasure. The command runs without the API's five-second statement timeout.
 

@@ -31,8 +31,9 @@ func (s *Service) Activity(ctx context.Context, userID, zone string) (domains.Ac
 	if len(zone) > 100 || zone == "" || zone == "Local" {
 		return domains.Activity{}, ErrInvalidTimezone
 	}
-	if _, err := time.LoadLocation(zone); err != nil {
+	location, err := time.LoadLocation(zone)
+	if err != nil {
 		return domains.Activity{}, ErrInvalidTimezone
 	}
-	return s.workouts.Activity(ctx, userID, zone)
+	return s.workouts.Activity(ctx, userID, location)
 }
