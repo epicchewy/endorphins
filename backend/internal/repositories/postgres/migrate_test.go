@@ -44,26 +44,62 @@ func TestMigrateFailureRollsBackSchemaAndCanBeRetried(t *testing.T) {
 	before, err := plans.Create(t.Context(), user.ID, workoutSnapshot("retained-plan"), "", "")
 	require.NoError(t, err)
 	fixture := db.WithContext(t.Context()).Migrator()
-	require.NoError(t, fixture.DropTable("workout_search_terms"))
 	require.NoError(t, fixture.DropColumn("workouts", "level"))
-	// The search-term table migrates last, after the workouts column is restored.
-	require.NoError(t, db.Callback().Raw().Before("gorm:raw").Register("test:reject_search_terms", func(tx *gorm.DB) {
+	require.NoError(t, fixture.CreateTable(&legacySearchTerm{}))
+	// Dropping the legacy search table runs last, after AutoMigrate restores the column.
+	require.NoError(t, db.Callback().Raw().Before("gorm:raw").Register("test:reject_search_cleanup", func(tx *gorm.DB) {
 		if strings.Contains(tx.Statement.SQL.String(), "workout_search_terms") {
 			_ = tx.AddError(errors.New("injected migration failure"))
 		}
 	}))
 	require.ErrorContains(t, store.Migrate(t.Context(), db), "injected migration failure")
-	assert.False(t, fixture.HasTable("workout_search_terms"))
+	assert.True(t, fixture.HasTable("workout_search_terms"))
 	assert.False(t, fixture.HasColumn("workouts", "level"))
 
-	require.NoError(t, db.Callback().Raw().Remove("test:reject_search_terms"))
+	require.NoError(t, db.Callback().Raw().Remove("test:reject_search_cleanup"))
 	require.NoError(t, store.Migrate(t.Context(), db))
-	assert.True(t, fixture.HasTable("workout_search_terms"))
+	assert.False(t, fixture.HasTable("workout_search_terms"))
 	assert.True(t, fixture.HasColumn("workouts", "level"))
 	retained, err := plans.Get(t.Context(), user.ID, "retained-plan")
 	require.NoError(t, err)
 	assert.Equal(t, before, retained)
 }
+
+func TestMigrateDropsLibrarySearchProjection(t *testing.T) {
+	db := isolatedRepositoryDatabase(t)
+	require.NoError(t, store.Migrate(t.Context(), db))
+	user, err := store.NewUsers(db).Ensure(t.Context(), "upgraded-owner")
+	require.NoError(t, err)
+	plans := store.NewWorkouts(db)
+	before, err := plans.Create(t.Context(), user.ID, workoutSnapshot("upgraded-plan"), "", "")
+	require.NoError(t, err)
+	// Recreate the projection that releases with saved-plan search left behind.
+	fixture := db.WithContext(t.Context()).Migrator()
+	require.NoError(t, fixture.CreateTable(&legacySearchTerm{}))
+	require.NoError(t, fixture.AddColumn(&legacyWorkout{}, "EstimatedMinutes"))
+
+	require.NoError(t, store.Migrate(t.Context(), db))
+	assert.False(t, fixture.HasTable("workout_search_terms"))
+	assert.False(t, fixture.HasColumn("workouts", "estimated_minutes"))
+	after, err := plans.Get(t.Context(), user.ID, "upgraded-plan")
+	require.NoError(t, err)
+	assert.Equal(t, before, after)
+}
+
+type legacySearchTerm struct {
+	UserID    string `gorm:"primaryKey;type:uuid"`
+	WorkoutID string `gorm:"primaryKey;type:text"`
+	Position  int    `gorm:"primaryKey;autoIncrement:false"`
+	Name      string `gorm:"type:text;not null"`
+}
+
+func (legacySearchTerm) TableName() string { return "workout_search_terms" }
+
+type legacyWorkout struct {
+	EstimatedMinutes int `gorm:"type:integer;not null;default:0"`
+}
+
+func (legacyWorkout) TableName() string { return "workouts" }
 
 func assertNoForeignKeys(t *testing.T, db *gorm.DB) {
 	t.Helper()

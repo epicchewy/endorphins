@@ -29,7 +29,10 @@ function SavedWorkout() {
           <Completed finish={finish} />
         ) : (
           finish.undone && (
-            <Feedback tone="info">Completion removed. Your plan is still saved.</Feedback>
+            // The focused Undo button unmounts, so focus moves to this message.
+            <div ref={focusOnMount} tabIndex={-1} className="focus:outline-none">
+              <Feedback tone="info">Completion removed. Your plan is still saved.</Feedback>
+            </div>
           )
         )
       }

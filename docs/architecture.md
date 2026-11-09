@@ -1,6 +1,6 @@
 # Endorphins architecture
 
-Updated October 21, 2026. This describes the current application. Earlier changes are recorded in the [Temper comparison](history/temper-architecture-comparison.md).
+Updated November 8, 2026. This describes the current application. Earlier changes are recorded in the [Temper comparison](history/temper-architecture-comparison.md).
 
 ## Product
 
@@ -21,7 +21,7 @@ flowchart LR
   Files[Existing exercises/*.json] -->|startup| Catalogue
 ```
 
-Start renders pages; the browser calls Go through TanStack Query. Each router has one QueryClient. SSR loaders do not fetch relative API URLs. Vite proxies `/api` in development; Bun serves production assets and the same proxy. Go binds to loopback by default. Private pages fetch on the client after a server auth guard. Each API request carries a Clerk bearer token, which Go verifies. The proxy forwards the client IP and user agent, and Bun adds framing, MIME-sniffing, referrer, and HSTS headers. Workout creation is rate limited per account. Clerk serves its own identity requests. The public deletion webhook verifies the raw-body Svix signature and timestamp.
+Start renders pages; the browser calls Go through TanStack Query. Each router has one QueryClient. SSR loaders do not fetch relative API URLs. Vite proxies `/api` in development; Bun serves production assets and the same proxy. Go binds to loopback by default. Private pages fetch on the client after a server auth guard. Each API request carries a Clerk bearer token, which Go verifies. The proxy forwards the client IP and user agent, and Bun adds framing, MIME-sniffing, referrer, and HSTS headers. Workout creation is rate limited per account. Clerk serves its own identity requests. The public deletion webhook verifies the raw-body Svix signature and timestamp. When DSNs are set, Sentry receives browser errors, Bun SSR middleware failures and Go's unexpected 500 responses; see [error reporting](#error-reporting).
 
 ## Stack
 
@@ -30,16 +30,18 @@ Start renders pages; the browser calls Go through TanStack Query. Each router ha
 | Go             | 1.27.1, project toolchain; exact compiler also selected for the linter                        |
 | HTTP           | Echo v5.4.0, request IDs, recovery, structured request logs                                   |
 | React          | 19.3.0                                                                                        |
-| Routing        | TanStack Start 1.168.60 / Router 1.170.41                                                     |
-| Remote state   | Query 5.104.0 / SSR bridge 1.167.3                                                            |
+| Routing        | TanStack Start 1.169.5 / Router 1.170.46                                                      |
+| Remote state   | Query 5.107.1 / SSR bridge 1.167.3                                                            |
 | Styling        | Tailwind 4.3.3, shadcn/ui components on Base UI 1.9.0, our tokens and locally served fonts    |
 | Runtime/build  | Bun 1.4.2, Node 26.10.0, Vite 8.3.3                                                           |
-| Authentication | Clerk TanStack Start SDK 1.6.3 / Go SDK v2.7.0; Svix v1.99.1 for webhook verification         |
+| Authentication | Clerk TanStack Start SDK 1.7.11 / Go SDK v2.7.0; Svix v1.99.1 for webhook verification        |
+| Monitoring     | Sentry TanStack Start SDK 11.11.0 / sentry-go v0.50.0; off without a DSN                      |
 | Persistence    | Postgres 18, GORM v1.31.2 / Postgres driver v1.6.3, pgx v5.11.0                               |
 | Database tests | Testcontainers Go v0.44.0                                                                     |
 | Browser tests  | Playwright 1.61.0, desktop Chromium and Pixel 7 mobile emulation                              |
 | Contract       | OpenAPI 3.0.3, generated TypeScript with openapi-typescript 7.13.0                            |
 | Checks         | strict TypeScript, Oxlint, React Doctor 0.9.17, Prettier, Go race tests, golangci-lint 2.14.0 |
+| Development    | TanStack Devtools 0.10.14 in the Vite dev server only; TanStack Intent 0.5.6 skills           |
 
 The frontend versions follow the Postmaker migration at commit `ec8e694`. Shared primitives are shadcn components on Base UI; the duration and level chips stay native radios. The app does not need TanStack Form or Zustand.
 
@@ -57,6 +59,7 @@ frontend/
     pages/                   # Public landing composition
     components/ui/           # shadcn components plus our radio chip and feedback
     components/workout/      # Workout-specific builder, library, plan, exercise view
+    components/devtools.tsx  # TanStack Devtools, loaded only by the Vite dev server
     components/auth/         # Account controls, auth layout, session boundary
     server/auth.ts           # Private-route server auth check
     hooks/                   # Query/mutation policy, export
@@ -86,13 +89,14 @@ backend/
     handlers/               # HTTP decoding/status/headers and consumed service interfaces
     services/workout/       # Pure generation and consumed catalogue port
     services/account/       # Identity resolution, erasure, and export
-    services/library/       # Account-owned generation, queries, and cursor scope
+    services/library/       # Account-owned generation, paging, completions, and activity
     integrations/clerk/     # JWT verification and verified deletion webhook
-    domains/                # Application values and pure workout rules
+    domains/                # Application values, pure workout and activity-calendar rules
     repositories/catalogue/ # Concrete filesystem store
     repositories/postgres/  # Stores, versioned snapshots, and query tests
     testfixtures/           # e2e-tag-only Clerk signing and workout seed helpers
 exercises/                  # Original catalogue, shared with Python
+legacy/                     # Original Python script, sample PDFs and Make targets
 scripts/                    # Development lifecycle, layer checks, migration upgrade check
 .railway/railway.ts         # Railway production and PR preview services (IaC)
 ```
@@ -109,7 +113,7 @@ Frontend import rules also run as part of linting. UI primitives and pure servic
 
 Frontend lint runs the pinned React Doctor full scan. CI fails on errors or warnings. The scan shares the generated-file exclusions in the Oxlint config and uses no remote score or supply-chain service.
 
-`POST /api/v1/workouts` persists a resource and returns `201` with its retrieval URL. Optional owner/input-scoped idempotency keys replay the saved result; a conflicting input receives `409`. Authenticated reads include `/api/v1/workouts`, `/api/v1/workouts/summary`, `/api/v1/workouts/{id}`, `/api/v1/me`, and `/api/v1/me/export`. Errors use safe `{message, code, requestId}` envelopes. The server generates the correlation ID; structured internal logs retain unexpected causes while responses expose safe copy.
+`POST /api/v1/workouts` persists a resource and returns `201` with its retrieval URL. Optional owner/input-scoped idempotency keys replay the saved result; a conflicting input receives `409`. Authenticated reads include `/api/v1/workouts`, `/api/v1/workouts/summary`, `/api/v1/workouts/{id}`, `/api/v1/me`, and `/api/v1/me/export`. Errors use safe `{message, code, requestId}` envelopes. `server/errors.go` maps each expected failure to its status, code, and the message every client shows; no client keeps its own copy of those messages. The server generates the correlation ID; structured internal logs retain unexpected causes while responses expose safe copy.
 
 `GET /healthz` is process liveness. `GET /readyz` checks database connectivity with a two-second bound. Startup validates the catalogue and database connection. The separate migration command prepares the schema before startup. See [the account and workout model](accounts-and-workouts.md) for ownership, cursors, snapshots, idempotency, and deletion semantics; see [deployment](deployment.md) for operational setup.
 
@@ -132,11 +136,17 @@ Local state and reducers own UI transitions. Query mutations own confirmation an
 
 Validated URL search owns builder minutes/level. The custom-duration input keeps an editing draft so intermediate values can be typed; only valid integers update route state. The default 45-minute duration is omitted from the URL. An explicit level remains so links do not depend on another account's saved preference.
 
-Hooks own fetching, pagination, retries, and mutations. `services/http.ts` owns authenticated transport, cancellation/deadlines, and safe error parsing; account and workout transport are separate modules. One key factory scopes every private query and mutation to the Clerk session. Generating a workout seeds its detail cache and invalidates all list/summary variants only if the originating session remains current.
+Hooks own fetching, pagination, and mutations; each sets its key, function, and stale time. The per-router `QueryClient` holds the shared policy: a read retries once unless the API rejected the request, and a write runs while offline and never retries. `services/http.ts` owns authenticated transport, cancellation/deadlines, and error parsing. It shows the API's message for a 4xx envelope. It keeps its own copy only for what the API cannot see: no session, no connection, or a server or upstream failure. Account and workout transport are separate modules. One key factory scopes every private query and mutation to the Clerk session. Generating a workout seeds its detail cache and invalidates all list/summary variants only if the originating session remains current.
 
 Setup owns generation input. The saved-plan route owns the displayed plan and its completion result; the plan sheet owns the local plan/exercise-view toggle. Postgres owns history. A generation opens the new plan only if the reader is still on the page that started it; the router keeps that page mounted while the next route loads. Writes are not retried automatically. Manual retries keep one idempotency key until success, reset, or changed preferences. The completion hook owns confirmation, Undo, and key rotation; each success starts a new key. It waits for the plan's refreshed history, so the page changes from to-do to completed in one step, then refreshes lists and analytics without waiting.
 
-The library fetches saved plans newest first, with a count across the account; it has no search or filter controls. The Go API still accepts `q`, `level`, and `sort`. Loaded pages only determine which cards are currently displayed. Summary counts and estimated minutes never imply completed activity. The `/app/account` screen, linked as **Settings** from the account menu, shows application account details and downloads a consistent owner-scoped export; late downloads are suppressed after a session switch.
+The library fetches saved plans newest first, with a count across the account. It has no search, filter, or sort; the API removed them with the controls. Loaded pages only determine which cards are currently displayed. The plan count never implies completed activity. The `/app/account` screen, linked as **Settings** from the account menu, shows application account details and downloads a consistent owner-scoped export; late downloads are suppressed after a session switch.
+
+The Vite dev server adds TanStack Devtools with Router and Query panels at the bottom right. `__root.tsx` loads them lazily behind `import.meta.env.DEV`, so release and e2e builds contain no devtools code. `frontend/AGENTS.md` tells agents to load the TanStack Intent skill for a package before they change it; `package.json` allows only `@tanstack/*` skill sources.
+
+## Error reporting
+
+Sentry stays off until a DSN is set. `router.tsx` starts the browser SDK with router tracing at a 10% sample; route error boundaries report what they catch through `defaultOnCatch`. `server.ts` starts the server SDK on Bun before it loads the SSR handler. Start's global request and function middleware in `start.ts` then report server failures. Go's central error handler reports unexpected 500 responses with the request ID and route. Deliberate 503s and client errors stay in the logs. The SDKs keep `sendDefaultPii` off, and nothing attaches request bodies, tokens or exports. Each event carries the Railway environment and commit. Release builds with a Sentry token upload hidden source maps and delete them, so Bun never serves them. See [deployment](deployment.md#configure-sentry).
 
 ## Design system
 
@@ -144,7 +154,7 @@ The library fetches saved plans newest first, with a count across the account; i
 
 `app.css` contains font loading, shadcn-named theme tokens, the `dark` variant, and base rules. It is the only application stylesheet. Shared primitives own control styles and states through Tailwind utilities; layouts and responsive/print variants stay beside their markup. The palette supports light and dark schemes. Shared controls preserve readable text, keyboard focus, disabled/pending behavior, and touch targets. Hover changes color only; reduced motion removes every transition.
 
-Successful generation focuses the plan title and scrolls to it at mobile widths, respecting reduced motion. The saved plan shows every exercise with its count and notes: three block columns from 900px, one column below, and one compact column in print. **Mark complete** is the last action of a plan that is still to do and of the exercise view. Fonts and photography are served locally. The display face is the Sharp Serif Text PDF preview recovered from the supplied specimen, paired with Inter; the original font package is still needed for public release. [The design system](design-system.md) defines tokens and control contracts. Its development gallery is `/design-system`.
+Successful generation opens the saved plan and focuses its title. Undo focuses the "Completion removed" message. The saved plan shows every exercise with its count and notes: three block columns from 900px, one column below, and one compact column in print. **Mark complete** is the last action of a plan that is still to do and of the exercise view. Fonts and photography are served locally. The display face is the Sharp Serif Text PDF preview recovered from the supplied specimen, paired with Inter; the original font package is still needed for public release. [The design system](design-system.md) defines tokens and control contracts. Its development gallery is `/design-system`.
 
 Mobbin informed information hierarchy; the [Paper file](https://app.paper.design/file/01M3TVV9XXTXF2N7ZD43K3WH3V) stores desktop/mobile studies. Reconcile Paper changes with the app’s tokens and control contracts.
 
@@ -160,11 +170,11 @@ Postgres tests use one migrated container per package, created by `TestMain` in 
 
 `app.Seed` composes the real catalogue, generator and stores to give development accounts five weeks of plans and completions. A GORM session clock backdates them; the seed has no SQL of its own. It reads each account back with the export query. `scripts/migration-check.sh` seeds a database with the base commit, then migrates and seeds it with the branch, so upgrades of populated databases fail before merge. It then compares the upgraded columns and indexes with a fresh migration of the branch, which exposes changes `AutoMigrate` does not apply to existing tables. Railway `production` and PR environments run the same migrate-then-seed step before each API deploy; the seed skips `production`. A Tailscale forwarder is the only way into either, because no service has a public domain; see [Railway production and previews](preview-environments.md).
 
-Repositories use GORM for reads, writes, joins, filters, cursor ordering, row locks, and conditional upserts. Persistence rows stay inside the Postgres package; domains and services have no ORM dependency. List and summary share one owner/search filter. Completion joins include both owner and workout IDs. Go hooks generate account/completion UUIDs. GORM supplies creation/confirmation timestamps in UTC; repository mappings return stored timestamps in UTC. The API supplies UTC timestamps for the first onboarding and Undo operations under row locks. GORM runs explicit transactions for account lifecycle operations, child writes, exports, and activity snapshots.
+Repositories use GORM for reads, writes, joins, cursor ordering, row locks, and conditional upserts. Persistence rows stay inside the Postgres package; domains and services have no ORM dependency. Completion joins include both owner and workout IDs. Go hooks generate account/completion UUIDs. GORM supplies creation/confirmation timestamps in UTC; repository mappings return stored timestamps in UTC. The API supplies UTC timestamps for the first onboarding and Undo operations under row locks. GORM runs explicit transactions for account lifecycle operations, child writes, exports, and activity snapshots.
 
-Saves write workout level, estimated minutes, and an owned search-term table and lowercased focus, block, and exercise names in the same transaction. Retries retain the original plan and its search terms. GORM filters and orders these columns, and joins search terms on both owner and workout ID. Distinct results prevent duplicate matches. Summary reads only matching IDs, levels, and minutes and folds totals in Go, because aggregates need SQL expressions. Activity counts all active completions in Postgres, then groups timestamps into four local calendar weeks in Go. Its timestamp query spans 30 UTC days to cover all zone offsets; only dates in those four weeks count.
+Saves write the workout level beside the plan snapshot in the same transaction, so completions read it without decoding the plan. Retries retain the original plan. Lists order by creation time and ID; the plan count is a GORM `Count`. Activity counts all active completions in Postgres and reads their timestamps in one padded UTC window from the same snapshot. `domains.ActivityCalendar` owns the calendar: it sets that window from the current time and zone, then folds the timestamps into four local Monday-start weeks. Pure tests cover its week boundaries and zones that skip local midnight.
 
-Existing accounts resolve with one read. The unique deletion-digest key serializes first provisioning and erasure. Provisioning inserts a transient guard and removes it before commit. Erasure keeps the tombstone and deletes owned search terms with the other child records. Application and test queries contain no SQL statements or expressions. The one approved exception is the migration check's `psql` comparison of `information_schema.columns` and `pg_indexes`, which GORM cannot list. Integration fixtures use GORM, callbacks for failure injection, and isolated databases for schema tests. Temporary databases use Postgres `createdb` and `dropdb` inside the test container. There are no SQL files or versioned schema migrations. GORM uses pgx through its Postgres driver. The separate `cmd/migrate` command runs `AutoMigrate` over repository models with foreign key creation disabled. It runs in one transaction without a statement timeout. Repeating the command preserves application records. API startup never calls `AutoMigrate`. UUIDs, timestamps, and value validation live in Go; model tags retain primary keys, unique keys, indexes, nullability, and literal defaults.
+Existing accounts resolve with one read. The unique deletion-digest key serializes first provisioning and erasure. Provisioning inserts a transient guard and removes it before commit. Erasure keeps the tombstone and deletes the other owned records. Application and test queries contain no SQL statements or expressions. The one approved exception is the migration check's `psql` comparison of `information_schema.columns` and `pg_indexes`, which GORM cannot list. Integration fixtures use GORM, callbacks for failure injection, and isolated databases for schema tests. Temporary databases use Postgres `createdb` and `dropdb` inside the test container. There are no SQL files or versioned schema migrations. GORM uses pgx through its Postgres driver. The separate `cmd/migrate` command runs `AutoMigrate` over repository models with foreign key creation disabled. It runs in one transaction without a statement timeout. In the same transaction, `postgres.Migrate` drops the saved-plan search table and estimate column that earlier releases created, so an upgraded schema matches a fresh one. Repeating the command preserves application records. API startup never calls `AutoMigrate`. UUIDs, timestamps, and value validation live in Go; model tags retain primary keys, unique keys, indexes, nullability, and literal defaults.
 
 ## Signup, onboarding, and activity
 

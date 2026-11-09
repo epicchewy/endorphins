@@ -14,6 +14,7 @@ import (
 
 	"github.com/epicchewy/endorphins/backend/internal/domains"
 	"github.com/epicchewy/endorphins/backend/internal/services/library"
+	"github.com/getsentry/sentry-go"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
 	"github.com/stretchr/testify/assert"
@@ -58,6 +59,32 @@ func TestHealthAndReadinessAreIndependent(t *testing.T) {
 	}
 }
 
+func TestOnlyServerFailuresLogOneError(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name   string
+		err    error
+		errors int
+	}{
+		{name: "expected", err: domains.ErrNotFound, errors: 0},
+		{name: "unknown route", errors: 0},
+		{name: "internal", err: errors.New("database detail"), errors: 1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var logs strings.Builder
+			router := New(nil, nil, nil, slog.New(slog.NewTextHandler(&logs, nil)), Options{})
+			path := "/missing"
+			if tt.err != nil {
+				path = "/failure"
+				router.GET(path, func(*echo.Context) error { return tt.err })
+			}
+			router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
+			assert.Equal(t, tt.errors, strings.Count(logs.String(), "level=ERROR"), logs.String())
+			assert.Contains(t, logs.String(), "msg=request")
+		})
+	}
+}
+
 func TestSafeErrorsAndRequestIDs(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -70,6 +97,8 @@ func TestSafeErrorsAndRequestIDs(t *testing.T) {
 		{code: "idempotency_conflict", err: domains.ErrIdempotencyConflict, status: 409},
 		{code: "invalid_page", err: library.ErrInvalidPage, status: 400},
 		{code: "rate_limited", err: middleware.ErrRateLimitExceeded, status: 429},
+		{code: "not_found", err: echo.ErrNotFound, status: 404},
+		{code: "method_not_allowed", err: echo.ErrMethodNotAllowed, status: 405},
 	} {
 		t.Run(tt.code, func(t *testing.T) {
 			router := New(nil, nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{})
@@ -88,4 +117,32 @@ func TestSafeErrorsAndRequestIDs(t *testing.T) {
 			assert.NotContains(t, body.Message, "secret")
 		})
 	}
+}
+
+func TestOnlyUnexpectedErrorsReachSentry(t *testing.T) {
+	t.Parallel()
+	var events []*sentry.Event
+	client, err := sentry.NewClient(sentry.ClientOptions{BeforeSend: func(event *sentry.Event, _ *sentry.EventHint) *sentry.Event {
+		events = append(events, event)
+		return nil // Record only; nothing leaves the test.
+	}})
+	require.NoError(t, err)
+	router := New(nil, nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{})
+	router.GET("/unexpected", func(*echo.Context) error { return errors.New("postgres is down") })
+	router.GET("/unready", func(*echo.Context) error {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "Database is unavailable.")
+	})
+	router.GET("/missing", func(*echo.Context) error { return domains.ErrNotFound })
+	requestIDs := map[string]string{}
+	for _, path := range []string{"/unexpected", "/unready", "/missing"} {
+		ctx := sentry.SetHubOnContext(t.Context(), sentry.NewHub(client, sentry.NewScope()))
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, httptest.NewRequestWithContext(ctx, http.MethodGet, path, nil))
+		requestIDs[path] = res.Header().Get("X-Request-ID")
+	}
+	require.Len(t, events, 1)
+	require.NotEmpty(t, events[0].Exception)
+	assert.Equal(t, "postgres is down", events[0].Exception[len(events[0].Exception)-1].Value)
+	assert.Equal(t, "GET /unexpected", events[0].Tags["route"])
+	assert.Equal(t, requestIDs["/unexpected"], events[0].Tags["request_id"])
 }

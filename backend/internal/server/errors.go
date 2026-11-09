@@ -10,6 +10,7 @@ import (
 	"github.com/epicchewy/endorphins/backend/internal/services/account"
 	"github.com/epicchewy/endorphins/backend/internal/services/library"
 	"github.com/epicchewy/endorphins/backend/internal/services/workout"
+	"github.com/getsentry/sentry-go"
 	"github.com/labstack/echo/v5"
 )
 
@@ -20,7 +21,11 @@ func errorHandler(logger *slog.Logger) echo.HTTPErrorHandler {
 		}
 		status, code, message := publicError(err)
 		if status >= 500 {
-			logger.ErrorContext(c.Request().Context(), "request failed", "request_id", c.Response().Header().Get("X-Request-ID"), "error", err)
+			requestID := c.Response().Header().Get("X-Request-ID")
+			logger.ErrorContext(c.Request().Context(), "request failed", "request_id", requestID, "error", err)
+			if status == http.StatusInternalServerError {
+				report(c, requestID, err)
+			}
 		}
 		if status == http.StatusUnauthorized {
 			c.Response().Header().Set("WWW-Authenticate", "Bearer")
@@ -32,47 +37,62 @@ func errorHandler(logger *slog.Logger) echo.HTTPErrorHandler {
 		v1.WriteError(c.Response(), status, code, message)
 	}
 }
+
+// report sends an unexpected failure to Sentry. Deliberate 503s, such as an
+// unready database, stay in the logs. Without sentry.Init this does nothing.
+func report(c *echo.Context, requestID string, err error) {
+	hub := sentry.GetHubFromContext(c.Request().Context())
+	if hub == nil {
+		hub = sentry.CurrentHub()
+	}
+	hub = hub.Clone()
+	hub.Scope().SetTag("request_id", requestID)
+	hub.Scope().SetTag("route", c.Request().Method+" "+c.Path())
+	hub.CaptureException(err)
+}
+
+// publicError owns the copy that every client shows for an expected failure.
+// Messages must never contain internal details.
 func publicError(err error) (int, string, string) {
 	switch {
 	case errors.Is(err, account.ErrInvalidLevel):
 		return 422, "invalid_level", "Choose a default level from 1 to 5."
 	case errors.Is(err, library.ErrInvalidTimezone):
-		return 400, "invalid_timezone", "Use a valid time zone."
+		return 400, "invalid_timezone", "Your time zone could not be used. Reload and try again."
 	case errors.Is(err, library.ErrCompletionUndone):
 		return 409, "completion_undone", "This completion was undone. Start a new confirmation."
 	case errors.Is(err, domains.ErrAccountDeleted):
-		return 401, "account_deleted", "This account has been deleted."
+		return 401, "account_deleted", "This account has been deleted. Sign in with another account."
 	case errors.Is(err, domains.ErrNotFound):
-		return 404, "not_found", "Workout not found."
+		return 404, "not_found", "This workout couldn’t be found in your account."
 	case errors.Is(err, domains.ErrIdempotencyConflict):
-		return 409, "idempotency_conflict", "This request key was already used for another workout or different preferences."
+		return 409, "idempotency_conflict", "This request was already used for another workout. Start a new attempt."
 	case errors.Is(err, library.ErrInvalidKey):
 		return 400, "invalid_request", "Use a request key with 1–128 visible ASCII characters."
 	case errors.Is(err, library.ErrInvalidPage):
-		return 400, "invalid_page", "Choose a valid workout filter or page."
+		return 400, "invalid_page", "This page of saved workouts couldn’t be loaded. Reload and try again."
 	case errors.Is(err, workout.ErrInvalidInput):
 		return 422, "invalid_workout", "Choose a duration from 30 to 120 minutes and a level from 1 to 5."
 	}
-	var httpError *echo.HTTPError
-	if errors.As(err, &httpError) {
-		switch httpError.Code {
-		case 400:
-			return 400, "invalid_request", "Send a valid request."
-		case 401:
-			return 401, "unauthenticated", "Sign in to access your workouts."
-		case 404:
-			return 404, "not_found", "The requested resource was not found."
-		case 405:
-			return 405, "method_not_allowed", "This method is not supported."
-		case 413:
-			return 413, "invalid_request", "This request is too large."
-		case 415:
-			return 415, "unsupported_media_type", "Send this request as JSON."
-		case 429:
-			return 429, "rate_limited", "You are creating workouts too quickly. Wait a minute and try again."
-		case 503:
-			return 503, "unavailable", "The service is temporarily unavailable. Please try again."
-		}
+	// StatusCode also reads Echo's router errors (ErrNotFound, ErrMethodNotAllowed),
+	// whose private type is not *echo.HTTPError.
+	switch echo.StatusCode(err) {
+	case 400:
+		return 400, "invalid_request", "Send a valid request."
+	case 401:
+		return 401, "unauthenticated", "Sign in to access your workouts."
+	case 404:
+		return 404, "not_found", "The requested resource was not found."
+	case 405:
+		return 405, "method_not_allowed", "This method is not supported."
+	case 413:
+		return 413, "invalid_request", "This request is too large."
+	case 415:
+		return 415, "unsupported_media_type", "Send this request as JSON."
+	case 429:
+		return 429, "rate_limited", "You are creating workouts too quickly. Wait a minute and try again."
+	case 503:
+		return 503, "unavailable", "The service is temporarily unavailable. Please try again."
 	}
 	return 500, "internal_error", "Something went wrong. Please try again."
 }

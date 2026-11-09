@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getActivity, completeWorkout, undoCompletion } from '~/services/activity'
 import { APIError } from '~/services/http'
 import { queryKeys } from '~/services/query-keys'
-import { useAccountSession, retryAccountQuery } from './use-account'
+import { useAccountSession } from './use-account'
 
 export function useActivity() {
   const { userId, sessionId, getToken } = useAccountSession()
@@ -12,7 +12,6 @@ export function useActivity() {
     queryKey: queryKeys.activity(sessionId, timezone),
     queryFn: ({ signal }) => getActivity(timezone, getToken, signal),
     enabled: Boolean(userId),
-    retry: retryAccountQuery,
     staleTime: 30_000,
   })
 }
@@ -33,8 +32,6 @@ export function useWorkoutCompletion(workoutId: string) {
       attempt.current ??= crypto.randomUUID()
       return completeWorkout(workoutId, attempt.current, getToken)
     },
-    retry: false,
-    networkMode: 'always',
     onSuccess: async () => {
       if (!isCurrentSession()) return
       // A later confirmation on this page is another workout, so it needs a new key.
@@ -45,8 +42,6 @@ export function useWorkoutCompletion(workoutId: string) {
   const removal = useMutation({
     mutationKey: queryKeys.completion(sessionId),
     mutationFn: (id: string) => undoCompletion(id, getToken),
-    retry: false,
-    networkMode: 'always',
     onSuccess: async () => {
       if (!isCurrentSession()) return
       await refresh()

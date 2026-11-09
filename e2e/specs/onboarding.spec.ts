@@ -55,7 +55,9 @@ test('signup introduces home workouts, saves a level, and records real progress'
   await repeat()
   await expect(page.getByText(/^Completed 2 times · Last /)).toBeVisible()
   await page.getByRole('button', { name: 'Undo completion' }).click()
-  await expect(page.getByText('Completion removed. Your plan is still saved.')).toBeVisible()
+  await expect(page.locator(':focus')).toContainText(
+    'Completion removed. Your plan is still saved.',
+  )
   await expect(page.getByText(/^Completed 2 times/)).toHaveCount(0)
   await repeat()
   await page.getByRole('link', { name: 'Back to dashboard' }).click()
@@ -139,9 +141,11 @@ test('late completion results cannot appear in another account', async ({
   await expect(page.getByTestId('completed-total')).toHaveText('1')
 })
 
-test('an account load error shows recovery instead of restarting onboarding', async ({
+test('page and account load errors show recovery instead of restarting onboarding', async ({
   signedInPage: page,
 }) => {
+  // The first entry check fails in the network; Try again must run it again.
+  await page.route('**/_serverFn/**', (route) => route.abort(), { times: 1 })
   await page.route('**/api/v1/me', (route) =>
     route.fulfill({
       status: 503,
@@ -149,6 +153,8 @@ test('an account load error shows recovery instead of restarting onboarding', as
     }),
   )
   await page.goto('/app')
+  await expect(page.getByRole('heading', { name: 'Could not load this page' })).toBeVisible()
+  await page.getByRole('button', { name: 'Try again', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('try again')
   await expect(page.getByRole('heading', { name: 'Welcome home.' })).toHaveCount(0)
   await page.unroute('**/api/v1/me')

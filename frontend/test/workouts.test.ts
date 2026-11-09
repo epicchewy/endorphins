@@ -24,22 +24,42 @@ test('generation replays its input and key with a fresh token for each request',
 })
 
 test.each([
-  [401, 'Your session has ended. Please sign in again.'],
-  [422, 'Choose 30-120 minutes and a level from 1 to 5.'],
-  [500, 'Your workouts are unavailable just now. Please try again.'],
-])('HTTP %i returns safe copy and keeps diagnostic fields', async (status, message) => {
+  [422, 'Choose a duration from 30 to 120 minutes and a level from 1 to 5.', 'invalid_workout'],
+  [500, 'Your workouts are unavailable just now. Please try again.', 'internal_error'],
+])(
+  'HTTP %i shows only API request-error copy and keeps diagnostic fields',
+  async (status, message, code) => {
+    spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json(
+        {
+          message: status < 500 ? message : 'private SQL detail',
+          code,
+          requestId: 'request-123',
+        },
+        { status },
+      ),
+    )
+    await expect(generateWorkout(input, getToken)).rejects.toMatchObject({
+      name: 'APIError',
+      status,
+      message,
+      code,
+      requestId: 'request-123',
+    })
+  },
+)
+
+test('a response that is not an API error envelope gets generic copy', async () => {
   spyOn(globalThis, 'fetch').mockResolvedValue(
     Response.json(
-      { message: 'private SQL detail', code: 'internal_error', requestId: 'request-123' },
-      { status },
+      { message: 'upstream detail' },
+      { status: 400, headers: { 'X-Request-ID': 'proxy-1' } },
     ),
   )
   await expect(generateWorkout(input, getToken)).rejects.toMatchObject({
-    name: 'APIError',
-    status,
-    message,
-    code: 'internal_error',
-    requestId: 'request-123',
+    message: 'Your workouts are unavailable just now. Please try again.',
+    code: 'unavailable',
+    requestId: 'proxy-1',
   })
 })
 

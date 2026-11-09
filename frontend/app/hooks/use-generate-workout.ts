@@ -17,9 +17,6 @@ export function useGenerateWorkout() {
       attempt.current ??= createGenerationAttempt()
       return generateWorkout(input, getToken, attempt.current.keyFor(input))
     },
-    // Report connectivity failures immediately; never automatically repeat a write.
-    networkMode: 'always',
-    retry: false,
     mutationKey: queryKeys.generate(sessionId),
     onSuccess: async (workout) => {
       attempt.current?.reset()

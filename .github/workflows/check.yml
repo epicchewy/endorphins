@@ -1,14 +1,15 @@
 name: Check
 on:
+  # Branches are checked through their pull requests, so one push runs once.
   push:
     branches: [master]
   pull_request:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # A new push to a pull request replaces its older run; master runs all finish.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 permissions:
   contents: read
-concurrency:
-  # A new push to a pull request cancels its older run; master runs never share a group.
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: true
 jobs:
   check:
     runs-on: ubuntu-latest
