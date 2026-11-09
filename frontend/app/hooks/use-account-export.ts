@@ -7,8 +7,6 @@ export function useAccountExport() {
   const { sessionId, getToken, isCurrentSession } = useAccountSession()
   return useMutation({
     mutationKey: queryKeys.accountExport(sessionId),
-    networkMode: 'always',
-    retry: false,
     gcTime: 0,
     mutationFn: async (accountId: string) => {
       const data = await exportAccount(getToken)

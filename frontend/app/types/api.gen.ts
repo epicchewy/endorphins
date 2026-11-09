@@ -11,7 +11,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search your complete saved library with stable cursor pagination */
+        /** List your saved workouts newest first with stable cursor pagination */
         get: operations["listWorkouts"];
         put?: never;
         /** Generate a full-body workout from the original exercise catalogue */
@@ -64,7 +64,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Summarize all owned plans matching the active q/level filters, independent of pagination */
+        /** Count every saved plan, independent of pagination */
         get: operations["summarizeWorkouts"];
         put?: never;
         post?: never;
@@ -260,12 +260,6 @@ export interface components {
         };
         WorkoutSummary: {
             count: number;
-            plannedMinutes: number;
-            averageMinutes: number;
-            levels: {
-                level: number;
-                count: number;
-            }[];
         };
         AccountExport: {
             /** @enum {integer} */
@@ -319,13 +313,9 @@ export interface operations {
     listWorkouts: {
         parameters: {
             query?: {
-                /** @description Opaque cursor scoped to owner and normalized filters/order; changing filters requires a new first page. */
+                /** @description Opaque newest-first position from the previous page’s nextCursor. */
                 cursor?: string;
                 limit?: number;
-                /** @description Literal case-insensitive search across all owned workout focus, block, and exercise names. Trimmed; at most 200 Unicode characters. */
-                q?: string;
-                level?: number;
-                sort?: "newest" | "shortest";
             };
             header?: never;
             path?: never;
@@ -630,33 +620,20 @@ export interface operations {
     };
     summarizeWorkouts: {
         parameters: {
-            query?: {
-                /** @description Literal case-insensitive search across all owned workout focus, block, and exercise names. Trimmed; at most 200 Unicode characters. */
-                q?: string;
-                level?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Plan counts and estimated minutes across the matching library. These are generated plans, not completed training. */
+            /** @description How many plans the account has saved. These are generated plans, not completed training. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["WorkoutSummary"];
-                };
-            };
-            /** @description Invalid filters */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
                 };
             };
             /** @description Sign-in required */

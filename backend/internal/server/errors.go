@@ -32,24 +32,27 @@ func errorHandler(logger *slog.Logger) echo.HTTPErrorHandler {
 		v1.WriteError(c.Response(), status, code, message)
 	}
 }
+
+// publicError owns the copy that every client shows for an expected failure.
+// Messages must never contain internal details.
 func publicError(err error) (int, string, string) {
 	switch {
 	case errors.Is(err, account.ErrInvalidLevel):
 		return 422, "invalid_level", "Choose a default level from 1 to 5."
 	case errors.Is(err, library.ErrInvalidTimezone):
-		return 400, "invalid_timezone", "Use a valid time zone."
+		return 400, "invalid_timezone", "Your time zone could not be used. Reload and try again."
 	case errors.Is(err, library.ErrCompletionUndone):
 		return 409, "completion_undone", "This completion was undone. Start a new confirmation."
 	case errors.Is(err, domains.ErrAccountDeleted):
-		return 401, "account_deleted", "This account has been deleted."
+		return 401, "account_deleted", "This account has been deleted. Sign in with another account."
 	case errors.Is(err, domains.ErrNotFound):
-		return 404, "not_found", "Workout not found."
+		return 404, "not_found", "This workout couldn’t be found in your account."
 	case errors.Is(err, domains.ErrIdempotencyConflict):
-		return 409, "idempotency_conflict", "This request key was already used for another workout or different preferences."
+		return 409, "idempotency_conflict", "This request was already used for another workout. Start a new attempt."
 	case errors.Is(err, library.ErrInvalidKey):
 		return 400, "invalid_request", "Use a request key with 1–128 visible ASCII characters."
 	case errors.Is(err, library.ErrInvalidPage):
-		return 400, "invalid_page", "Choose a valid workout filter or page."
+		return 400, "invalid_page", "This page of saved workouts couldn’t be loaded. Reload and try again."
 	case errors.Is(err, workout.ErrInvalidInput):
 		return 422, "invalid_workout", "Choose a duration from 30 to 120 minutes and a level from 1 to 5."
 	}

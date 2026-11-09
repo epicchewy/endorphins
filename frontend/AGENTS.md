@@ -1,6 +1,7 @@
 # Frontend
 
 - Routes own URL state and guards. Pages compose the UI. Hooks own Query behavior; services own transport and pure policies. Private keys come from `services/query-keys.ts` and include session identity.
+- The `QueryClient` in `router.tsx` owns retry and network policy for every query and mutation; hooks do not repeat it. Show `APIError.message`; the Go error map owns copy for request errors.
 - Use `useState` for independent local values, reducers for related draft fields, Query for remote state, and refs for retry keys. Use subscriptions or callback refs with cleanup for browser lifecycles. Lint rejects `useEffect` across application code, scripts, and test adapters. Do not replace them with layout effects or global UI stores.
 - Merge URL edits with functional navigation updates; controls send changed fields only. Transient invalid input drafts stay local until valid.
 - Capture the specific Clerk session for each request. Guard late mutation results against the live session and location. Clear/remount on session changes; never retain account exports in the cache.

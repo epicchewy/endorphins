@@ -9,8 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
-	"unicode/utf8"
+	"time"
 
 	"github.com/epicchewy/endorphins/backend/internal/domains"
 	"github.com/epicchewy/endorphins/backend/internal/services/workout"
@@ -37,11 +36,11 @@ type Generator interface {
 type Workouts interface {
 	Create(context.Context, string, domains.SavedWorkout, string, string) (domains.SavedWorkout, error)
 	Get(context.Context, string, string) (domains.SavedWorkout, error)
-	List(context.Context, string, domains.WorkoutFilter, *domains.WorkoutCursor, int) ([]domains.SavedWorkout, error)
-	Summary(context.Context, string, domains.WorkoutFilter) (domains.WorkoutSummary, error)
+	List(context.Context, string, *domains.WorkoutCursor, int) ([]domains.SavedWorkout, error)
+	Count(context.Context, string) (int, error)
 	Complete(context.Context, string, string, string) (domains.Completion, error)
 	Undo(context.Context, string, string) error
-	Activity(context.Context, string, string) (domains.Activity, error)
+	Activity(context.Context, string, *time.Location) (domains.Activity, error)
 }
 type Service struct {
 	generator Generator
@@ -81,33 +80,8 @@ func (s *Service) Get(ctx context.Context, userID, id string) (domains.SavedWork
 type ListInput struct {
 	Cursor string
 	Limit  int
-	Filter domains.WorkoutFilter
-}
-type pageCursor struct {
-	Version int    `json:"v"`
-	Scope   string `json:"scope"`
-	domains.WorkoutCursor
 }
 
-func normalizeFilter(filter domains.WorkoutFilter) (domains.WorkoutFilter, error) {
-	filter.Query = strings.ToLower(strings.TrimSpace(filter.Query))
-	queryInvalid := !utf8.ValidString(filter.Query) || utf8.RuneCountInString(filter.Query) > 200 || strings.ContainsRune(filter.Query, 0)
-	levelInvalid := filter.Level < 0 || filter.Level > 5
-	if queryInvalid || levelInvalid {
-		return domains.WorkoutFilter{}, ErrInvalidPage
-	}
-	if filter.Sort == "" {
-		filter.Sort = "newest"
-	}
-	if filter.Sort != "newest" && filter.Sort != "shortest" {
-		return domains.WorkoutFilter{}, ErrInvalidPage
-	}
-	return filter, nil
-}
-func cursorScope(userID string, filter domains.WorkoutFilter) string {
-	digest := sha256.Sum256(fmt.Appendf(nil, "%s\x00%s\x00%d\x00%s", userID, filter.Query, filter.Level, filter.Sort))
-	return hex.EncodeToString(digest[:])
-}
 func (s *Service) List(ctx context.Context, userID string, input ListInput) (domains.WorkoutPage, error) {
 	if userID == "" {
 		return domains.WorkoutPage{}, fmt.Errorf("workout owner is required")
@@ -115,33 +89,11 @@ func (s *Service) List(ctx context.Context, userID string, input ListInput) (dom
 	if input.Limit < 1 || input.Limit > 50 {
 		return domains.WorkoutPage{}, ErrInvalidPage
 	}
-	filter, err := normalizeFilter(input.Filter)
+	before, err := decodeCursor(input.Cursor)
 	if err != nil {
 		return domains.WorkoutPage{}, err
 	}
-	scope := cursorScope(userID, filter)
-	var before *domains.WorkoutCursor
-	if input.Cursor != "" {
-		if len(input.Cursor) > 512 {
-			return domains.WorkoutPage{}, ErrInvalidPage
-		}
-		data, err := base64.RawURLEncoding.DecodeString(input.Cursor)
-		if err != nil {
-			return domains.WorkoutPage{}, ErrInvalidPage
-		}
-		var cursor pageCursor
-		if err := json.Unmarshal(data, &cursor); err != nil {
-			return domains.WorkoutPage{}, ErrInvalidPage
-		}
-		wrongScope := cursor.Version != 1 || cursor.Scope != scope
-		invalidPosition := cursor.CreatedAt.IsZero() || cursor.EstimatedMinutes < 0
-		invalidID := cursor.ID == "" || len(cursor.ID) > 128
-		if wrongScope || invalidPosition || invalidID {
-			return domains.WorkoutPage{}, ErrInvalidPage
-		}
-		before = &cursor.WorkoutCursor
-	}
-	items, err := s.workouts.List(ctx, userID, filter, before, input.Limit+1)
+	items, err := s.workouts.List(ctx, userID, before, input.Limit+1)
 	if err != nil {
 		return domains.WorkoutPage{}, err
 	}
@@ -149,21 +101,56 @@ func (s *Service) List(ctx context.Context, userID string, input ListInput) (dom
 	if len(items) > input.Limit {
 		page.Items = items[:input.Limit]
 		last := page.Items[input.Limit-1]
-		data, err := json.Marshal(pageCursor{Version: 1, Scope: scope, WorkoutCursor: domains.WorkoutCursor{CreatedAt: last.CreatedAt, ID: last.ID, EstimatedMinutes: last.EstimatedMinutes}})
+		page.NextCursor, err = encodeCursor(domains.WorkoutCursor{CreatedAt: last.CreatedAt, ID: last.ID})
 		if err != nil {
-			return domains.WorkoutPage{}, fmt.Errorf("encode cursor: %w", err)
+			return domains.WorkoutPage{}, err
 		}
-		page.NextCursor = base64.RawURLEncoding.EncodeToString(data)
 	}
 	return page, nil
 }
-func (s *Service) Summary(ctx context.Context, userID string, filter domains.WorkoutFilter) (domains.WorkoutSummary, error) {
-	if userID == "" {
-		return domains.WorkoutSummary{}, fmt.Errorf("workout owner is required")
-	}
-	filter, err := normalizeFilter(filter)
+
+// pageCursor is the opaque newest-first position. Cursors are positions, not
+// credentials: every store query still checks the owner.
+type pageCursor struct {
+	Version   int       `json:"v"`
+	CreatedAt time.Time `json:"createdAt"`
+	ID        string    `json:"id"`
+}
+
+func encodeCursor(position domains.WorkoutCursor) (string, error) {
+	data, err := json.Marshal(pageCursor{Version: 2, CreatedAt: position.CreatedAt, ID: position.ID})
 	if err != nil {
-		return domains.WorkoutSummary{}, err
+		return "", fmt.Errorf("encode cursor: %w", err)
 	}
-	return s.workouts.Summary(ctx, userID, filter)
+	return base64.RawURLEncoding.EncodeToString(data), nil
+}
+
+// decodeCursor returns nil for the first page.
+func decodeCursor(value string) (*domains.WorkoutCursor, error) {
+	if value == "" {
+		return nil, nil
+	}
+	if len(value) > 512 {
+		return nil, ErrInvalidPage
+	}
+	data, err := base64.RawURLEncoding.DecodeString(value)
+	if err != nil {
+		return nil, ErrInvalidPage
+	}
+	var cursor pageCursor
+	if err := json.Unmarshal(data, &cursor); err != nil {
+		return nil, ErrInvalidPage
+	}
+	if cursor.Version != 2 || cursor.CreatedAt.IsZero() || cursor.ID == "" || len(cursor.ID) > 128 {
+		return nil, ErrInvalidPage
+	}
+	return &domains.WorkoutCursor{CreatedAt: cursor.CreatedAt, ID: cursor.ID}, nil
+}
+
+// Count reports how many plans the account has saved.
+func (s *Service) Count(ctx context.Context, userID string) (int, error) {
+	if userID == "" {
+		return 0, fmt.Errorf("workout owner is required")
+	}
+	return s.workouts.Count(ctx, userID)
 }
