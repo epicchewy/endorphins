@@ -27,4 +27,4 @@ The migration drops a table and a column that the previous API still writes. Rai
 
 ## Verification
 
-`make check`, `make migration-check` from `c0688db`, and `make e2e` passed.
+`make check`, `make migration-check` from `c0688db`, and `make e2e` passed. After merging `master`, all three passed again, with the upgrade check from `59a0352`.
