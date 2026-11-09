@@ -1,9 +1,14 @@
 name: Check
 on:
   push:
+    branches: [master]
   pull_request:
 permissions:
   contents: read
+concurrency:
+  # A new push to a pull request cancels its older run; master runs never share a group.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -13,7 +18,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod
-          cache-dependency-path: backend/go.sum
+          # The Makefile pins golangci-lint, which `go run` caches in GOCACHE.
+          cache-dependency-path: |
+            backend/go.sum
+            Makefile
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -24,7 +32,20 @@ jobs:
       - name: Lint, React Doctor, tests, and release builds
         run: make check
       - run: git diff --exit-code -- frontend/app/routeTree.gen.ts frontend/app/types/api.gen.ts
-      - run: cd e2e && bunx playwright install --with-deps chromium
+  e2e:
+    # Builds the app in Docker, so it needs no Go or frontend dependencies on the host.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - run: cd e2e && bun install --frozen-lockfile
+      - run: cd e2e && bunx playwright install --with-deps --only-shell chromium
       - run: make e2e
       - uses: actions/upload-artifact@v4
         if: always()
@@ -36,7 +57,6 @@ jobs:
           retention-days: 7
   migration-check:
     # Upgrade a database seeded by the base commit to this commit.
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -46,5 +66,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod
-          cache-dependency-path: backend/go.sum
+          # A separate key: this short job finishes first and would otherwise save
+          # its small cache under the check job's key, which is then never replaced.
+          cache-dependency-path: |
+            backend/go.sum
+            scripts/migration-check.sh
       - run: make migration-check BASE=${{ github.event.pull_request.base.sha || github.event.before }}
