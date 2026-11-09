@@ -42,6 +42,8 @@ export default defineRailway(() => {
       CLERK_SECRET_KEY: preserve(),
       VITE_CLERK_PUBLISHABLE_KEY: preserve(),
       SEED_SUBJECTS: preserve(),
+      // Optional. Unset, the API reports nothing to Sentry.
+      SENTRY_DSN: preserve(),
     },
   })
 
@@ -61,6 +63,12 @@ export default defineRailway(() => {
       PORT: '3100',
       CLERK_SECRET_KEY: preserve(),
       VITE_CLERK_PUBLISHABLE_KEY: preserve(),
+      // Optional. The DSN turns on browser and SSR reporting; the token, org and
+      // project upload source maps during the Docker build.
+      VITE_SENTRY_DSN: preserve(),
+      SENTRY_AUTH_TOKEN: preserve(),
+      SENTRY_ORG: preserve(),
+      SENTRY_PROJECT: preserve(),
     },
   })
 

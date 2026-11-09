@@ -27,6 +27,8 @@ Open [Endorphins](http://127.0.0.1:3100). The Go API listens on `127.0.0.1:8088`
 
 Get keys with `clerk env pull` only. `clerk init` rewrites `frontend/app/start.ts`.
 
+The dev server shows TanStack Devtools at the bottom right, with Router and Query panels; release builds leave them out. Sentry error reporting is optional and off until a DSN is set; see [Configure Sentry](docs/deployment.md#configure-sentry).
+
 The Make targets use Bun’s CLI to load `.env.example` defaults and `frontend/.env.local`, then run Go directly. Exported variables take precedence.
 
 For separate terminals, run `make db-up`, `make migrate`, then `make api` and `make web`. Export `DATABASE_URL` to use a different database. Set `APP_ORIGINS` to comma-separated frontend origins when changing the frontend address; if changing `API_ADDRESS`, update `API_ORIGIN` too. `make db-stop` preserves your local database volume.
@@ -93,12 +95,13 @@ The generator retains the script’s difficulty-based time estimates, three body
 
 ## Original Python script
 
-`main.py`, the JSON exercise files, sample PDFs, and the original Make targets remain available. The Python path is separate from the web app:
+The original script, its sample PDFs, and its Make targets are in [`legacy/`](legacy/). It reads the shared `exercises/` catalogue at the repository root. The Python path is separate from the web app:
 
 ```sh
+cd legacy
 python3 -m pip install -r requirements.txt
 mkdir -p workouts
 python3 main.py 45 2 0
 ```
 
-This creates a workout PDF using the original algorithm. The existing `make workout` target also runs the original repository update script before generation.
+This creates a workout PDF in `legacy/workouts/` using the original algorithm. In `legacy/`, `make workout` also runs the original repository update script before generation.

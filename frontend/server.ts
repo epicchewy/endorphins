@@ -1,6 +1,14 @@
 import { realpath } from 'node:fs/promises'
 import { resolve, sep } from 'node:path'
+import * as Sentry from '@sentry/tanstackstart-react'
 
+// Before the SSR handler loads, so Start's Sentry middleware reports to this client.
+// Without a DSN Sentry stays off. Railway names the environment and the release commit.
+if (process.env.VITE_SENTRY_DSN)
+  Sentry.init({
+    dsn: process.env.VITE_SENTRY_DSN,
+    environment: process.env.RAILWAY_ENVIRONMENT_NAME,
+  })
 const clientDir = resolve(import.meta.dir, 'build/client')
 const clientRoot = await realpath(clientDir)
 // Assets are immutable for the process lifetime; compress once, not on every request.

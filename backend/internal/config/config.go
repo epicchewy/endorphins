@@ -18,11 +18,19 @@ type HTTPOptions struct {
 	Address string `long:"api-address" env:"API_ADDRESS" default:"127.0.0.1:8088" description:"HTTP listener address (host:port)"`
 }
 
+// SentryOptions configures error reporting. Without a DSN the API reports nothing.
+type SentryOptions struct {
+	DSN         string `long:"sentry-dsn" env:"SENTRY_DSN" default-mask:"-" description:"Sentry DSN for unexpected API errors; empty turns reporting off"`
+	Environment string `long:"sentry-environment" env:"RAILWAY_ENVIRONMENT_NAME" default:"development" description:"Sentry environment; Railway sets its environment name"`
+	Release     string `long:"sentry-release" env:"RAILWAY_GIT_COMMIT_SHA" description:"Sentry release; Railway sets the deployed commit"`
+}
+
 type Config struct {
 	HTTP      HTTPOptions       `group:"HTTP"`
 	Catalogue catalogue.Options `group:"Catalogue"`
 	Postgres  postgres.Options  `group:"Postgres"`
 	Clerk     clerk.Options     `group:"Clerk"`
+	Sentry    SentryOptions     `group:"Sentry"`
 }
 
 // MigrationConfig deliberately omits identity and HTTP options: migrating a
